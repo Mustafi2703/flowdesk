@@ -32,20 +32,22 @@ Optional: **GitHub** (or GitLab) repo connected to Vercel for automatic deploys 
 
 1. Push the `flowdesk` folder to a Git repository (or use Vercel CLI: `npx vercel` from `flowdesk/`).
 2. In the Vercel project:
-   - **Root directory**: `flowdesk` (if the repo root is `workspace2`, set subdirectory to `flowdesk`).
-   - **Build command** (recommended for production DB migrations on each deploy):
-
-     ```bash
-     prisma generate && prisma migrate deploy && next build
-     ```
-
+   - **Root directory**: leave default if the Git repo root **is** the `flowdesk` folder (this repo). If you import a monorepo, set the subdirectory to `flowdesk`.
+   - **Build command**: the repo’s `vercel.json` uses `prisma generate && next build` so the **first** deploy works even before `DATABASE_URL` exists (the app will show a database setup message until you add it).
    - **Install command**: `npm install` (default).
-3. Add environment variable **`DATABASE_URL`** = the same Railway Postgres URL (often append `?sslmode=require` if required).
-4. Deploy. After the first successful deploy, run **`npm run db:seed`** once against the same database (from your machine with `DATABASE_URL` in `.env`, or via Railway’s “Run command” if you use that), **or** rely on migrations only and insert seed data manually—seeding is idempotent (`upsert` by task id).
+3. Add environment variable **`DATABASE_URL`** = your Railway Postgres URL (often append `?sslmode=require`).
+4. In Vercel → **Settings → General → Build & Development Settings**, set **Build Command** to:
+
+   ```bash
+   prisma generate && prisma migrate deploy && next build
+   ```
+
+   Redeploy so the `tasks` table is created on Railway.
+5. Run **`npm run db:seed`** once (from your laptop with `DATABASE_URL` in `.env`) to load the **seven demo tasks**. Seeding is idempotent (`upsert` by task id).
 
 ## Build command note
 
-The default `npm run build` in `package.json` is `prisma generate && next build` so local builds work **without** hitting the database. For Vercel, override the build command to include `prisma migrate deploy` so schema changes apply automatically when `DATABASE_URL` is set.
+`package.json` `build` is `prisma generate && next build` so local builds do not require a running database. After `DATABASE_URL` is configured on Vercel, use the build command in step 4 so each deploy runs **`prisma migrate deploy`** against production.
 
 ## Security (current scope)
 

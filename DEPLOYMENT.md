@@ -136,6 +136,41 @@ Seeding is **idempotent** (same task IDs are upserted). You only need this once 
 
 ---
 
+## Part D — Deploy first, then verify functionality
+
+Use this order so you can **ship the app**, then **prove the stack works** before changing product features.
+
+### D1 — Code is live on Vercel (already possible without a DB)
+
+- Connect Git or use **Vercel CLI** (`npx vercel deploy --prod`) so every push can produce a new deployment.
+- The **build** can succeed with only `prisma generate && next build` (no database at build time).
+- Until **`DATABASE_URL`** is set and migrations + seed have run, the **home page** may show “Loading tasks…” followed by a **database unavailable** message — that is expected.
+
+### D2 — Wire the database (one-time per environment)
+
+1. Railway **public** `DATABASE_URL` (proxy host, not `*.railway.internal`).
+2. Vercel **Environment Variables** → `DATABASE_URL` for **Production**.
+3. Vercel **Build Command** → `prisma generate && prisma migrate deploy && next build` → **Redeploy** (so the `tasks` table exists).
+4. Laptop: same URL in `flowdesk/.env` → `npm run db:seed`.
+
+### D3 — Smoke test checklist (share this when demoing)
+
+Do these in the **production URL** (e.g. your `*.vercel.app` domain):
+
+| # | Check | Pass criteria |
+|---|--------|----------------|
+| 1 | **Load** | Brief “Loading tasks…” then **login** screen (department groups, names). If you see only a DB error, fix **D2**. |
+| 2 | **API** | Open `https://YOUR_DOMAIN/api/tasks` in the browser — JSON **array** of tasks (may be `[]` before seed; after seed, **7** items). |
+| 3 | **Team user** | Pick someone **without** MGR (e.g. a designer). **My Tasks** lists only their assignments; filters (status / brand) change the list. |
+| 4 | **Manager** | Sign out, pick someone **with** MGR. **Review Queue**, **Assign Tasks**, **All Tasks** appear; **My Tasks** shows overview. |
+| 5 | **Task card** | Click a task → **detail drawer** opens: title, brand, priority, due, timeline. |
+| 6 | **Read-only path** | Open a **closed** task — message that task is closed; no action buttons (or only appropriate state). |
+| 7 | **Write path** (optional) | As assignee on `in_progress` or `changes`: add a note and **Submit for review**; confirm status and timeline update after refresh. |
+
+If **7** works, **Prisma + API + browser** are all aligned — safe to move forward (auth, real users table, notifications, etc.).
+
+---
+
 ## Quick checklist
 
 | Step | Where | Action |

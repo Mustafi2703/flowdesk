@@ -148,6 +148,26 @@ Seeding is **idempotent** (same task IDs are upserted). You only need this once 
 
 ---
 
+## Hobby tier, low traffic, and your workspace
+
+**Vercel Hobby** is enough for a small internal FlowDesk: a handful of people, occasional page loads, and short API calls to list/update tasks. You are unlikely to hit typical Hobby limits for this use pattern. If the team grows or usage spikes, you can revisit Pro.
+
+**Railway workspace:** keep **one PostgreSQL** service in a project (e.g. `flowdesk-db`). You do not need separate “volumes” or multiple databases for this app. Low traffic = a small instance / free-tier style usage is usually fine; watch Railway’s **usage / credits** in the dashboard so you are not surprised by billing.
+
+**Practical next steps (in order):**
+
+1. In your **Railway workspace**, create a project and add **PostgreSQL** (see the **First time: create PostgreSQL on Railway** section at the top of this file). Copy the **public** `DATABASE_URL` (or equivalent) for use outside Railway.
+2. In **Vercel**, open your FlowDesk project → **Environment variables** → set **`DATABASE_URL`** for **Production** (and Preview only if you use preview deploys and want them to hit the same DB).
+3. Set the **build command** to run migrations (see **Part B — Vercel** below), then **Redeploy** (or push to `main` if Git is connected).
+4. On your laptop, with the same `DATABASE_URL` in `flowdesk/.env`, run **`npm run db:seed`** once so demo tasks exist.
+5. Open your production URL, pick a profile, and do a quick smoke test (open a task, submit a note on a test task if you like).
+6. **Share the URL only with people who should use it** — there is still no real login; treat the link like an internal tool.
+7. **Later (optional):** add real auth, or at least **Vercel Deployment Protection** / IP allowlist if you want a minimal gate; trim seed data or rotate DB if you ever expose the URL publicly.
+
+For **what the app does**, see **[`OVERVIEW.md`](./OVERVIEW.md)**.
+
+---
+
 ## Security (current demo)
 
 There is **no real login**. Anyone with the URL can pick any profile. For production, add real auth (e.g. OAuth) and protect API routes.

@@ -2,13 +2,36 @@
 
 FlowDesk is **Next.js on Vercel** and **PostgreSQL on Railway**. Tasks are stored in Postgres via Prisma.
 
-**Repo:** [github.com/Mustafi2703/flowdesk](https://github.com/Mustafi2703/flowdesk)
+**Repo:** [github.com/Mustafi2703/flowdesk](https://github.com/Mustafi2703/flowdesk)  
+**What the app does (product):** see **[`OVERVIEW.md`](./OVERVIEW.md)** in this repo.
 
 Do **Railway first** (database + URL), then **Vercel** (env + build + deploy), then **seed** once.
 
 ---
 
-## Part A — Railway (Postgres)
+## First time: create PostgreSQL on Railway
+
+You have **not** created a database yet — follow this once. On Railway you do **not** attach a “Postgres volume” as a separate step like on a VPS; you add a **PostgreSQL database service** and Railway provisions storage for you.
+
+1. Go to **[railway.app](https://railway.app)** and sign in (GitHub login is common).
+2. From the workspace dashboard, click **New Project**.
+3. Choose one of:
+   - **Deploy PostgreSQL** / **Provision PostgreSQL** (if the template appears), **or**
+   - **Empty project**, then inside the project click **+ New** → **Database** → **PostgreSQL**.
+4. Wait until the **PostgreSQL** service shows as running (green / active). Railway creates default credentials and injects **`DATABASE_URL`** into that service’s environment.
+5. Open the **PostgreSQL** service card → **Variables** tab. Locate **`DATABASE_URL`**. That value is what Prisma uses on Railway’s private network (often with a host like `*.railway.internal`).
+6. **For Vercel** (builds and serverless functions run on the public internet), you need a connection string that works **from outside Railway**:
+   - Open the Postgres service → **Settings** (gear) or **Networking**.
+   - Enable **public networking** / **TCP proxy** if Railway offers it for this database.
+   - After enabling, check **Variables** again: Railway often adds something like **`DATABASE_PUBLIC_URL`** or updates the connect docs with a **public host and port**. Use that full URL in Vercel as **`DATABASE_URL`**.
+   - If the URL does not already include SSL parameters, try appending **`?sslmode=require`** (some clients require it).
+7. **Copy the final URL** you will use on Vercel. Optionally paste the same into a local **`.env`** file in the `flowdesk` repo for `npm run db:seed` (see Part C).
+
+If anything is unclear in the Railway UI (names change over time), use Railway’s own **Connect** / **Postgres** instructions from the service page; the goal is always: **one Postgres instance + one public `DATABASE_URL` for Vercel**.
+
+---
+
+## Part A — Railway (Postgres) — recap
 
 1. **Log in** at [railway.app](https://railway.app) and open your team or personal workspace.
 

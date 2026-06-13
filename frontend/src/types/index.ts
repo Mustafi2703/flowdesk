@@ -4,6 +4,7 @@ export interface Profile {
   id: string; name: string; email: string; role: Role
   department: string | null; designation: string | null; avatar: string | null
   is_active: boolean; leaves_total: number; leaves_taken: number
+  manager_id: string | null
   created_at: string; updated_at: string
 }
 
@@ -86,6 +87,7 @@ export const STATUS_TEXT: Record<string, string> = {
 
 export const NAV_ITEMS = [
   { id: 'overview',      label: 'Dashboard',     icon: '⊞', roles: ['owner','manager','team','hr','accountant','developer'] },
+  { id: 'calendar',      label: 'Calendar',      icon: '◫', roles: ['owner','manager','team','hr','accountant','developer'] },
   { id: 'tasks',         label: 'Tasks',         icon: '✓', roles: ['owner','manager','team'] },
   { id: 'devboard',      label: 'Dev Board',     icon: '⌨', roles: ['owner','developer','manager'] },
   { id: 'brands',        label: 'Brands',        icon: '◈', roles: ['owner','manager','hr','accountant','team'] },

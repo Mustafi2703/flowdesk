@@ -5,12 +5,12 @@ import { useRouter } from 'next/navigation'
 import { ThemeToggle } from '@/components/app/ThemeProvider'
 
 const DEMOS = [
-  { role: 'Owner', email: 'owner@scrumfolks.com', color: '#E8630A' },
-  { role: 'Manager', email: 'manager@scrumfolks.com', color: '#3B82F6' },
-  { role: 'Team', email: 'team@scrumfolks.com', color: '#10B981' },
-  { role: 'HR', email: 'hr@scrumfolks.com', color: '#8B5CF6' },
-  { role: 'Accountant', email: 'accountant@scrumfolks.com', color: '#EC4899' },
-  { role: 'Developer', email: 'dev@scrumfolks.com', color: '#06B6D4' },
+  { role: 'owner', label: 'Owner', email: 'owner@scrumfolks.com', color: '#E8630A' },
+  { role: 'manager', label: 'Manager', email: 'manager@scrumfolks.com', color: '#3B82F6' },
+  { role: 'team', label: 'Team', email: 'team@scrumfolks.com', color: '#10B981' },
+  { role: 'hr', label: 'HR', email: 'hr@scrumfolks.com', color: '#8B5CF6' },
+  { role: 'accountant', label: 'Accountant', email: 'accountant@scrumfolks.com', color: '#EC4899' },
+  { role: 'developer', label: 'Developer', email: 'dev@scrumfolks.com', color: '#06B6D4' },
 ]
 
 export default function LoginPage() {
@@ -20,6 +20,16 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  async function handleAuth(res: Response) {
+    const data = await res.json()
+    if (!res.ok) {
+      setError(data.error || data.detail || 'Login failed')
+      setLoading(false)
+      return
+    }
+    router.push('/overview')
+  }
+
   async function doLogin(em: string, pw: string) {
     setLoading(true)
     setError('')
@@ -28,13 +38,18 @@ export default function LoginPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: em, password: pw }),
     })
-    const data = await res.json()
-    if (!res.ok) {
-      setError(data.error || data.detail || 'Login failed')
-      setLoading(false)
-      return
-    }
-    router.push('/overview')
+    await handleAuth(res)
+  }
+
+  async function doDemoLogin(role: string) {
+    setLoading(true)
+    setError('')
+    const res = await fetch('/api/auth/demo-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    })
+    await handleAuth(res)
   }
 
   return (
@@ -167,18 +182,20 @@ export default function LoginPage() {
               <button
                 key={d.role}
                 type="button"
-                onClick={() => doLogin(d.email, 'scrumfolks2026')}
+                disabled={loading}
+                onClick={() => doDemoLogin(d.role)}
                 style={{
                   padding: '0.625rem 0.75rem',
                   background: 'var(--sf-surface-2)',
                   border: '1px solid var(--sf-border)',
                   borderRadius: 9,
                   color: 'var(--sf-text)',
-                  cursor: 'pointer',
+                  cursor: loading ? 'wait' : 'pointer',
                   textAlign: 'left',
                   fontFamily: 'inherit',
                   width: '100%',
                   transition: 'border-color 0.15s',
+                  opacity: loading ? 0.7 : 1,
                 }}
               >
                 <div style={{ fontWeight: 600, fontSize: 12 }}>
@@ -192,7 +209,7 @@ export default function LoginPage() {
                       marginRight: 5,
                     }}
                   />
-                  {d.role}
+                  {d.label}
                 </div>
                 <div style={{ color: 'var(--sf-muted)', fontSize: 10, marginTop: 2 }}>{d.email}</div>
               </button>

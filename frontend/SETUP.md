@@ -80,7 +80,7 @@ git push -u origin main
 | `NEXT_PUBLIC_APP_URL` | `https://tasks.scrumfolks.com` |
 
 5. **Deploy** → wait ~2 minutes
-6. Test the URL Vercel gives you (e.g. `scrumfolks-tms-abc.vercel.app`) — login with `owner@scrumfolks.com` / `scrumfolks2026`
+6. Test the URL Vercel gives you — use demo role buttons or admin-supplied credentials
 
 ---
 
@@ -102,7 +102,7 @@ Wait 2–5 minutes. Open `tasks.scrumfolks.com`. It's live. ✓
 
 ## Login Credentials
 
-**All users start with password: `scrumfolks2026`**
+**Demo users:** password comes from server `SEED_PASSWORD` env — not stored in the repo.
 
 | Email | Role |
 |-------|------|

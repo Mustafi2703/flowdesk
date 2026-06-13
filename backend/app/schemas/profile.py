@@ -22,6 +22,7 @@ class ProfileCreate(ProfileBase):
     # password and returns it to the caller (manager onboarding flow).
     password: str | None = Field(default=None, min_length=8, max_length=128)
     leaves_total: int = 21
+    manager_id: uuid.UUID | None = None
 
 
 class ProfileUpdate(BaseModel):
@@ -32,6 +33,7 @@ class ProfileUpdate(BaseModel):
     role: str | None = None
     is_active: bool | None = None
     leaves_total: int | None = None
+    manager_id: uuid.UUID | None = None
 
 
 class PasswordChange(BaseModel):
@@ -46,4 +48,5 @@ class ProfileOut(ProfileBase):
     is_active: bool
     leaves_total: int
     leaves_taken: int
+    manager_id: uuid.UUID | None = None
     created_at: datetime

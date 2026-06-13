@@ -9,12 +9,52 @@ export default function Sidebar({ session }: { session: SessionUser }) {
   const router = useRouter()
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' })
+  const [pwError, setPwError] = useState('')
+  const [pwNotice, setPwNotice] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
 
   const nav = NAV_ITEMS.filter(n => (n.roles as readonly string[]).includes(session.role))
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/login')
+  }
+
+  async function changePassword(e: React.FormEvent) {
+    e.preventDefault()
+    setPwError('')
+    setPwNotice('')
+    if (pwForm.next.length < 8) {
+      setPwError('New password must be at least 8 characters')
+      return
+    }
+    if (pwForm.next !== pwForm.confirm) {
+      setPwError('New passwords do not match')
+      return
+    }
+    setPwSaving(true)
+    const res = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        current_password: pwForm.current,
+        new_password: pwForm.next,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setPwSaving(false)
+    if (!res.ok) {
+      setPwError(data.detail || data.error || 'Could not change password')
+      return
+    }
+    setPwNotice('Password updated successfully')
+    setPwForm({ current: '', next: '', confirm: '' })
+    setTimeout(() => {
+      setShowPassword(false)
+      setPwNotice('')
+    }, 1500)
   }
 
   const roleColor = ROLE_COLORS[session.role] || 'var(--sf-accent)'
@@ -157,6 +197,10 @@ export default function Sidebar({ session }: { session: SessionUser }) {
             <ThemeToggle compact />
           </div>
         )}
+        <button className="sf-nav" onClick={() => { setShowPassword(true); setPwError(''); setPwNotice('') }} style={{ marginBottom: 2 }}>
+          <span className="sf-icon">🔑</span>
+          {!collapsed && 'Change Password'}
+        </button>
         <button className="sf-nav" onClick={() => setCollapsed(c => !c)} style={{ marginBottom: 2 }}>
           <span className="sf-icon">{collapsed ? '▶' : '◀'}</span>
           {!collapsed && 'Collapse'}
@@ -166,6 +210,50 @@ export default function Sidebar({ session }: { session: SessionUser }) {
           {!collapsed && 'Sign Out'}
         </button>
       </div>
+
+      {showPassword && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 20,
+          }}
+          onClick={() => setShowPassword(false)}
+        >
+          <form
+            onSubmit={changePassword}
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 380,
+              background: 'var(--sf-surface)',
+              border: '1px solid var(--sf-border)',
+              borderRadius: 14,
+              padding: 24,
+            }}
+          >
+            <div style={{ color: 'var(--sf-text)', fontWeight: 800, fontSize: 16, marginBottom: 4 }}>Change Password</div>
+            <div style={{ color: 'var(--sf-muted)', fontSize: 12, marginBottom: 16 }}>Set a new password for your account</div>
+            {pwError && <div style={{ color: 'var(--sf-danger)', fontSize: 12, marginBottom: 10 }}>{pwError}</div>}
+            {pwNotice && <div style={{ color: '#10B981', fontSize: 12, marginBottom: 10 }}>{pwNotice}</div>}
+            <label className="sf-label">Current password</label>
+            <input type="password" className="sf-input" required value={pwForm.current} onChange={e => setPwForm({ ...pwForm, current: e.target.value })} style={{ marginBottom: 10 }} />
+            <label className="sf-label">New password</label>
+            <input type="password" className="sf-input" required minLength={8} value={pwForm.next} onChange={e => setPwForm({ ...pwForm, next: e.target.value })} style={{ marginBottom: 10 }} />
+            <label className="sf-label">Confirm new password</label>
+            <input type="password" className="sf-input" required minLength={8} value={pwForm.confirm} onChange={e => setPwForm({ ...pwForm, confirm: e.target.value })} style={{ marginBottom: 16 }} />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button type="button" onClick={() => setShowPassword(false)} className="sf-btn" style={{ background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)' }}>Cancel</button>
+              <button type="submit" disabled={pwSaving} className="sf-btn sf-btn-primary">{pwSaving ? 'Saving…' : 'Update Password'}</button>
+            </div>
+          </form>
+        </div>
+      )}
     </aside>
   )
 }

@@ -154,6 +154,7 @@ class UserFactory:
         designation: str | None = None,
         leaves_total: int = 21,
         is_active: bool = True,
+        manager_id=None,
     ):
         from app.core.security import hash_password
         from app.models.profile import Profile
@@ -170,6 +171,7 @@ class UserFactory:
             avatar=role[:2].upper(),
             leaves_total=leaves_total,
             is_active=is_active,
+            manager_id=manager_id,
         )
         self.db.add(profile)
         self.db.commit()

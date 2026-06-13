@@ -63,11 +63,7 @@ These are intentionally process-local for the 40-50 user target. If the app late
 
 ## Authentication
 
-The demo users are real seeded `profiles` rows with bcrypt password hashes. The default demo password is:
-
-```text
-scrumfolks2026
-```
+The demo users are real seeded `profiles` rows with bcrypt password hashes. Set `SEED_PASSWORD` in the environment when `SEED_DEMO=true` — never commit passwords to git. Use the **Quick demo access** buttons on the login page (password stays server-side).
 
 Change all passwords and secrets before production deployment.
 

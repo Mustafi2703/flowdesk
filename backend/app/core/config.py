@@ -80,7 +80,10 @@ class Settings(BaseSettings):
 
     # ── Seed / Bootstrap ─────────────────────────────────────────────────
     # Demo seed (9 sample users + brands + tasks) — only for demos.
-    seed_password: str = "scrumfolks2026"
+    seed_demo: bool = False
+    # Demo seed password — MUST be supplied via SEED_PASSWORD env when SEED_DEMO=true.
+    # Never commit a real password to the repository.
+    seed_password: str = ""
 
     # Production bootstrap: create exactly ONE owner account on first boot so
     # the client can log in and onboard everyone else through the Team UI.

@@ -42,7 +42,7 @@ Health check:
 curl http://127.0.0.1:8000/health
 ```
 
-Default seed password is `scrumfolks2026`. Change every seed-user password immediately after launch.
+Set `SEED_PASSWORD` (min 8 chars) when `SEED_DEMO=true`. Change every seed-user password immediately after launch.
 
 ## Production Sizing
 

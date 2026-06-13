@@ -194,8 +194,8 @@ create policy "all_files"           on file_attachments for all using (true);
 create policy "all_summaries"       on daily_summaries for all using (true);
 create policy "all_sops"            on sop_documents   for all using (true);
 
--- ── SEED USERS — password for all is 'scrumfolks2026' ────────
--- The bcrypt hash below is for 'scrumfolks2026' (10 rounds)
+-- ── SEED USERS — bcrypt hashes only; set password via SEED_PASSWORD env ────────
+-- Example hash below (replace when rotating demo credentials)
 insert into profiles (id, name, email, password_hash, role, department, designation, avatar) values
   ('11111111-0000-0000-0000-000000000001', 'Rushabh Shah',  'owner@scrumfolks.com',      '$2b$10$rBKXRRuERxD1ueMc/9BEI.jWt5SuwquyOKqPtSMk0jWR0mvNHBV.K', 'owner',      'Leadership',   'Director',                'RS'),
   ('11111111-0000-0000-0000-000000000002', 'Priya Mehta',   'manager@scrumfolks.com',    '$2b$10$rBKXRRuERxD1ueMc/9BEI.jWt5SuwquyOKqPtSMk0jWR0mvNHBV.K', 'manager',    'Creative',     'Creative Manager',        'PM'),
@@ -218,5 +218,5 @@ insert into brands (id, name, logo, description, client_type, priority, short_te
 on conflict (id) do nothing;
 
 -- ============================================================
--- DONE. Login at tasks.scrumfolks.com with password: scrumfolks2026
+-- DONE. Login at tasks.scrumfolks.com with credentials from your admin.
 -- ============================================================

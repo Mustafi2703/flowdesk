@@ -20,7 +20,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user
@@ -39,6 +39,9 @@ router = APIRouter(prefix="/team", tags=["team"])
 # ── Role-allowlists for who-can-create-whom ─────────────────────────────────
 _MANAGER_ASSIGNABLE: frozenset[Role] = frozenset({Role.TEAM, Role.DEVELOPER})
 _OWNER_ASSIGNABLE: frozenset[Role] = frozenset(Role)
+
+
+_MANAGEMENT_ROLES: frozenset[Role] = frozenset({Role.OWNER, Role.MANAGER})
 
 
 def _require_team_view(user: Profile) -> None:
@@ -64,6 +67,42 @@ def _generate_temp_password() -> str:
     return "".join(secrets.choice(alphabet) for _ in range(12))
 
 
+def _resolve_manager_id(
+    db: Session,
+    *,
+    actor: Profile,
+    new_role: Role,
+    requested_manager_id: uuid.UUID | None,
+) -> uuid.UUID | None:
+    """Owner picks a manager; managers auto-assign themselves as manager."""
+    actor_role = Role(actor.role)
+    if actor_role is Role.MANAGER:
+        return actor.id
+    if actor_role is not Role.OWNER:
+        return None
+    if requested_manager_id is None:
+        return None
+    manager = db.get(Profile, requested_manager_id)
+    if not manager or not manager.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid manager")
+    if Role(manager.role) not in _MANAGEMENT_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Manager must be an owner or manager account",
+        )
+    return manager.id
+
+
+def _team_query_for(user: Profile, include_inactive: bool):
+    stmt = select(Profile).order_by(Profile.department, Profile.name)
+    if not include_inactive:
+        stmt = stmt.where(Profile.is_active.is_(True))
+    role = Role(user.role)
+    if role is Role.MANAGER:
+        stmt = stmt.where(or_(Profile.manager_id == user.id, Profile.id == user.id))
+    return stmt
+
+
 # ── Reads ───────────────────────────────────────────────────────────────────
 @router.get("", response_model=list[ProfileOut])
 def list_team(
@@ -72,9 +111,7 @@ def list_team(
     include_inactive: bool = False,
 ) -> list[Profile]:
     _require_team_view(user)
-    stmt = select(Profile).order_by(Profile.department, Profile.name)
-    if not include_inactive:
-        stmt = stmt.where(Profile.is_active.is_(True))
+    stmt = _team_query_for(user, include_inactive)
     return db.scalars(stmt).all()
 
 
@@ -159,6 +196,9 @@ def create_user(
     # If the caller did not provide a password, we generate one and return it
     # exactly once. This is the standard onboarding flow used by Managers.
     plain_password = payload.password.strip() if payload.password else _generate_temp_password()
+    manager_id = _resolve_manager_id(
+        db, actor=user, new_role=new_role, requested_manager_id=payload.manager_id
+    )
     profile = Profile(
         name=payload.name.strip(),
         email=email,
@@ -168,6 +208,7 @@ def create_user(
         designation=payload.designation,
         avatar=(payload.avatar or payload.name[:2]).upper(),
         leaves_total=payload.leaves_total,
+        manager_id=manager_id,
     )
     db.add(profile)
     db.commit()
@@ -216,8 +257,15 @@ def update_user(
         db.refresh(profile)
         return profile
 
-    # Only owner can edit other users' role or fields beyond the safe set.
+    # Only owner can edit other users' role, manager, or fields beyond the safe set.
     if role is Role.OWNER:
+        if "manager_id" in incoming and incoming["manager_id"] is not None:
+            incoming["manager_id"] = _resolve_manager_id(
+                db,
+                actor=user,
+                new_role=Role(incoming.get("role") or profile.role),
+                requested_manager_id=incoming["manager_id"],
+            )
         for key, value in incoming.items():
             setattr(profile, key, value)
         db.commit()
@@ -315,6 +363,33 @@ def activate_user(
     db.commit()
     DASHBOARD_CACHE.invalidate()
     return ReactivateResponse(ok=True, activated=str(profile.id))
+
+
+@router.get("/managers", response_model=list[ProfileOut])
+def list_managers(db: Session = Depends(get_db), user: Profile = Depends(get_current_user)) -> list[Profile]:
+    """Assignable managers for onboarding (owner assigns reporting line)."""
+    if Role(user.role) is not Role.OWNER:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner only")
+    return db.scalars(
+        select(Profile)
+        .where(
+            Profile.is_active.is_(True),
+            Profile.role.in_([Role.OWNER.value, Role.MANAGER.value]),
+        )
+        .order_by(Profile.name)
+    ).all()
+
+
+@router.get("/reports", response_model=list[ProfileOut])
+def my_reports(db: Session = Depends(get_db), user: Profile = Depends(get_current_user)) -> list[Profile]:
+    """Direct reports for the signed-in manager."""
+    if Role(user.role) not in {Role.OWNER, Role.MANAGER}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers only")
+    return db.scalars(
+        select(Profile)
+        .where(Profile.is_active.is_(True), Profile.manager_id == user.id)
+        .order_by(Profile.name)
+    ).all()
 
 
 # Compatibility alias — the Next.js UI fetches /api/users, which the

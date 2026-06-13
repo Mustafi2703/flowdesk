@@ -10,6 +10,7 @@
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -19,25 +20,26 @@ from app.core.rate_limit import limiter
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.session import get_db
 from app.models.profile import Profile
-from app.schemas.auth import LoginRequest, SessionUser, TokenResponse
+from app.schemas.auth import LoginRequest, SessionUser
 from app.schemas.profile import PasswordChange
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+_DEMO_ROLE_EMAILS: dict[str, str] = {
+    "owner": "owner@scrumfolks.com",
+    "manager": "manager@scrumfolks.com",
+    "team": "team@scrumfolks.com",
+    "hr": "hr@scrumfolks.com",
+    "accountant": "accountant@scrumfolks.com",
+    "developer": "dev@scrumfolks.com",
+}
 
-@router.post("/login")
-@limiter.limit("10/minute")
-def login(
-    payload: LoginRequest,
-    request: Request,
-    response: Response,
-    db: Session = Depends(get_db),
-) -> dict:
-    """Return `{ user }` — same shape the Next.js login page expects."""
-    user = db.scalar(select(Profile).where(Profile.email == payload.email.lower(), Profile.is_active.is_(True)))
-    if not user or not verify_password(payload.password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
+class DemoLoginRequest(BaseModel):
+    role: str = Field(min_length=2, max_length=20)
+
+
+def _issue_session(user: Profile, response: Response) -> dict:
     session_user = {
         "id": str(user.id),
         "name": user.name,
@@ -64,6 +66,43 @@ def login(
         path="/",
     )
     return {"user": session_user, "access_token": token}
+
+
+@router.post("/login")
+@limiter.limit("10/minute")
+def login(
+    payload: LoginRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> dict:
+    """Return `{ user }` — same shape the Next.js login page expects."""
+    user = db.scalar(select(Profile).where(Profile.email == payload.email.lower(), Profile.is_active.is_(True)))
+    if not user or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+    return _issue_session(user, response)
+
+
+@router.post("/demo-login")
+@limiter.limit("30/minute")
+def demo_login(
+    payload: DemoLoginRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> dict:
+    """One-click demo access — password never leaves the server."""
+    if not settings.seed_demo:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Demo login disabled")
+    if not settings.seed_password or len(settings.seed_password) < 8:
+        raise HTTPException(status_code=status.HTTP_503_FORBIDDEN, detail="Demo not configured")
+    email = _DEMO_ROLE_EMAILS.get(payload.role.lower().strip())
+    if not email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown demo role")
+    user = db.scalar(select(Profile).where(Profile.email == email, Profile.is_active.is_(True)))
+    if not user or not verify_password(settings.seed_password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_503_FORBIDDEN, detail="Demo accounts not ready")
+    return _issue_session(user, response)
 
 
 @router.post("/logout")

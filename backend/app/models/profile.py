@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Boolean, Integer, String, text
+import uuid
+
+from sqlalchemy import Boolean, ForeignKey, Integer, String, text
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampsMixin, UUIDPKMixin
@@ -23,6 +26,13 @@ class Profile(UUIDPKMixin, TimestampsMixin, Base):
     )
     leaves_total: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("21"))
     leaves_taken: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    # Direct manager — owner assigns managers; new hires inherit their onboarder's id.
+    manager_id: Mapped[uuid.UUID | None] = mapped_column(
+        postgresql.UUID(as_uuid=True),
+        ForeignKey("profiles.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<Profile {self.name} role={self.role}>"

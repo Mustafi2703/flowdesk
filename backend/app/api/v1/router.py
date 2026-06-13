@@ -11,6 +11,7 @@ from app.api.v1.endpoints import (
     auth,
     billing,
     brands,
+    calendar,
     cron,
     dashboard,
     leaves,
@@ -28,6 +29,7 @@ api_router.include_router(dashboard.router)
 api_router.include_router(tasks.router)
 api_router.include_router(tasks.dev_router)
 api_router.include_router(brands.router)
+api_router.include_router(calendar.router)
 api_router.include_router(team.router)
 api_router.include_router(users.router)
 api_router.include_router(attendance.router)

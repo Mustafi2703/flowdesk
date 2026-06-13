@@ -180,3 +180,43 @@ def test_workload_calculation(client, users):
     row = next(r for r in rows if r["user"]["id"] == str(team.id))
     assert row["active_tasks"] == 3
     assert row["workload"] == "Fully Loaded"
+
+
+def test_owner_assigns_manager_on_onboard(client, users):
+    owner = users.create("owner")
+    manager = users.create("manager")
+    resp = client.post(
+        "/api/v1/team",
+        headers=users.auth_headers(owner),
+        json={
+            "name": "New Hire",
+            "email": "hire@scrumfolks.io",
+            "role": "team",
+            "manager_id": str(manager.id),
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["user"]["manager_id"] == str(manager.id)
+
+
+def test_manager_onboard_sets_self_as_manager(client, users):
+    manager = users.create("manager")
+    resp = client.post(
+        "/api/v1/team",
+        headers=users.auth_headers(manager),
+        json={"name": "Junior", "email": "junior2@scrumfolks.io", "role": "developer"},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["user"]["manager_id"] == str(manager.id)
+
+
+def test_manager_sees_only_reports_in_team_list(client, users):
+    owner = users.create("owner")
+    manager = users.create("manager")
+    report = users.create("team", manager_id=manager.id)
+    users.create("team")  # unassigned report — owner sees, manager should not
+    listed = client.get("/api/v1/team", headers=users.auth_headers(manager)).json()
+    ids = {u["id"] for u in listed}
+    assert str(manager.id) in ids
+    assert str(report.id) in ids
+    assert len(ids) == 2

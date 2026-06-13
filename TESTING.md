@@ -3,7 +3,7 @@
 Use this checklist to verify **every module** matches the requirements document before client handoff. Test on the **live demo** or locally.
 
 **Live demo:** https://frontend-production-c885.up.railway.app/login  
-**Password (all demo users):** `scrumfolks2026`
+**Demo access:** use the role buttons on the login page, or sign in with credentials supplied by your admin (`SEED_PASSWORD` on the server).
 
 **Automated backend suite (77 tests):** see `DEPLOYMENT_FASTAPI.md` §11 or run:
 

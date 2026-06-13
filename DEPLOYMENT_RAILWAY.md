@@ -85,7 +85,7 @@ For multiple clients later:
 APP_ENV=production
 APP_DEBUG=false
 SEED_DEMO=true
-SEED_PASSWORD=scrumfolks2026
+SEED_PASSWORD=<strong-random-password-min-8-chars>
 JWT_SECRET=<openssl rand -hex 32>
 CRON_SECRET=<openssl rand -hex 32>
 COOKIE_SECURE=true
@@ -118,8 +118,7 @@ After generating domains, update `ALLOWED_ORIGINS`, `APP_BASE_URL`, and
 After first successful deploy (`SEED_DEMO=true`):
 
 - URL: frontend Railway domain → `/login`
-- Email: `owner@scrumfolks.com`
-- Password: `scrumfolks2026`
+- Use **Quick demo access** role buttons, or email `owner@scrumfolks.com` with the `SEED_PASSWORD` you set in Railway
 
 ## 6. Current project (live demo URLs)
 
@@ -127,4 +126,4 @@ After first successful deploy (`SEED_DEMO=true`):
 - Dashboard: https://railway.com/project/6d64c844-14e2-4cd0-b08e-b902c433c427
 - **Frontend (share with client):** https://frontend-production-c885.up.railway.app/login
 - Backend API: https://backend-production-d5dd9.up.railway.app
-- Login: `owner@scrumfolks.com` / `scrumfolks2026`
+- Login: use demo role buttons, or `owner@scrumfolks.com` + your configured `SEED_PASSWORD`

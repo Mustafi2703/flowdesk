@@ -2,12 +2,10 @@
 
 Run after `alembic upgrade head`:
 
-    python -m app.scripts.seed
+    SEED_PASSWORD='your-demo-password' python -m app.scripts.seed
 
-The 9 demo accounts here match the quick-login buttons on the Next.js login
-screen. They all share the same password (`scrumfolks2026` by default,
-overridable via SEED_PASSWORD) so it is trivial to switch personas during
-the live demo.
+The 9 demo accounts match the quick-login buttons on the Next.js login
+screen. Password is read from SEED_PASSWORD only — never hardcoded here.
 
 A handful of brands and tasks are also seeded so every role lands on a
 populated dashboard immediately.
@@ -15,6 +13,7 @@ populated dashboard immediately.
 
 from __future__ import annotations
 
+import sys
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
@@ -34,16 +33,20 @@ def _u(s: str) -> uuid.UUID:
     return uuid.UUID(s)
 
 
+OWNER = _u("11111111-0000-0000-0000-000000000001")
+PRIYA = _u("11111111-0000-0000-0000-000000000002")
+AMIT = _u("11111111-0000-0000-0000-000000000009")
+
 USERS = [
-    (_u("11111111-0000-0000-0000-000000000001"), "Rushabh Shah",  "owner@scrumfolks.com",      "owner",      "Leadership",  "Director",                "RS"),
-    (_u("11111111-0000-0000-0000-000000000002"), "Priya Mehta",   "manager@scrumfolks.com",    "manager",    "Creative",    "Creative Manager",        "PM"),
-    (_u("11111111-0000-0000-0000-000000000003"), "Arjun Patel",   "team@scrumfolks.com",       "team",       "Design",      "Senior Designer",         "AP"),
-    (_u("11111111-0000-0000-0000-000000000004"), "Neha Joshi",    "hr@scrumfolks.com",         "hr",         "HR",          "HR Manager",              "NJ"),
-    (_u("11111111-0000-0000-0000-000000000005"), "Ravi Kumar",    "ravi@scrumfolks.com",       "team",       "Content",     "Content Writer",          "RK"),
-    (_u("11111111-0000-0000-0000-000000000006"), "Sonal Shah",    "sonal@scrumfolks.com",      "team",       "Social Media","Social Media Executive",  "SS"),
-    (_u("11111111-0000-0000-0000-000000000007"), "Kavita Rao",    "accountant@scrumfolks.com", "accountant", "Finance",     "Accountant",              "KR"),
-    (_u("11111111-0000-0000-0000-000000000008"), "Dev Sharma",    "dev@scrumfolks.com",        "developer",  "Technology",  "Full Stack Developer",    "DS"),
-    (_u("11111111-0000-0000-0000-000000000009"), "Amit Verma",    "amit@scrumfolks.com",       "manager",    "Digital",     "Digital Manager",         "AV"),
+    (OWNER, "Rushabh Shah",  "owner@scrumfolks.com",      "owner",      "Leadership",  "Director",                "RS", None),
+    (PRIYA, "Priya Mehta",   "manager@scrumfolks.com",    "manager",    "Creative",    "Creative Manager",        "PM", OWNER),
+    (_u("11111111-0000-0000-0000-000000000003"), "Arjun Patel",   "team@scrumfolks.com",       "team",       "Design",      "Senior Designer",         "AP", PRIYA),
+    (_u("11111111-0000-0000-0000-000000000004"), "Neha Joshi",    "hr@scrumfolks.com",         "hr",         "HR",          "HR Manager",              "NJ", OWNER),
+    (_u("11111111-0000-0000-0000-000000000005"), "Ravi Kumar",    "ravi@scrumfolks.com",       "team",       "Content",     "Content Writer",          "RK", PRIYA),
+    (_u("11111111-0000-0000-0000-000000000006"), "Sonal Shah",    "sonal@scrumfolks.com",      "team",       "Social Media","Social Media Executive",  "SS", PRIYA),
+    (_u("11111111-0000-0000-0000-000000000007"), "Kavita Rao",    "accountant@scrumfolks.com", "accountant", "Finance",     "Accountant",              "KR", OWNER),
+    (_u("11111111-0000-0000-0000-000000000008"), "Dev Sharma",    "dev@scrumfolks.com",        "developer",  "Technology",  "Full Stack Developer",    "DS", PRIYA),
+    (AMIT, "Amit Verma",    "amit@scrumfolks.com",       "manager",    "Digital",     "Digital Manager",         "AV", OWNER),
 ]
 
 
@@ -159,11 +162,19 @@ LEAVES = [
 
 
 def seed() -> None:
+    if not settings.seed_password or len(settings.seed_password) < 8:
+        print("ERROR: Set SEED_PASSWORD (min 8 chars) before running seed.", file=sys.stderr)  # noqa: T201
+        raise SystemExit(1)
+
     with db_session() as db:
         existing_users = {profile.email: profile for profile in db.scalars(select(Profile)).all()}
         password_hash = hash_password(settings.seed_password)
-        for uid, name, email, role, dept, designation, avatar in USERS:
+        for uid, name, email, role, dept, designation, avatar, manager_id in USERS:
             if email in existing_users:
+                profile = existing_users[email]
+                profile.password_hash = password_hash
+                if profile.manager_id != manager_id:
+                    profile.manager_id = manager_id
                 continue
             db.add(
                 Profile(
@@ -175,6 +186,7 @@ def seed() -> None:
                     department=dept,
                     designation=designation,
                     avatar=avatar,
+                    manager_id=manager_id,
                 )
             )
         db.flush()
@@ -233,4 +245,4 @@ def seed() -> None:
 
 if __name__ == "__main__":
     seed()
-    print("✓ Seed complete. Login with any demo email and password:", settings.seed_password)  # noqa: T201
+    print("✓ Seed complete.")  # noqa: T201

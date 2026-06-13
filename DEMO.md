@@ -22,7 +22,7 @@ bash demo-stop.sh
 
 ## Demo accounts
 
-Password for every account: **`scrumfolks2026`**
+Use the **Quick demo access** buttons on the login page (password is applied server-side via `SEED_PASSWORD`).
 
 | Role | Email | What you'll see |
 |------|-------|-----------------|

@@ -48,7 +48,7 @@ cat <<'BANNER'
   ║  Backend  : http://127.0.0.1:8000     (docs at /docs)            ║
   ║  Postgres : 127.0.0.1:5544           (user: tms / pw in env)     ║
   ╠══════════════════════════════════════════════════════════════════╣
-  ║  Demo logins — password for all: scrumfolks2026                  ║
+  ║  Demo logins — use Quick demo access buttons on /login            ║
   ║    Owner       : owner@scrumfolks.com                            ║
   ║    Manager     : manager@scrumfolks.com                          ║
   ║    Team        : team@scrumfolks.com                             ║

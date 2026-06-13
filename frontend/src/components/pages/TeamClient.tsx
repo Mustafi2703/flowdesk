@@ -8,27 +8,34 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   const [tasks, setTasks] = useState<any[]>([])
   const [attendance, setAttendance] = useState<any[]>([])
   const [assignableRoles, setAssignableRoles] = useState<string[]>([])
+  const [managers, setManagers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
-  const [form, setForm] = useState({ name: '', email: '', role: 'team', department: '', designation: '', password: '' })
+  const [form, setForm] = useState({ name: '', email: '', role: 'team', department: '', designation: '', password: '', manager_id: '' })
   const today = new Date().toISOString().split('T')[0]
   const canOnboard = ['owner','manager'].includes(session.role)
   const canReset = ['owner','hr'].includes(session.role)
 
   async function refresh() {
-    Promise.all([
+    const fetches: Promise<any>[] = [
       fetch(`/api/team${session.role==='owner'?'?include_inactive=true':''}`).then(r=>r.json()),
       fetch('/api/tasks').then(r=>r.json()),
       fetch('/api/attendance').then(r=>r.json()),
       fetch('/api/team/assignable-roles').then(r=>r.json()).catch(()=>({roles:[]})),
-    ]).then(([u,t,a,roles]) => {
+    ]
+    if (session.role === 'owner') {
+      fetches.push(fetch('/api/team/managers').then(r=>r.json()).catch(()=>[]))
+    }
+    Promise.all(fetches).then((results) => {
+      const [u,t,a,roles,...rest] = results
       setUsers(Array.isArray(u)?u:[])
       setTasks(Array.isArray(t)?t:[])
       setAttendance(Array.isArray(a)?a:[])
       setAssignableRoles(Array.isArray(roles.roles)?roles.roles:[])
+      if (rest[0]) setManagers(Array.isArray(rest[0])?rest[0]:[])
       setLoading(false)
     })
   }
@@ -48,12 +55,13 @@ export default function TeamClient({ session }: { session: SessionUser }) {
       designation: form.designation || null,
     }
     if (form.password) payload.password = form.password
+    if (session.role === 'owner' && form.manager_id) payload.manager_id = form.manager_id
     const res = await fetch('/api/team', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload) })
     const data = await res.json().catch(()=>({}))
     setSaving(false)
     if (!res.ok) { setError(data.error || 'Could not create user'); return }
     setNotice(`User created. Temporary password: ${data.temporary_password}`)
-    setForm({ name: '', email: '', role: assignableRoles[0] || 'team', department: '', designation: '', password: '' })
+    setForm({ name: '', email: '', role: assignableRoles[0] || 'team', department: '', designation: '', password: '', manager_id: '' })
     setShowAdd(false)
     refresh()
   }
@@ -94,6 +102,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
 
   const team = users
   const online = team.filter(u => isOnline(u.id)).length
+  const managerName = (id:string|null) => team.find(u => u.id === id)?.name
 
   return (
     <div>
@@ -115,7 +124,18 @@ export default function TeamClient({ session }: { session: SessionUser }) {
             <input placeholder="Department" value={form.department} onChange={e=>setForm({...form,department:e.target.value})} style={inputStyle} />
             <input placeholder="Designation / responsibility" value={form.designation} onChange={e=>setForm({...form,designation:e.target.value})} style={inputStyle} />
             <input type="password" placeholder="Password (blank = auto generate)" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} style={inputStyle} />
+            {session.role === 'owner' && (
+              <select value={form.manager_id} onChange={e=>setForm({...form,manager_id:e.target.value})} style={inputStyle}>
+                <option value="">No manager (optional)</option>
+                {managers.map((m:any) => <option key={m.id} value={m.id}>{m.name} ({m.role})</option>)}
+              </select>
+            )}
           </div>
+          {session.role === 'manager' && (
+            <p style={{ color:'var(--sf-muted)', fontSize:12, marginTop:10 }}>
+              New hires will report to you automatically.
+            </p>
+          )}
           <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:14}}>
             <button type="button" onClick={()=>setShowAdd(false)} style={secondaryBtn}>Cancel</button>
             <button disabled={saving} style={primaryBtn}>{saving?'Creating...':'Create User'}</button>
@@ -148,6 +168,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                 <div>
                   <div style={{color:'var(--sf-text)',fontWeight:700,fontSize:13}}>{u.name}</div>
                   <div style={{color:'var(--sf-muted)',fontSize:11}}>{u.designation || u.department || ROLE_LABELS[u.role]}</div>
+                  {u.manager_id && <div style={{color:'var(--sf-muted-2)',fontSize:10,marginTop:2}}>Reports to {managerName(u.manager_id) || '—'}</div>}
                 </div>
               </div>
               <div style={{display:'flex',justifyContent:'space-between',marginBottom:12}}>

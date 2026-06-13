@@ -10,10 +10,10 @@ function Chip({ status }: { status: string }) {
 
 function Stat({ label, value, sub, accent }: { label:string; value:string|number; sub?:string; accent:string }) {
   return (
-    <div style={{ background:'#111120', border:'1px solid #1E1E35', borderRadius:12, padding:'16px 18px', borderLeft:`3px solid ${accent}` }}>
-      <div style={{ color:'#6B6B8A', fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>{label}</div>
-      <div style={{ color:'white', fontSize:26, fontWeight:700, fontFamily:"'Space Grotesk',sans-serif" }}>{value}</div>
-      {sub && <div style={{ color:'#6B6B8A', fontSize:11, marginTop:4 }}>{sub}</div>}
+    <div style={{ background:'var(--sf-surface)', border:'1px solid var(--sf-border)', borderRadius:12, padding:'16px 18px', borderLeft:`3px solid ${accent}` }}>
+      <div style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>{label}</div>
+      <div style={{ color:'var(--sf-text)', fontSize:26, fontWeight:700, fontFamily:"'Space Grotesk',sans-serif" }}>{value}</div>
+      {sub && <div style={{ color:'var(--sf-muted)', fontSize:11, marginTop:4 }}>{sub}</div>}
     </div>
   )
 }
@@ -53,25 +53,25 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const hour = new Date().getHours()
   const greet = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
 
-  if (loading) return <div style={{ color:'#6B6B8A', padding:40, textAlign:'center' }}>Loading…</div>
+  if (loading) return <div style={{ color:'var(--sf-muted)', padding:40, textAlign:'center' }}>Loading…</div>
 
   return (
     <div>
       <div style={{ marginBottom:24 }}>
-        <h1 style={{ color:'white', fontSize:24, fontWeight:700, fontFamily:"'Space Grotesk',sans-serif", marginBottom:4 }}>
+        <h1 style={{ color:'var(--sf-text)', fontSize:24, fontWeight:700, fontFamily:"'Space Grotesk',sans-serif", marginBottom:4 }}>
           Good {greet}, {session.name.split(' ')[0]} 👋
         </h1>
-        <p style={{ color:'#6B6B8A', fontSize:13 }}>{new Date().toLocaleDateString('en-IN', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</p>
+        <p style={{ color:'var(--sf-muted)', fontSize:13 }}>{new Date().toLocaleDateString('en-IN', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</p>
       </div>
 
       {/* Clock card */}
       {isTeam && (
-        <div style={{ background: clocked?'rgba(16,185,129,0.07)':'#111120', border:`1px solid ${clocked?'rgba(16,185,129,0.3)':'#1E1E35'}`, borderRadius:14, padding:'18px 22px', marginBottom:22, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div style={{ background: clocked?'rgba(16,185,129,0.07)':'var(--sf-surface)', border:`1px solid ${clocked?'rgba(16,185,129,0.3)':'var(--sf-border)'}`, borderRadius:14, padding:'18px 22px', marginBottom:22, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           <div>
-            <div style={{ color: clocked?'#10B981':'#6B6B8A', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:3 }}>{clocked?'● Live Session':'○ Not Clocked In'}</div>
-            <div style={{ color:'white', fontSize:18, fontWeight:700, fontFamily:"'Space Grotesk',sans-serif" }}>{clocked?'Currently working':'Ready to start?'}</div>
+            <div style={{ color: clocked?'#10B981':'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:3 }}>{clocked?'● Live Session':'○ Not Clocked In'}</div>
+            <div style={{ color:'var(--sf-text)', fontSize:18, fontWeight:700, fontFamily:"'Space Grotesk',sans-serif" }}>{clocked?'Currently working':'Ready to start?'}</div>
           </div>
-          <button onClick={clocked?clockOut:clockIn} style={{ padding:'11px 24px', background: clocked?'transparent':'#E8630A', border: clocked?'1px solid #10B981':'none', borderRadius:10, color: clocked?'#10B981':'white', fontWeight:700, fontSize:14, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+          <button onClick={clocked?clockOut:clockIn} style={{ padding:'11px 24px', background: clocked?'transparent':'var(--sf-accent)', border: clocked?'1px solid #10B981':'none', borderRadius:10, color: clocked?'#10B981':'white', fontWeight:700, fontSize:14, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
             {clocked?'Clock Out':'Clock In'}
           </button>
         </div>
@@ -104,28 +104,28 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
         {/* Tasks */}
         <div>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-            <h3 style={{ color:'white', fontWeight:700, fontSize:16, fontFamily:"'Space Grotesk',sans-serif" }}>{isTeam?'My Tasks':'Recent Tasks'}</h3>
-            <button onClick={() => router.push('/tasks')} style={{ background:'none', border:'none', color:'#E8630A', fontSize:13, cursor:'pointer', fontWeight:600 }}>View all →</button>
+            <h3 style={{ color:'var(--sf-text)', fontWeight:700, fontSize:16, fontFamily:"'Space Grotesk',sans-serif" }}>{isTeam?'My Tasks':'Recent Tasks'}</h3>
+            <button onClick={() => router.push('/tasks')} style={{ background:'none', border:'none', color:'var(--sf-accent)', fontSize:13, cursor:'pointer', fontWeight:600 }}>View all →</button>
           </div>
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
             {(isTeam?myTasks:tasks).slice(0,6).map((t:any) => {
               const dl = t.due_date ? Math.ceil((new Date(t.due_date).getTime()-Date.now())/86400000) : null
               const late = dl!==null && dl<0 && t.status!=='Completed'
               return (
-                <div key={t.id} style={{ background:'#111120', border:'1px solid', borderColor: late?'rgba(239,68,68,0.4)':'#1E1E35', borderLeft: late?'3px solid #EF4444':'1px solid #1E1E35', borderRadius:11, padding:'13px 16px', display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer' }}
+                <div key={t.id} style={{ background:'var(--sf-surface)', border:'1px solid', borderColor: late?'rgba(239,68,68,0.4)':'var(--sf-border)', borderLeft: late?'3px solid #EF4444':'1px solid var(--sf-border)', borderRadius:11, padding:'13px 16px', display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer' }}
                   onClick={() => router.push('/tasks')}>
                   <div>
-                    <div style={{ color:'white', fontWeight:600, fontSize:13, marginBottom:2 }}>{t.title}</div>
-                    <div style={{ color:'#6B6B8A', fontSize:11 }}>{t.brand?.name||'—'} · {t.type}</div>
+                    <div style={{ color:'var(--sf-text)', fontWeight:600, fontSize:13, marginBottom:2 }}>{t.title}</div>
+                    <div style={{ color:'var(--sf-muted)', fontSize:11 }}>{t.brand?.name||'—'} · {t.type}</div>
                   </div>
                   <div style={{ display:'flex', gap:8, alignItems:'center' }}>
                     <Chip status={t.status} />
-                    {dl!==null && <span style={{ color:late?'#F87171':'#6B6B8A', fontSize:11 }}>{late?`${Math.abs(dl)}d late`:dl===0?'Today':`${dl}d`}</span>}
+                    {dl!==null && <span style={{ color:late?'#F87171':'var(--sf-muted)', fontSize:11 }}>{late?`${Math.abs(dl)}d late`:dl===0?'Today':`${dl}d`}</span>}
                   </div>
                 </div>
               )
             })}
-            {tasks.length===0 && <div style={{ color:'#4A4A6A', textAlign:'center', padding:32 }}>No tasks yet.</div>}
+            {tasks.length===0 && <div style={{ color:'var(--sf-muted-2)', textAlign:'center', padding:32 }}>No tasks yet.</div>}
           </div>
         </div>
 
@@ -133,16 +133,16 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           <div>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-              <h3 style={{ color:'white', fontWeight:700, fontSize:14, fontFamily:"'Space Grotesk',sans-serif" }}>Announcements</h3>
-              <button onClick={() => router.push('/announcements')} style={{ background:'none', border:'none', color:'#E8630A', fontSize:12, cursor:'pointer', fontWeight:600 }}>All →</button>
+              <h3 style={{ color:'var(--sf-text)', fontWeight:700, fontSize:14, fontFamily:"'Space Grotesk',sans-serif" }}>Announcements</h3>
+              <button onClick={() => router.push('/announcements')} style={{ background:'none', border:'none', color:'var(--sf-accent)', fontSize:12, cursor:'pointer', fontWeight:600 }}>All →</button>
             </div>
             {announcements.slice(0,3).map((a:any) => (
-              <div key={a.id} style={{ background:'#111120', border:'1px solid #1E1E35', borderLeft:`3px solid ${a.priority==='Urgent'?'#EF4444':a.priority==='Important'?'#FBBF24':'#4A4A6A'}`, borderRadius:10, padding:'12px 14px', marginBottom:7 }}>
-                <div style={{ color:'white', fontWeight:600, fontSize:12, marginBottom:2 }}>{a.title}</div>
-                <div style={{ color:'#4A4A6A', fontSize:10 }}>{new Date(a.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</div>
+              <div key={a.id} style={{ background:'var(--sf-surface)', border:'1px solid var(--sf-border)', borderLeft:`3px solid ${a.priority==='Urgent'?'#EF4444':a.priority==='Important'?'#FBBF24':'var(--sf-muted-2)'}`, borderRadius:10, padding:'12px 14px', marginBottom:7 }}>
+                <div style={{ color:'var(--sf-text)', fontWeight:600, fontSize:12, marginBottom:2 }}>{a.title}</div>
+                <div style={{ color:'var(--sf-muted-2)', fontSize:10 }}>{new Date(a.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</div>
               </div>
             ))}
-            {announcements.length===0 && <div style={{ color:'#4A4A6A', fontSize:12 }}>No announcements.</div>}
+            {announcements.length===0 && <div style={{ color:'var(--sf-muted-2)', fontSize:12 }}>No announcements.</div>}
           </div>
 
           {isAdmin && flagged.length>0 && (
@@ -150,7 +150,7 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
               <h3 style={{ color:'#F59E0B', fontWeight:700, fontSize:13, marginBottom:8 }}>⚠ Needs Attention</h3>
               {flagged.slice(0,3).map((t:any) => (
                 <div key={t.id} style={{ background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:9, padding:'10px 12px', marginBottom:6, cursor:'pointer' }} onClick={() => router.push('/tasks')}>
-                  <div style={{ color:'white', fontSize:12, fontWeight:600 }}>{t.title}</div>
+                  <div style={{ color:'var(--sf-text)', fontSize:12, fontWeight:600 }}>{t.title}</div>
                   <Chip status={t.status} />
                 </div>
               ))}
@@ -160,14 +160,14 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
           {isAdmin && pendingLeav.length>0 && (
             <div>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-                <h3 style={{ color:'white', fontWeight:700, fontSize:13, fontFamily:"'Space Grotesk',sans-serif" }}>Leave Pending</h3>
-                <button onClick={() => router.push('/leave')} style={{ background:'none', border:'none', color:'#E8630A', fontSize:12, cursor:'pointer', fontWeight:600 }}>Manage →</button>
+                <h3 style={{ color:'var(--sf-text)', fontWeight:700, fontSize:13, fontFamily:"'Space Grotesk',sans-serif" }}>Leave Pending</h3>
+                <button onClick={() => router.push('/leave')} style={{ background:'none', border:'none', color:'var(--sf-accent)', fontSize:12, cursor:'pointer', fontWeight:600 }}>Manage →</button>
               </div>
               {pendingLeav.slice(0,2).map((l:any) => (
-                <div key={l.id} style={{ background:'#111120', border:'1px solid #1E1E35', borderRadius:9, padding:'10px 12px', marginBottom:6, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div key={l.id} style={{ background:'var(--sf-surface)', border:'1px solid var(--sf-border)', borderRadius:9, padding:'10px 12px', marginBottom:6, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                   <div>
-                    <div style={{ color:'white', fontSize:12, fontWeight:600 }}>{l.user?.name||'—'}</div>
-                    <div style={{ color:'#6B6B8A', fontSize:10 }}>{l.leave_type} · {l.days}d</div>
+                    <div style={{ color:'var(--sf-text)', fontSize:12, fontWeight:600 }}>{l.user?.name||'—'}</div>
+                    <div style={{ color:'var(--sf-muted)', fontSize:10 }}>{l.leave_type} · {l.days}d</div>
                   </div>
                   <span style={{ background:'rgba(251,191,36,0.15)', color:'#FBBF24', fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:5 }}>Pending</span>
                 </div>

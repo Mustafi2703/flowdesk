@@ -24,6 +24,7 @@ See:
 - `DEMO.md` for demo accounts and walkthrough.
 - `backend/README.md` for API architecture.
 - `DEPLOYMENT_FASTAPI.md` for production droplet deployment and firewall hardening.
+- `DEPLOYMENT_RAILWAY.md` for Railway demo deploy from GitHub (monorepo).
 
 ## Current Product Scope
 

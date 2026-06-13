@@ -1,9 +1,10 @@
-# Railway config for the Next.js frontend (monorepo: set service Root Directory = frontend).
-# In Railway service Settings → Config-as-code, point to: /frontend/railway.toml
+# Railway config for the Next.js frontend service.
+# GitHub monorepo deploys use repo-root Dockerfile.frontend (see DEPLOYMENT_RAILWAY.md).
 
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
+dockerfilePath = "Dockerfile.frontend"
+watchPatterns = ["frontend/**"]
 
 [deploy]
 restartPolicyType = "ON_FAILURE"

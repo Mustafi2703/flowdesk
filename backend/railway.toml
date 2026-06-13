@@ -1,9 +1,10 @@
-# Railway config for the FastAPI backend (monorepo: set service Root Directory = backend).
-# In Railway service Settings → Config-as-code, point to: /backend/railway.toml
+# Railway config for the FastAPI backend service.
+# GitHub monorepo deploys use repo-root Dockerfile.backend (see DEPLOYMENT_RAILWAY.md).
 
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
+dockerfilePath = "Dockerfile.backend"
+watchPatterns = ["backend/**"]
 
 [deploy]
 healthcheckPath = "/health"

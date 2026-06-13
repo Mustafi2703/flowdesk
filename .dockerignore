@@ -1,0 +1,15 @@
+.git
+.github
+.demo
+**/.venv
+**/__pycache__
+**/*.py[cod]
+frontend/node_modules
+frontend/.next
+backend/.venv
+backend/tests
+*.md
+deploy/
+demo.sh
+demo-stop.sh
+docker-compose.yml

@@ -19,6 +19,27 @@ The repo is public at https://github.com/Mustafi2703/flowdesk — if it is still
 not listed, confirm you are in the correct Railway workspace
 (**QRYX TECH PRIVATE LIMITED**).
 
+### Disable conflicting Vercel deploys
+
+This repo previously had a **Vercel** project (`flowdesk`) connected to the
+same GitHub repo with an outdated root layout (`prisma generate && next build`
+at repo root). Every push triggered **failed Vercel builds** alongside Railway.
+
+**Fix:** disconnect GitHub from the Vercel project (already done for this repo):
+
+```bash
+vercel link --project flowdesk --yes
+vercel git disconnect --yes
+```
+
+Use **either Railway or Vercel**, not both on the same branch. For this TMS
+demo, Railway runs frontend + backend + Postgres together; Vercel only hosts
+the Next.js UI and cannot run the FastAPI backend without a separate API URL.
+
+If you keep Vercel for another client repo, set **Root Directory** to
+`frontend` and remove the Prisma build step — but prefer one Railway project
+per client for the full stack.
+
 ## 2. Monorepo layout (this repo)
 
 Three Railway services in one project:
@@ -100,8 +121,10 @@ After first successful deploy (`SEED_DEMO=true`):
 - Email: `owner@scrumfolks.com`
 - Password: `scrumfolks2026`
 
-## 6. Current project
+## 6. Current project (live demo URLs)
 
 - Project: **scrumfolks-tms**
 - Dashboard: https://railway.com/project/6d64c844-14e2-4cd0-b08e-b902c433c427
-- Backend: https://backend-production-d5dd9.up.railway.app
+- **Frontend (share with client):** https://frontend-production-c885.up.railway.app/login
+- Backend API: https://backend-production-d5dd9.up.railway.app
+- Login: `owner@scrumfolks.com` / `scrumfolks2026`

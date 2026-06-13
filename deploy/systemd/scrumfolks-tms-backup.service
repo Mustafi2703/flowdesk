@@ -1,0 +1,10 @@
+[Unit]
+Description=Scrumfolks TMS PostgreSQL backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+Environment=APP_DIR=/opt/scrumfolks-tms
+Environment=BACKUP_DIR=/var/backups/scrumfolks-tms
+ExecStart=/bin/bash /opt/scrumfolks-tms/deploy/scripts/backup-postgres.sh

@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.DS_Store
+*.log
+.env.local
+.env*.local
+Dockerfile
+.dockerignore
+README.md
+SETUP.md
+AGENTS.md
+CLAUDE.md
+supabase

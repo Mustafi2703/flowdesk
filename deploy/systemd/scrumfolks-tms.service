@@ -1,0 +1,15 @@
+[Unit]
+Description=Scrumfolks TMS Docker Compose stack
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/scrumfolks-tms/deploy
+RemainAfterExit=yes
+ExecStart=/usr/bin/docker compose --env-file ../backend/.env -f docker-compose.yml up -d
+ExecStop=/usr/bin/docker compose --env-file ../backend/.env -f docker-compose.yml down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

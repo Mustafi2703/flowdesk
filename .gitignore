@@ -30,6 +30,16 @@ yarn-error.log*
 # env files
 .env
 .env*.local
+.env
+backend/.env
+backend/.venv/
+__pycache__/
+*.py[cod]
+*.sqlite3
+.demo/
+backend/.venv/
+frontend/node_modules/
+frontend/.next/
 
 # vercel
 .vercel

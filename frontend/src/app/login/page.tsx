@@ -2,15 +2,20 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ThemeToggle } from '@/components/app/ThemeProvider'
 
 const DEMOS = [
-  { role: 'owner', label: 'Owner', email: 'owner@scrumfolks.com', color: '#E8630A' },
-  { role: 'manager', label: 'Manager', email: 'manager@scrumfolks.com', color: '#3B82F6' },
-  { role: 'team', label: 'Team', email: 'team@scrumfolks.com', color: '#10B981' },
-  { role: 'hr', label: 'HR', email: 'hr@scrumfolks.com', color: '#8B5CF6' },
-  { role: 'accountant', label: 'Accountant', email: 'accountant@scrumfolks.com', color: '#EC4899' },
-  { role: 'developer', label: 'Developer', email: 'dev@scrumfolks.com', color: '#06B6D4' },
+  { role: 'owner', label: 'Owner' },
+  { role: 'manager', label: 'Manager' },
+  { role: 'team', label: 'Team Member' },
+  { role: 'hr', label: 'HR' },
+  { role: 'accountant', label: 'Accountant' },
+  { role: 'developer', label: 'Developer' },
+]
+
+const FEATURES = [
+  'Task boards, assignments, and delivery tracking',
+  'Team onboarding, roles, and reporting hierarchy',
+  'Calendar, attendance, leave, and performance',
 ]
 
 export default function LoginPage() {
@@ -19,11 +24,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showDemo, setShowDemo] = useState(false)
 
   async function handleAuth(res: Response) {
     const data = await res.json()
     if (!res.ok) {
-      setError(data.error || data.detail || 'Login failed')
+      setError(data.error || data.detail || 'Invalid email or password')
       setLoading(false)
       return
     }
@@ -44,6 +50,7 @@ export default function LoginPage() {
   async function doDemoLogin(role: string) {
     setLoading(true)
     setError('')
+    setShowDemo(false)
     const res = await fetch('/api/auth/demo-login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -53,174 +60,113 @@ export default function LoginPage() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'var(--sf-bg)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-      }}
-    >
-      <div style={{ width: '100%', maxWidth: 440 }}>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-          <ThemeToggle />
-        </div>
-
-        <div
-          className="sf-card"
-          style={{ padding: '2.5rem 2.75rem', position: 'relative', overflow: 'hidden' }}
-        >
-          <div
-            style={{
-              position: 'absolute',
-              top: -80,
-              right: -80,
-              width: 200,
-              height: 200,
-              background: 'radial-gradient(circle, var(--sf-accent-soft), transparent 70%)',
-              borderRadius: '50%',
-            }}
-          />
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
-            <div
-              style={{
-                width: 42,
-                height: 42,
-                background: 'var(--sf-accent)',
-                borderRadius: 11,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 700,
-                color: '#fff',
-                fontSize: 18,
-                fontFamily: "'Space Grotesk', sans-serif",
-              }}
-            >
-              S
-            </div>
+    <div className="login-shell">
+      {/* ── Left: branding ── */}
+      <aside className="login-brand">
+        <div className="login-brand-inner">
+          <div className="login-logo-row">
+            <div className="login-logo-mark">S</div>
             <div>
-              <div
-                style={{
-                  color: 'var(--sf-text)',
-                  fontWeight: 700,
-                  fontSize: 18,
-                  fontFamily: "'Space Grotesk', sans-serif",
-                }}
-              >
-                Scrumfolks CRM
-              </div>
-              <div style={{ color: 'var(--sf-muted)', fontSize: 12 }}>Task Management System</div>
+              <div className="login-product-name">Scrumfolks TMS</div>
+              <div className="login-product-tag">Task Management System</div>
             </div>
           </div>
 
-          <h1 className="sf-page-title" style={{ fontSize: '1.625rem', marginBottom: 6 }}>
-            Welcome back
+          <h1 className="login-headline">
+            Run your agency operations from one workspace.
           </h1>
-          <p className="sf-page-sub" style={{ marginBottom: 28 }}>
-            Sign in to your workspace
+          <p className="login-lead">
+            Plan work, assign tasks, track delivery, and manage your team — built for creative and digital agencies.
           </p>
 
-          {error && (
-            <div
-              style={{
-                background: 'rgba(239,68,68,0.08)',
-                border: '1px solid rgba(239,68,68,0.25)',
-                borderRadius: 8,
-                padding: '10px 14px',
-                color: 'var(--sf-danger)',
-                fontSize: 13,
-                marginBottom: 14,
-              }}
-            >
-              {error}
-            </div>
-          )}
+          <ul className="login-features">
+            {FEATURES.map(f => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="login-brand-footer">
+          <span className="login-powered">Powered by</span>
+          <span className="login-company">QRYX Tech Private Limited</span>
+        </div>
+      </aside>
+
+      {/* ── Right: sign-in ── */}
+      <main className="login-panel">
+        <div className="login-card">
+          <div className="login-card-header">
+            <h2>Sign in</h2>
+            <p>Use your company email and password to access the workspace.</p>
+          </div>
+
+          {error && <div className="login-error">{error}</div>}
 
           <form
+            className="login-form"
             onSubmit={e => {
               e.preventDefault()
               doLogin(email, password)
             }}
           >
-            <label className="sf-label">Email Address</label>
+            <label className="login-label" htmlFor="email">Email</label>
             <input
+              id="email"
               type="email"
-              className="sf-input"
+              className="login-input"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              placeholder="you@scrumfolks.com"
+              placeholder="name@scrumfolks.com"
+              autoComplete="email"
               required
-              style={{ marginBottom: 14 }}
             />
-            <label className="sf-label">Password</label>
+
+            <label className="login-label" htmlFor="password">Password</label>
             <input
+              id="password"
               type="password"
-              className="sf-input"
+              className="login-input"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
+              placeholder="Enter your password"
+              autoComplete="current-password"
               required
-              style={{ marginBottom: 16 }}
             />
-            <button type="submit" disabled={loading} className="sf-btn sf-btn-primary" style={{ width: '100%', padding: '0.8125rem' }}>
-              {loading ? 'Signing in…' : 'Sign In →'}
+
+            <button type="submit" disabled={loading} className="login-submit">
+              {loading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '1.375rem 0' }}>
-            <div style={{ flex: 1, height: 1, background: 'var(--sf-border)' }} />
-            <span style={{ color: 'var(--sf-muted)', fontSize: 11 }}>Quick demo access</span>
-            <div style={{ flex: 1, height: 1, background: 'var(--sf-border)' }} />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {DEMOS.map(d => (
-              <button
-                key={d.role}
-                type="button"
-                disabled={loading}
-                onClick={() => doDemoLogin(d.role)}
-                style={{
-                  padding: '0.625rem 0.75rem',
-                  background: 'var(--sf-surface-2)',
-                  border: '1px solid var(--sf-border)',
-                  borderRadius: 9,
-                  color: 'var(--sf-text)',
-                  cursor: loading ? 'wait' : 'pointer',
-                  textAlign: 'left',
-                  fontFamily: 'inherit',
-                  width: '100%',
-                  transition: 'border-color 0.15s',
-                  opacity: loading ? 0.7 : 1,
-                }}
-              >
-                <div style={{ fontWeight: 600, fontSize: 12 }}>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      width: 7,
-                      height: 7,
-                      borderRadius: '50%',
-                      background: d.color,
-                      marginRight: 5,
-                    }}
-                  />
-                  {d.label}
-                </div>
-                <div style={{ color: 'var(--sf-muted)', fontSize: 10, marginTop: 2 }}>{d.email}</div>
-              </button>
-            ))}
+          <div className="login-demo">
+            <button
+              type="button"
+              className="login-demo-toggle"
+              onClick={() => setShowDemo(v => !v)}
+              disabled={loading}
+            >
+              {showDemo ? 'Hide demo accounts' : 'Demo workspace access'}
+            </button>
+            {showDemo && (
+              <div className="login-demo-grid">
+                {DEMOS.map(d => (
+                  <button
+                    key={d.role}
+                    type="button"
+                    disabled={loading}
+                    className="login-demo-btn"
+                    onClick={() => doDemoLogin(d.role)}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        <p style={{ textAlign: 'center', color: 'var(--sf-muted-2)', fontSize: 11, marginTop: 20 }}>
-          Scrumfolks Internal · Secure workspace
-        </p>
-      </div>
+        <p className="login-legal">Internal use only · Secure session</p>
+      </main>
     </div>
   )
 }

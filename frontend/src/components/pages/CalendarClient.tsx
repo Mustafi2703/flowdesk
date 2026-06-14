@@ -5,28 +5,41 @@ import { useEffect, useMemo, useState } from 'react'
 import { SessionUser } from '@/types'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const COMPANY = 'company'
 
 function monthKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
+function localDateKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export default function CalendarClient({ session }: { session: SessionUser }) {
+  const isOwner = session.role === 'owner'
+  const isManager = session.role === 'manager'
   const [cursor, setCursor] = useState(() => new Date())
-  const [selectedUser, setSelectedUser] = useState(session.id)
+  const [selectedUser, setSelectedUser] = useState(isOwner ? COMPANY : session.id)
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
 
   const month = monthKey(cursor)
+  const isCompanyView = selectedUser === COMPANY
 
   useEffect(() => {
     setLoading(true)
-    const qs = selectedUser !== session.id ? `&user_id=${selectedUser}` : ''
-    fetch(`/api/calendar?month=${month}${qs}`)
+    const params = new URLSearchParams({ month })
+    if (isCompanyView) {
+      params.set('scope', 'company')
+    } else if (selectedUser !== session.id) {
+      params.set('user_id', selectedUser)
+    }
+    fetch(`/api/calendar?${params}`)
       .then(r => r.json())
       .then(setData)
       .finally(() => setLoading(false))
-  }, [month, selectedUser, session.id])
+  }, [month, selectedUser, session.id, isCompanyView])
 
   const grid = useMemo(() => {
     const y = cursor.getFullYear()
@@ -37,192 +50,205 @@ export default function CalendarClient({ session }: { session: SessionUser }) {
     const cells: Array<{ key: string; inMonth: boolean; date: Date }> = []
     for (let i = 0; i < startPad; i++) {
       const d = new Date(y, m, 1 - (startPad - i))
-      cells.push({ key: d.toISOString().slice(0, 10), inMonth: false, date: d })
+      cells.push({ key: localDateKey(d), inMonth: false, date: d })
     }
     for (let day = 1; day <= last.getDate(); day++) {
       const d = new Date(y, m, day)
-      cells.push({ key: d.toISOString().slice(0, 10), inMonth: true, date: d })
+      cells.push({ key: localDateKey(d), inMonth: true, date: d })
     }
     while (cells.length % 7 !== 0) {
       const d = new Date(y, m + 1, cells.length - startPad - last.getDate() + 1)
-      cells.push({ key: d.toISOString().slice(0, 10), inMonth: false, date: d })
+      cells.push({ key: localDateKey(d), inMonth: false, date: d })
     }
     return cells
   }, [cursor])
 
   const viewable = data?.viewable_users || [{ id: session.id, name: session.name }]
+  const showPicker = (isOwner || isManager) && viewable.length > 1
   const dayDetail = selectedDay && data?.days?.[selectedDay]
+  const subtitle = isCompanyView
+    ? 'Company-wide tasks, leave, and attendance'
+    : isOwner || isManager
+      ? `Assigned tasks — ${data?.user?.name || session.name}`
+      : 'Your assigned tasks, leave, and attendance'
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 3rem)', minHeight: 480 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, gap: 12, flexWrap: 'wrap', flexShrink: 0 }}>
         <div>
           <h2 style={{ color: 'var(--sf-text)', fontFamily: "'Space Grotesk',sans-serif", fontSize: 20, fontWeight: 700, margin: 0 }}>
-            Calendar
+            {isCompanyView ? 'Company Calendar' : 'My Calendar'}
           </h2>
-          <p style={{ color: 'var(--sf-muted)', fontSize: 13, margin: '4px 0 0' }}>
-            Tasks, leave, and attendance — {data?.user?.name || session.name}
-          </p>
+          <p style={{ color: 'var(--sf-muted)', fontSize: 13, margin: '4px 0 0' }}>{subtitle}</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          {viewable.length > 1 && (
-            <select
-              value={selectedUser}
-              onChange={e => setSelectedUser(e.target.value)}
-              style={selectStyle}
-            >
+          {showPicker && (
+            <select value={selectedUser} onChange={e => { setSelectedUser(e.target.value); setSelectedDay(null) }} style={selectStyle}>
               {viewable.map((u: any) => (
                 <option key={u.id} value={u.id}>{u.name}</option>
               ))}
             </select>
           )}
-          <button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))} style={navBtn}>←</button>
-          <span style={{ color: 'var(--sf-text)', fontWeight: 700, minWidth: 140, textAlign: 'center' }}>
+          <button type="button" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))} style={navBtn}>Prev</button>
+          <span style={{ color: 'var(--sf-text)', fontWeight: 600, minWidth: 130, textAlign: 'center', fontSize: 14 }}>
             {cursor.toLocaleString('default', { month: 'long', year: 'numeric' })}
           </span>
-          <button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))} style={navBtn}>→</button>
+          <button type="button" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))} style={navBtn}>Next</button>
         </div>
       </div>
 
       {loading ? (
         <div style={{ color: 'var(--sf-muted)', padding: 40, textAlign: 'center' }}>Loading calendar…</div>
       ) : (
-        <>
-          <div style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 14, overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--sf-border)' }}>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ flex: 1, minHeight: 0, background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--sf-border)', flexShrink: 0 }}>
               {WEEKDAYS.map(w => (
-                <div key={w} style={{ padding: '10px 8px', textAlign: 'center', color: 'var(--sf-muted)', fontSize: 11, fontWeight: 700 }}>{w}</div>
+                <div key={w} style={{ padding: '10px 8px', textAlign: 'center', color: 'var(--sf-muted)', fontSize: 11, fontWeight: 600, background: 'var(--sf-surface-2)' }}>{w}</div>
               ))}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
-              {grid.map(cell => {
-                const info = data?.days?.[cell.key]
-                const taskCount = info?.tasks?.length || 0
-                const leaveCount = info?.leave?.length || 0
-                const att = info?.attendance
-                const isToday = cell.key === new Date().toISOString().slice(0, 10)
-                const isSelected = selectedDay === cell.key
-                return (
-                  <button
-                    key={cell.key}
-                    type="button"
-                    onClick={() => cell.inMonth && setSelectedDay(cell.key)}
-                    style={{
-                      minHeight: 88,
-                      padding: 8,
-                      border: 'none',
-                      borderRight: '1px solid var(--sf-border)',
-                      borderBottom: '1px solid var(--sf-border)',
-                      background: isSelected ? 'var(--sf-accent-soft)' : cell.inMonth ? 'transparent' : 'var(--sf-surface-2)',
-                      cursor: cell.inMonth ? 'pointer' : 'default',
-                      textAlign: 'left',
-                      opacity: cell.inMonth ? 1 : 0.45,
-                    }}
-                  >
-                    <div style={{
-                      color: isToday ? 'var(--sf-accent)' : 'var(--sf-text)',
-                      fontWeight: isToday ? 800 : 600,
-                      fontSize: 13,
-                      marginBottom: 6,
-                    }}>
-                      {cell.date.getDate()}
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                      {taskCount > 0 && <span style={dot('#3B82F6')}>{taskCount} task{taskCount > 1 ? 's' : ''}</span>}
-                      {leaveCount > 0 && <span style={dot('#8B5CF6')}>Leave</span>}
-                      {att?.clocked_in && <span style={dot('#10B981')}>In</span>}
-                    </div>
-                  </button>
-                )
-              })}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                {grid.map(cell => {
+                  const info = data?.days?.[cell.key]
+                  const taskCount = info?.tasks?.length || 0
+                  const leaveCount = info?.leave?.length || 0
+                  const att = info?.attendance
+                  const isToday = cell.key === localDateKey(new Date())
+                  const isSelected = selectedDay === cell.key
+                  return (
+                    <button
+                      key={cell.key}
+                      type="button"
+                      onClick={() => cell.inMonth && setSelectedDay(cell.key)}
+                      style={{
+                        minHeight: 92,
+                        padding: 8,
+                        border: 'none',
+                        borderRight: '1px solid var(--sf-border)',
+                        borderBottom: '1px solid var(--sf-border)',
+                        background: isSelected ? 'var(--sf-accent-soft)' : cell.inMonth ? 'transparent' : 'var(--sf-surface-2)',
+                        cursor: cell.inMonth ? 'pointer' : 'default',
+                        textAlign: 'left',
+                        opacity: cell.inMonth ? 1 : 0.4,
+                      }}
+                    >
+                      <div style={{ color: isToday ? 'var(--sf-accent)' : 'var(--sf-text)', fontWeight: isToday ? 700 : 500, fontSize: 13, marginBottom: 6 }}>
+                        {cell.date.getDate()}
+                      </div>
+                      {taskCount > 0 && <div style={pill('#2563eb')}>{taskCount} task{taskCount > 1 ? 's' : ''}</div>}
+                      {leaveCount > 0 && <div style={pill('#7c3aed')}>{leaveCount} on leave</div>}
+                      {isCompanyView && att?.present_count > 0 && (
+                        <div style={pill('#059669')}>{att.present_count} present</div>
+                      )}
+                      {!isCompanyView && att?.clocked_in && <div style={pill('#059669')}>Clocked in</div>}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           </div>
 
           {dayDetail && (
-            <div style={{ marginTop: 18, background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 14, padding: 18 }}>
-              <div style={{ color: 'var(--sf-text)', fontWeight: 800, marginBottom: 12 }}>
+            <div style={{ flexShrink: 0, maxHeight: 220, overflowY: 'auto', background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, padding: 16 }}>
+              <div style={{ color: 'var(--sf-text)', fontWeight: 700, marginBottom: 10, fontSize: 14 }}>
                 {new Date(selectedDay + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
               </div>
               {dayDetail.tasks?.length > 0 && (
-                <Section title="Tasks">
+                <Block title="Tasks">
                   {dayDetail.tasks.map((t: any) => (
                     <div key={t.id} style={rowStyle}>
-                      <span>{t.title}</span>
+                      <div>
+                        <div>{t.title}</div>
+                        {t.assignees?.length > 0 && (
+                          <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 2 }}>{t.assignees.join(', ')}</div>
+                        )}
+                      </div>
                       <span style={{ color: 'var(--sf-muted)', fontSize: 11 }}>{t.status}</span>
                     </div>
                   ))}
-                </Section>
+                </Block>
               )}
               {dayDetail.leave?.length > 0 && (
-                <Section title="Leave">
+                <Block title="Leave">
                   {dayDetail.leave.map((l: any) => (
                     <div key={l.id} style={rowStyle}>
-                      <span>{l.leave_type}</span>
+                      <span>{l.user_name ? `${l.user_name} — ${l.leave_type}` : l.leave_type}</span>
                       <span style={{ color: 'var(--sf-muted)', fontSize: 11 }}>{l.status}</span>
                     </div>
                   ))}
-                </Section>
+                </Block>
               )}
-              {dayDetail.attendance && (
-                <Section title="Attendance">
+              {dayDetail.attendance && !isCompanyView && (
+                <Block title="Attendance">
                   <div style={rowStyle}>
-                    <span>{dayDetail.attendance.clocked_in ? 'Clocked in' : 'Logged hours'}</span>
+                    <span>{dayDetail.attendance.clocked_in ? 'Currently clocked in' : 'Hours logged'}</span>
                     <span style={{ color: 'var(--sf-muted)', fontSize: 11 }}>
                       {dayDetail.attendance.hours_worked != null ? `${dayDetail.attendance.hours_worked}h` : '—'}
                     </span>
                   </div>
-                </Section>
+                </Block>
+              )}
+              {isCompanyView && dayDetail.attendance && (
+                <Block title="Attendance">
+                  <div style={rowStyle}>
+                    <span>Team present</span>
+                    <span style={{ color: 'var(--sf-muted)', fontSize: 11 }}>
+                      {dayDetail.attendance.present_count} logged · {dayDetail.attendance.clocked_in_count} active
+                    </span>
+                  </div>
+                </Block>
               )}
               {!dayDetail.tasks?.length && !dayDetail.leave?.length && !dayDetail.attendance && (
-                <div style={{ color: 'var(--sf-muted)', fontSize: 13 }}>Nothing scheduled for this day.</div>
+                <div style={{ color: 'var(--sf-muted)', fontSize: 13 }}>Nothing scheduled.</div>
               )}
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{title}</div>
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{title}</div>
       {children}
     </div>
   )
 }
 
-const dot = (color: string) => ({
-  background: color + '22',
+const pill = (color: string) => ({
   color,
-  fontSize: 9,
-  fontWeight: 700,
-  padding: '2px 6px',
-  borderRadius: 999,
+  fontSize: 10,
+  fontWeight: 600,
+  marginBottom: 3,
 })
 
 const selectStyle: any = {
-  background: 'var(--sf-surface-2)',
+  background: 'var(--sf-input-bg)',
   border: '1px solid var(--sf-border)',
   color: 'var(--sf-text)',
-  borderRadius: 9,
+  borderRadius: 8,
   padding: '8px 10px',
+  fontSize: 13,
 }
 
 const navBtn: any = {
-  background: 'var(--sf-surface-2)',
+  background: 'var(--sf-surface)',
   border: '1px solid var(--sf-border)',
   color: 'var(--sf-text)',
-  borderRadius: 9,
-  width: 36,
-  height: 36,
+  borderRadius: 8,
+  padding: '8px 12px',
   cursor: 'pointer',
+  fontSize: 12,
 }
 
 const rowStyle: any = {
   display: 'flex',
   justifyContent: 'space-between',
+  gap: 12,
   padding: '8px 10px',
   background: 'var(--sf-surface-2)',
   borderRadius: 8,

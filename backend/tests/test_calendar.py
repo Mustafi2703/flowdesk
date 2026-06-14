@@ -1,8 +1,8 @@
-"""Personal / team calendar."""
+"""Personal / team / company calendar."""
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 
 def test_employee_sees_own_calendar(client, users):
@@ -12,7 +12,8 @@ def test_employee_sees_own_calendar(client, users):
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["user"]["id"] == str(team.id)
-    assert isinstance(body["days"], dict)
+    assert body["scope"] == "personal"
+    assert len(body["viewable_users"]) == 1
 
 
 def test_manager_can_view_report_calendar(client, users):
@@ -34,5 +35,29 @@ def test_team_cannot_view_other_calendar(client, users):
     resp = client.get(
         f"/api/v1/calendar?month={month}&user_id={b.id}",
         headers=users.auth_headers(a),
+    )
+    assert resp.status_code == 403
+
+
+def test_owner_company_calendar(client, users):
+    owner = users.create("owner")
+    month = date.today().strftime("%Y-%m")
+    resp = client.get(
+        f"/api/v1/calendar?month={month}&scope=company",
+        headers=users.auth_headers(owner),
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["scope"] == "company"
+    assert body["user"]["id"] == "company"
+    assert body["viewable_users"][0]["id"] == "company"
+
+
+def test_non_owner_cannot_view_company_calendar(client, users):
+    manager = users.create("manager")
+    month = date.today().strftime("%Y-%m")
+    resp = client.get(
+        f"/api/v1/calendar?month={month}&scope=company",
+        headers=users.auth_headers(manager),
     )
     assert resp.status_code == 403

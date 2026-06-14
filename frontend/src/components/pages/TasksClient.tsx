@@ -1,23 +1,33 @@
 // @ts-nocheck
 'use client'
-import { useEffect, useState } from 'react'
-import { SessionUser, TaskStatus, STATUS_BG, STATUS_TEXT } from '@/types'
+import { useEffect, useMemo, useState } from 'react'
+import { SessionUser, TaskStatus } from '@/types'
 
 const STATUSES: TaskStatus[] = ['Not Started','In Progress','Under Review','Revision Needed','Completed','On Hold','Struggling','Needs Attention']
 const PRIORITIES = ['Critical','High','Medium','Low']
 const TYPES = ['Design','Content','Development','Strategy','Operations','Other']
+const PRIORITY_RANK: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 }
+type SortKey = 'due_date' | 'priority' | 'status' | 'title' | 'brand'
 
-function Chip({ status }: { status: string }) {
-  return <span style={{ background: STATUS_BG[status]||'#F3F4F6', color: STATUS_TEXT[status]||'#374151', fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:5, whiteSpace:'nowrap' }}>{status}</span>
+function statusClass(status: string) {
+  const map: Record<string, string> = {
+    'Not Started': 'sf-status-neutral',
+    'In Progress': 'sf-status-progress',
+    'Under Review': 'sf-status-review',
+    'Revision Needed': 'sf-status-warning',
+    Completed: 'sf-status-done',
+    'On Hold': 'sf-status-neutral',
+    Struggling: 'sf-status-danger',
+    'Needs Attention': 'sf-status-warning',
+  }
+  return map[status] || 'sf-status-neutral'
 }
 
-function PriBadge({ p }: { p: string }) {
-  const map: Record<string,{bg:string;c:string}> = { Critical:{bg:'#EF4444',c:'white'}, High:{bg:'#F97316',c:'white'}, Medium:{bg:'#FBBF24',c:'#1A1A00'}, Low:{bg:'#22C55E',c:'white'} }
-  const s = map[p]||{bg:'#6B7280',c:'white'}
-  return <span style={{ background:s.bg, color:s.c, fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:4, textTransform:'uppercase' }}>{p}</span>
+function priorityLabel(p: string) {
+  return p || 'Low'
 }
 
-const inputSt = { width:'100%', padding:'9px 12px', background:'var(--sf-surface-2)', border:'1px solid #2A2A45', borderRadius:8, color:'var(--sf-text)', fontSize:13, outline:'none', fontFamily:"'DM Sans',sans-serif" }
+const inputSt = { width:'100%', padding:'9px 12px', background:'var(--sf-surface-2)', border:'1px solid var(--sf-border)', borderRadius:8, color:'var(--sf-text)', fontSize:13, outline:'none', fontFamily:"'DM Sans',sans-serif" }
 
 export default function TasksClient({ session }: { session: SessionUser }) {
   const [tasks, setTasks] = useState<any[]>([])
@@ -26,6 +36,8 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   const [view, setView] = useState<'list'|'kanban'>('list')
   const [filterStatus, setFilterStatus] = useState('All')
   const [filterBrand, setFilterBrand] = useState('All')
+  const [sortBy, setSortBy] = useState<SortKey>('due_date')
+  const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc')
   const [showCreate, setShowCreate] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -46,73 +58,130 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   }
   useEffect(() => { load() }, [])
 
-  async function updateStatus(id: string, status: string) {
-    await fetch(`/api/tasks/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status}) })
-    setTasks(prev => prev.map(t => t.id===id ? {...t,status} : t))
-  }
-
-  const filtered = tasks.filter(t =>
-    (filterStatus==='All'||t.status===filterStatus) &&
-    (filterBrand==='All'||t.brand_id===filterBrand)
-  )
+  const filtered = useMemo(() => {
+    const rows = tasks.filter(t =>
+      (filterStatus==='All'||t.status===filterStatus) &&
+      (filterBrand==='All'||t.brand_id===filterBrand)
+    )
+    rows.sort((a, b) => {
+      let cmp = 0
+      if (sortBy === 'due_date') {
+        const ad = a.due_date ? new Date(a.due_date).getTime() : Infinity
+        const bd = b.due_date ? new Date(b.due_date).getTime() : Infinity
+        cmp = ad - bd
+      } else if (sortBy === 'priority') {
+        cmp = (PRIORITY_RANK[a.priority] ?? 9) - (PRIORITY_RANK[b.priority] ?? 9)
+      } else if (sortBy === 'status') {
+        cmp = a.status.localeCompare(b.status)
+      } else if (sortBy === 'title') {
+        cmp = a.title.localeCompare(b.title)
+      } else if (sortBy === 'brand') {
+        cmp = (a.brand?.name || '').localeCompare(b.brand?.name || '')
+      }
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+    return rows
+  }, [tasks, filterStatus, filterBrand, sortBy, sortDir])
 
   if (loading) return <div style={{ color:'var(--sf-muted)', padding:40, textAlign:'center' }}>Loading tasks…</div>
 
   return (
-    <div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-        <h2 style={{ color:'var(--sf-text)', fontFamily:"'Space Grotesk',sans-serif", fontSize:20, fontWeight:700 }}>
-          {['team','developer'].includes(session.role)?'My Tasks':'All Tasks'} ({filtered.length})
-        </h2>
-        {canCreate && <button onClick={() => setShowCreate(true)} style={{ padding:'9px 18px', background:'var(--sf-accent)', border:'none', borderRadius:9, color:'var(--sf-text)', fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>+ New Task</button>}
+    <div style={{ display:'flex', flexDirection:'column', height:'calc(100vh - 3rem)', minHeight:520 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, flexShrink:0 }}>
+        <div>
+          <h2 style={{ color:'var(--sf-text)', fontFamily:"'Space Grotesk',sans-serif", fontSize:20, fontWeight:700, margin:0 }}>
+            {['team','developer'].includes(session.role) ? 'My Tasks' : 'Tasks'}
+          </h2>
+          <p style={{ color:'var(--sf-muted)', fontSize:13, margin:'4px 0 0' }}>{filtered.length} items</p>
+        </div>
+        {canCreate && (
+          <button onClick={() => setShowCreate(true)} className="sf-btn sf-btn-primary">New task</button>
+        )}
       </div>
 
-      {/* Toolbar */}
-      <div style={{ display:'flex', gap:8, marginBottom:18, flexWrap:'wrap', alignItems:'center' }}>
-        <div style={{ display:'flex', background:'var(--sf-surface)', border:'1px solid var(--sf-border)', borderRadius:9, overflow:'hidden' }}>
+      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap', alignItems:'center', flexShrink:0 }}>
+        <div style={{ display:'flex', background:'var(--sf-surface)', border:'1px solid var(--sf-border)', borderRadius:8, overflow:'hidden' }}>
           {(['list','kanban'] as const).map(v => (
-            <button key={v} onClick={() => setView(v)} style={{ padding:'7px 14px', background:view===v?'var(--sf-accent)':'transparent', border:'none', color:view===v?'white':'var(--sf-muted)', cursor:'pointer', fontSize:12, fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>
-              {v==='list'?'≡ List':'⊞ Kanban'}
+            <button key={v} onClick={() => setView(v)} style={{ padding:'7px 14px', background:view===v?'var(--sf-accent)':'transparent', border:'none', color:view===v?'#fff':'var(--sf-muted)', cursor:'pointer', fontSize:12, fontWeight:600 }}>
+              {v === 'list' ? 'List' : 'Board'}
             </button>
           ))}
         </div>
-        {['All',...STATUSES.slice(0,5)].map(s => (
-          <button key={s} onClick={() => setFilterStatus(s)} style={{ padding:'5px 10px', background:filterStatus===s?'rgba(232,99,10,0.15)':'var(--sf-surface)', border:filterStatus===s?'1px solid #E8630A':'1px solid var(--sf-border)', borderRadius:7, color:filterStatus===s?'var(--sf-accent)':'var(--sf-muted)', cursor:'pointer', fontSize:11, fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>{s}</button>
-        ))}
-        <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} style={{ padding:'5px 10px', background:'var(--sf-surface)', border:'1px solid var(--sf-border)', borderRadius:7, color:'#A0A0C0', fontSize:12, cursor:'pointer', marginLeft:'auto' }}>
-          <option value="All">All Brands</option>
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={toolbarSelect}>
+          <option value="All">All statuses</option>
+          {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} style={toolbarSelect}>
+          <option value="All">All brands</option>
           {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
         </select>
+        <select value={sortBy} onChange={e => setSortBy(e.target.value as SortKey)} style={toolbarSelect}>
+          <option value="due_date">Sort: Due date</option>
+          <option value="priority">Sort: Priority</option>
+          <option value="status">Sort: Status</option>
+          <option value="title">Sort: Title</option>
+          <option value="brand">Sort: Brand</option>
+        </select>
+        <button
+          type="button"
+          onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+          style={{ ...toolbarSelect, cursor:'pointer' }}
+        >
+          {sortDir === 'asc' ? 'Ascending' : 'Descending'}
+        </button>
       </div>
 
-      {view==='list' ? (
-        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          {filtered.map(task => {
-            const dl = task.due_date ? Math.ceil((new Date(task.due_date).getTime()-Date.now())/86400000) : null
-            const late = dl!==null && dl<0 && task.status!=='Completed'
-            return (
-              <div key={task.id} style={{ background:'var(--sf-surface)', border:'1px solid', borderColor:late?'rgba(239,68,68,0.4)':'var(--sf-border)', borderLeft: late?'3px solid #EF4444':task.status==='Struggling'?'3px solid #F59E0B':'1px solid var(--sf-border)', borderRadius:12, padding:'13px 16px', display:'flex', alignItems:'center', gap:14 }}>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:'flex', gap:6, alignItems:'center', marginBottom:3, flexWrap:'wrap' }}>
-                    {task.task_mode==='project' && <span style={{ background:'rgba(6,182,212,0.15)',color:'#06B6D4',fontSize:9,fontWeight:700,padding:'1px 5px',borderRadius:3 }}>PROJECT</span>}
-                    {task.is_billable && canSeeBilling && <span style={{ background:'rgba(236,72,153,0.15)',color:'#EC4899',fontSize:9,fontWeight:700,padding:'1px 5px',borderRadius:3 }}>₹ Billable</span>}
-                    {task.recurring_config?.enabled && <span style={{ background:'rgba(139,92,246,0.15)',color:'#8B5CF6',fontSize:9,fontWeight:700,padding:'1px 5px',borderRadius:3 }}>↻</span>}
-                    <span style={{ color:'var(--sf-text)', fontWeight:600, fontSize:13 }}>{task.title}</span>
-                  </div>
-                  <div style={{ color:'var(--sf-muted)', fontSize:11 }}>{task.brand?.name||'No brand'} · {task.type}</div>
-                </div>
-                <div style={{ display:'flex', gap:8, alignItems:'center', flexShrink:0 }}>
-                  <Chip status={task.status} />
-                  <PriBadge p={task.priority||'Low'} />
-                  {dl!==null && <span style={{ color:late?'#F87171':'var(--sf-muted)', fontSize:11 }}>{late?`${Math.abs(dl)}d late`:dl===0?'Today':`${dl}d`}</span>}
-                </div>
-              </div>
-            )
-          })}
-          {filtered.length===0 && <div style={{ color:'var(--sf-muted-2)', textAlign:'center', padding:40 }}>No tasks match your filters.</div>}
+      {view === 'list' ? (
+        <div className="sf-table-wrap" style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+          <div style={{ overflowY:'auto', flex:1 }}>
+            <table className="sf-table">
+              <thead>
+                <tr>
+                  <th>Task</th>
+                  <th>Brand</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Priority</th>
+                  <th>Due</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(task => {
+                  const dl = task.due_date ? Math.ceil((new Date(task.due_date).getTime()-Date.now())/86400000) : null
+                  const late = dl !== null && dl < 0 && task.status !== 'Completed'
+                  return (
+                    <tr key={task.id}>
+                      <td>
+                        <div style={{ fontWeight:600 }}>{task.title}</div>
+                        {task.is_billable && canSeeBilling && (
+                          <div style={{ color:'var(--sf-muted)', fontSize:11, marginTop:2 }}>Billable</div>
+                        )}
+                      </td>
+                      <td>{task.brand?.name || '—'}</td>
+                      <td>{task.type || '—'}</td>
+                      <td><span className={statusClass(task.status)}>{task.status}</span></td>
+                      <td>{priorityLabel(task.priority)}</td>
+                      <td style={{ color: late ? 'var(--sf-danger)' : 'var(--sf-text-secondary)' }}>
+                        {task.due_date
+                          ? late
+                            ? `${Math.abs(dl)}d overdue`
+                            : dl === 0
+                              ? 'Today'
+                              : new Date(task.due_date).toLocaleDateString()
+                          : '—'}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            {filtered.length === 0 && (
+              <div style={{ color:'var(--sf-muted)', textAlign:'center', padding:48 }}>No tasks match your filters.</div>
+            )}
+          </div>
         </div>
       ) : (
-        <div style={{ display:'flex', gap:10, overflowX:'auto', paddingBottom:12 }}>
+        <div style={{ flex:1, minHeight:0, overflowX:'auto', overflowY:'hidden', display:'flex', gap:10, paddingBottom:4 }}>
           {(['Not Started','In Progress','Under Review','Revision Needed','Completed','On Hold'] as TaskStatus[]).map(col => {
             const colTasks = filtered.filter(t => t.status===col)
             return (
@@ -126,7 +195,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                     <div style={{ color:'var(--sf-text)', fontSize:12, fontWeight:600, marginBottom:4 }}>{task.title}</div>
                     <div style={{ color:'var(--sf-muted)', fontSize:10, marginBottom:6 }}>{task.brand?.name||'—'}</div>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                      <PriBadge p={task.priority||'Low'} />
+                      <span style={{ color:'var(--sf-muted)', fontSize:10 }}>{priorityLabel(task.priority)}</span>
                       {task.due_date && <span style={{ color:'var(--sf-muted)', fontSize:10 }}>{Math.ceil((new Date(task.due_date).getTime()-Date.now())/86400000)}d</span>}
                     </div>
                   </div>
@@ -143,6 +212,16 @@ export default function TasksClient({ session }: { session: SessionUser }) {
       )}
     </div>
   )
+}
+
+const toolbarSelect: any = {
+  padding: '7px 10px',
+  background: 'var(--sf-surface)',
+  border: '1px solid var(--sf-border)',
+  borderRadius: 8,
+  color: 'var(--sf-text-secondary)',
+  fontSize: 12,
+  fontFamily: 'inherit',
 }
 
 function CreateModal({ session, brands, users, onClose, onSaved, canSeeBilling }: any) {

@@ -211,6 +211,26 @@ body {
   background: var(--sf-surface-hover);
 }
 
+.sf-status-neutral,
+.sf-status-progress,
+.sf-status-review,
+.sf-status-warning,
+.sf-status-done,
+.sf-status-danger {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.sf-status-neutral { background: var(--sf-surface-2); color: var(--sf-muted); }
+.sf-status-progress { background: rgba(37, 99, 235, 0.12); color: var(--sf-info); }
+.sf-status-review { background: rgba(124, 58, 237, 0.12); color: #7c3aed; }
+.sf-status-warning { background: rgba(217, 119, 6, 0.12); color: var(--sf-warning); }
+.sf-status-done { background: rgba(5, 150, 105, 0.12); color: var(--sf-success); }
+.sf-status-danger { background: rgba(220, 38, 38, 0.12); color: var(--sf-danger); }
+
 /* Sidebar nav */
 .sf-nav {
   display: flex;

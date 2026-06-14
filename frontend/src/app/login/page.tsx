@@ -27,9 +27,17 @@ export default function LoginPage() {
   const [showDemo, setShowDemo] = useState(false)
 
   async function handleAuth(res: Response) {
-    const data = await res.json()
+    let data: any = {}
+    try {
+      data = await res.json()
+    } catch {
+      setError(res.status === 405 ? 'Sign-in request blocked. Please refresh and try again.' : 'Unexpected server response')
+      setLoading(false)
+      return
+    }
     if (!res.ok) {
-      setError(data.error || data.detail || 'Invalid email or password')
+      const detail = typeof data.detail === 'string' ? data.detail : Array.isArray(data.detail) ? data.detail[0]?.msg : null
+      setError(data.error || detail || 'Invalid email or password')
       setLoading(false)
       return
     }

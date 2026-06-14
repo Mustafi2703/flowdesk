@@ -53,6 +53,11 @@ PY
 echo "[backend] running migrations"
 alembic upgrade head
 
+if [ "${RESET_WORKSPACE:-false}" = "true" ]; then
+    echo "[backend] RESET_WORKSPACE=true — clearing all application data"
+    python -m app.scripts.reset_workspace
+fi
+
 if [ "${SEED_DEMO:-false}" = "true" ]; then
     echo "[backend] seeding demo data (idempotent)"
     python -m app.scripts.seed

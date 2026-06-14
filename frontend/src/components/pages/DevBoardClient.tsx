@@ -2,6 +2,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { SessionUser, ROLE_COLORS, STATUS_BG, STATUS_TEXT } from '@/types'
+import { EmptyState } from '@/components/app/Icons'
 
 export default function DevBoardClient({ session }: { session: SessionUser }) {
   const [tasks, setTasks] = useState<any[]>([])
@@ -105,7 +106,7 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
             </div>
           )
         })}
-        {devTasks.length===0 && <div style={{textAlign:'center',padding:48,color:'var(--sf-muted-2)'}}><div style={{fontSize:36,marginBottom:12}}>⌨</div><div>No development tasks yet.</div></div>}
+        {devTasks.length===0 && <EmptyState icon="code" title="No development tasks yet." />}
       </div>
     </div>
   )

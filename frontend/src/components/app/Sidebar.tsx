@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { SessionUser, NAV_ITEMS, ROLE_COLORS, ROLE_LABELS } from '@/types'
 import { ThemeToggle } from '@/components/app/ThemeProvider'
+import { Icon } from '@/components/app/Icons'
 
 export default function Sidebar({ session }: { session: SessionUser }) {
   const router = useRouter()
@@ -139,7 +140,7 @@ export default function Sidebar({ session }: { session: SessionUser }) {
               onClick={() => router.push(`/${item.id}`)}
               title={collapsed ? item.label : undefined}
             >
-              <span className="sf-icon">{item.icon}</span>
+              <span className="sf-icon"><Icon name={item.icon} size={16} /></span>
               {!collapsed && <span>{item.label}</span>}
             </button>
           )
@@ -198,15 +199,15 @@ export default function Sidebar({ session }: { session: SessionUser }) {
           </div>
         )}
         <button className="sf-nav" onClick={() => { setShowPassword(true); setPwError(''); setPwNotice('') }} style={{ marginBottom: 2 }}>
-          <span className="sf-icon">🔑</span>
+          <span className="sf-icon"><Icon name="key" size={16} /></span>
           {!collapsed && 'Change Password'}
         </button>
         <button className="sf-nav" onClick={() => setCollapsed(c => !c)} style={{ marginBottom: 2 }}>
-          <span className="sf-icon">{collapsed ? '▶' : '◀'}</span>
+          <span className="sf-icon"><Icon name={collapsed ? 'chevron-right' : 'chevron-left'} size={16} /></span>
           {!collapsed && 'Collapse'}
         </button>
         <button className="sf-nav" onClick={logout}>
-          <span className="sf-icon">⇤</span>
+          <span className="sf-icon"><Icon name="log-out" size={16} /></span>
           {!collapsed && 'Sign Out'}
         </button>
       </div>

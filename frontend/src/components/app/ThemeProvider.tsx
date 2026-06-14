@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { Icon } from '@/components/app/Icons'
 
 export type ThemeMode = 'night' | 'morning'
 
@@ -52,7 +53,7 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
         onClick={() => setTheme('morning')}
         title="Morning mode (light)"
       >
-        ☀ Morning
+        <Icon name="sun" size={14} /> Morning
       </button>
       <button
         type="button"
@@ -60,7 +61,7 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
         onClick={() => setTheme('night')}
         title="Night mode (dark)"
       >
-        🌙 Night
+        <Icon name="moon" size={14} /> Night
       </button>
     </div>
   )

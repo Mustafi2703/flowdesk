@@ -53,7 +53,8 @@ services:
       EMAIL_PROVIDER: console
       EMAIL_FROM: "Scrumfolks TMS <noreply@scrumfolks.com>"
       ENABLE_SCHEDULER: "false"
-      SEED_DEMO: "true"
+      SEED_DEMO: "false"
+      RESET_WORKSPACE: "false"
       SEED_PASSWORD: ${SEED_PASSWORD:-local-demo-only-change-me}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     depends_on:

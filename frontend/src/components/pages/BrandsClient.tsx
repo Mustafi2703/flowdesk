@@ -2,6 +2,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
+import { EmptyState, Icon } from '@/components/app/Icons'
 
 const sInp = { width:'100%', padding:'9px 12px', background:'var(--sf-surface-2)', border:'1px solid #2A2A45', borderRadius:8, color:'var(--sf-text)', fontSize:13, outline:'none', fontFamily:"'DM Sans',sans-serif" }
 
@@ -42,7 +43,9 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
         <h2 style={{ color:'var(--sf-text)', fontFamily:"'Space Grotesk',sans-serif", fontSize:20, fontWeight:700 }}>{session.role==='team'?'My Brands':'Brands'} ({visible.length})</h2>
         {canEdit && <button onClick={() => setShowCreate(true)} style={{ padding:'9px 18px', background:'var(--sf-accent)', border:'none', borderRadius:9, color:'var(--sf-text)', fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>+ Add Brand</button>}
       </div>
-      {!loading && visible.length===0 && <div style={{ textAlign:'center', padding:48, color:'var(--sf-muted-2)' }}><div style={{ fontSize:36, marginBottom:12 }}>◈</div><div>{session.role==='team'?'No brands assigned to you yet.':'No brands yet.'}</div></div>}
+      {!loading && visible.length===0 && (
+        <EmptyState icon="brands" title={session.role==='team' ? 'No brands assigned to you yet.' : 'No brands yet.'} />
+      )}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(288px,1fr))', gap:16 }}>
         {visible.map(b => {
           const bt = tasks.filter(t=>t.brand_id===b.id)
@@ -168,14 +171,16 @@ function BrandDetail({ brand, tasks, users, canEdit, onBack, onUpdate }: any) {
           </div>
           <div style={{ background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:12,padding:18 }}>
             <div style={{ color:'var(--sf-muted)',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:12 }}>Coming Soon</div>
-            {['Brand Fonts','Logo Variants','Brand Colors','Product Images','Photography Style','Brand Voice'].map(item => <div key={item} style={{ display:'flex',alignItems:'center',gap:8,padding:'7px 0',borderBottom:'1px solid var(--sf-border)' }}><span style={{ color:'var(--sf-muted-2)' }}>☐</span><span style={{ color:'var(--sf-muted-2)',fontSize:12 }}>{item}</span><span style={{ marginLeft:'auto',background:'var(--sf-surface-2)',color:'var(--sf-muted-2)',fontSize:9,padding:'2px 6px',borderRadius:4 }}>Soon</span></div>)}
+            {['Brand Fonts','Logo Variants','Brand Colors','Product Images','Photography Style','Brand Voice'].map(item => <div key={item} style={{ display:'flex',alignItems:'center',gap:8,padding:'7px 0',borderBottom:'1px solid var(--sf-border)' }}><span style={{ width:14,height:14,border:'1px solid var(--sf-border-strong)',borderRadius:3,display:'inline-block' }} /><span style={{ color:'var(--sf-muted-2)',fontSize:12 }}>{item}</span><span style={{ marginLeft:'auto',background:'var(--sf-surface-2)',color:'var(--sf-muted-2)',fontSize:9,padding:'2px 6px',borderRadius:4 }}>Soon</span></div>)}
           </div>
         </div>
       )}
       {tab==='journey' && (
         <div>
           <div style={{ textAlign:'center',padding:'40px 20px' }}>
-            <div style={{ fontSize:36,marginBottom:12 }}>🗺</div>
+            <div style={{ display:'flex', justifyContent:'center', marginBottom:12, color:'var(--sf-muted)' }}>
+              <Icon name="map" size={40} />
+            </div>
             <div style={{ color:'#A0A0C0',fontWeight:600,fontSize:16,fontFamily:"'Space Grotesk',sans-serif",marginBottom:8 }}>Brand Journey — Coming Next</div>
             <div style={{ color:'var(--sf-muted-2)',fontSize:13,maxWidth:440,margin:'0 auto' }}>Campaign history, milestone timeline, monthly tasks, and full brand story will live here.</div>
           </div>

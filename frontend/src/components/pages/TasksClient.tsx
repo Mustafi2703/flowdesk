@@ -2,6 +2,7 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import { SessionUser, TaskStatus } from '@/types'
+import { Icon } from '@/components/app/Icons'
 
 const STATUSES: TaskStatus[] = ['Not Started','In Progress','Under Review','Revision Needed','Completed','On Hold','Struggling','Needs Attention']
 const PRIORITIES = ['Critical','High','Medium','Low']
@@ -300,8 +301,9 @@ function CreateModal({ session, brands, users, onClose, onSaved, canSeeBilling }
         <div style={{ marginBottom:12 }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
             <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em' }}>Description</label>
-            <button onClick={aiWrite} disabled={!title||aiLoading} style={{ background:'rgba(232,99,10,0.15)', border:'1px solid rgba(232,99,10,0.3)', borderRadius:6, color:'var(--sf-accent)', fontSize:11, fontWeight:700, padding:'3px 9px', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-              {aiLoading?'Writing…':'✦ AI Write'}
+            <button onClick={aiWrite} disabled={!title||aiLoading} type="button" style={{ display:'inline-flex', alignItems:'center', gap:6, background:'rgba(232,99,10,0.15)', border:'1px solid rgba(232,99,10,0.3)', borderRadius:6, color:'var(--sf-accent)', fontSize:11, fontWeight:700, padding:'3px 9px', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+              <Icon name="sparkles" size={12} />
+              {aiLoading ? 'Writing…' : 'AI Write'}
             </button>
           </div>
           <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Describe the task…" rows={3} style={{ ...sInp, resize:'vertical' }} />

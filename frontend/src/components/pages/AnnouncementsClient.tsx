@@ -2,6 +2,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { SessionUser } from '@/types'
+import { EmptyState } from '@/components/app/Icons'
 
 export default function AnnouncementsClient({ session }: { session: SessionUser }) {
   const [items, setItems] = useState<any[]>([])
@@ -12,7 +13,7 @@ export default function AnnouncementsClient({ session }: { session: SessionUser 
   function load() { return fetch('/api/announcements').then(r=>r.json()).then(d => { setItems(Array.isArray(d)?d:[]); setLoading(false) }) }
   useEffect(() => { load() }, [])
 
-  const PRI: Record<string,{c:string;b:string;label:string}> = { Normal:{c:'var(--sf-muted)',b:'var(--sf-muted-2)',label:''}, Important:{c:'#FBBF24',b:'#FBBF24',label:'★ '}, Urgent:{c:'#F87171',b:'#EF4444',label:'🚨 '} }
+  const PRI: Record<string,{c:string;b:string;label:string}> = { Normal:{c:'var(--sf-muted)',b:'var(--sf-muted-2)',label:''}, Important:{c:'#FBBF24',b:'#FBBF24',label:''}, Urgent:{c:'#F87171',b:'#EF4444',label:''} }
 
   if (loading) return <div style={{color:'var(--sf-muted)',padding:40,textAlign:'center'}}>Loading…</div>
 
@@ -43,7 +44,7 @@ export default function AnnouncementsClient({ session }: { session: SessionUser 
             </div>
           )
         })}
-        {items.length===0 && <div style={{textAlign:'center',padding:48,color:'var(--sf-muted-2)'}}><div style={{fontSize:36,marginBottom:12}}>📢</div><div>No announcements yet.</div></div>}
+        {items.length===0 && <EmptyState icon="announcements" title="No announcements yet." />}
       </div>
       {showCreate && canPost && <CreateForm onClose={()=>setShowCreate(false)} onSaved={()=>{setShowCreate(false); load()}} />}
     </div>

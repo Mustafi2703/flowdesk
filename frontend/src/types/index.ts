@@ -85,16 +85,29 @@ export const STATUS_TEXT: Record<string, string> = {
   'Struggling': '#B91C1C', 'Needs Attention': '#92400E',
 }
 
+export type NavIcon =
+  | 'dashboard'
+  | 'calendar'
+  | 'tasks'
+  | 'code'
+  | 'brands'
+  | 'team'
+  | 'performance'
+  | 'attendance'
+  | 'leave'
+  | 'announcements'
+  | 'billing'
+
 export const NAV_ITEMS = [
-  { id: 'overview',      label: 'Dashboard',     icon: '⊞', roles: ['owner','manager','team','hr','accountant','developer'] },
-  { id: 'calendar',      label: 'Calendar',      icon: '◫', roles: ['owner','manager','team','hr','accountant','developer'] },
-  { id: 'tasks',         label: 'Tasks',         icon: '✓', roles: ['owner','manager','team'] },
-  { id: 'devboard',      label: 'Dev Board',     icon: '⌨', roles: ['owner','developer','manager'] },
-  { id: 'brands',        label: 'Brands',        icon: '◈', roles: ['owner','manager','hr','accountant','team'] },
-  { id: 'team',          label: 'Team',          icon: '◉', roles: ['owner','manager','hr'] },
-  { id: 'performance',   label: 'Performance',   icon: '◎', roles: ['owner','manager','hr'] },
-  { id: 'attendance',    label: 'Attendance',    icon: '◷', roles: ['owner','manager','team','hr','developer','accountant'] },
-  { id: 'leave',         label: 'Leave',         icon: '⊘', roles: ['owner','manager','team','hr','developer','accountant'] },
-  { id: 'announcements', label: 'Announcements', icon: '📢', roles: ['owner','manager','team','hr','accountant','developer'] },
-  { id: 'billing',       label: 'Billing',       icon: '₹',  roles: ['owner','manager','accountant'] },
+  { id: 'overview',      label: 'Dashboard',     icon: 'dashboard' as NavIcon, roles: ['owner','manager','team','hr','accountant','developer'] },
+  { id: 'calendar',      label: 'Calendar',      icon: 'calendar' as NavIcon, roles: ['owner','manager','team','hr','accountant','developer'] },
+  { id: 'tasks',         label: 'Tasks',         icon: 'tasks' as NavIcon, roles: ['owner','manager','team'] },
+  { id: 'devboard',      label: 'Dev Board',     icon: 'code' as NavIcon, roles: ['owner','developer','manager'] },
+  { id: 'brands',        label: 'Brands',        icon: 'brands' as NavIcon, roles: ['owner','manager','hr','accountant','team'] },
+  { id: 'team',          label: 'Team',          icon: 'team' as NavIcon, roles: ['owner','manager','hr'] },
+  { id: 'performance',   label: 'Performance',   icon: 'performance' as NavIcon, roles: ['owner','manager','hr'] },
+  { id: 'attendance',    label: 'Attendance',    icon: 'attendance' as NavIcon, roles: ['owner','manager','team','hr','developer','accountant'] },
+  { id: 'leave',         label: 'Leave',         icon: 'leave' as NavIcon, roles: ['owner','manager','team','hr','developer','accountant'] },
+  { id: 'announcements', label: 'Announcements', icon: 'announcements' as NavIcon, roles: ['owner','manager','team','hr','accountant','developer'] },
+  { id: 'billing',       label: 'Billing',       icon: 'billing' as NavIcon, roles: ['owner','manager','accountant'] },
 ] as const

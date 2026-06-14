@@ -3,15 +3,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-const DEMOS = [
-  { role: 'owner', label: 'Owner' },
-  { role: 'manager', label: 'Manager' },
-  { role: 'team', label: 'Team Member' },
-  { role: 'hr', label: 'HR' },
-  { role: 'accountant', label: 'Accountant' },
-  { role: 'developer', label: 'Developer' },
-]
-
 const FEATURES = [
   'Task boards, assignments, and delivery tracking',
   'Team onboarding, roles, and reporting hierarchy',
@@ -24,14 +15,21 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [showDemo, setShowDemo] = useState(false)
 
-  async function handleAuth(res: Response) {
+  async function doLogin(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
     let data: any = {}
     try {
       data = await res.json()
     } catch {
-      setError(res.status === 405 ? 'Sign-in request blocked. Please refresh and try again.' : 'Unexpected server response')
+      setError('Unexpected server response')
       setLoading(false)
       return
     }
@@ -44,32 +42,8 @@ export default function LoginPage() {
     router.push('/overview')
   }
 
-  async function doLogin(em: string, pw: string) {
-    setLoading(true)
-    setError('')
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: em, password: pw }),
-    })
-    await handleAuth(res)
-  }
-
-  async function doDemoLogin(role: string) {
-    setLoading(true)
-    setError('')
-    setShowDemo(false)
-    const res = await fetch('/api/auth/demo-login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role }),
-    })
-    await handleAuth(res)
-  }
-
   return (
     <div className="login-shell">
-      {/* ── Left: branding ── */}
       <aside className="login-brand">
         <div className="login-brand-inner">
           <div className="login-logo-row">
@@ -100,23 +74,16 @@ export default function LoginPage() {
         </div>
       </aside>
 
-      {/* ── Right: sign-in ── */}
       <main className="login-panel">
         <div className="login-card">
           <div className="login-card-header">
             <h2>Sign in</h2>
-            <p>Use your company email and password to access the workspace.</p>
+            <p>Sign in with the owner account created at deploy, then onboard your team from the Team module.</p>
           </div>
 
           {error && <div className="login-error">{error}</div>}
 
-          <form
-            className="login-form"
-            onSubmit={e => {
-              e.preventDefault()
-              doLogin(email, password)
-            }}
-          >
+          <form className="login-form" onSubmit={doLogin}>
             <label className="login-label" htmlFor="email">Email</label>
             <input
               id="email"
@@ -124,7 +91,7 @@ export default function LoginPage() {
               className="login-input"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              placeholder="name@scrumfolks.com"
+              placeholder="name@company.com"
               autoComplete="email"
               required
             />
@@ -145,32 +112,6 @@ export default function LoginPage() {
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
-
-          <div className="login-demo">
-            <button
-              type="button"
-              className="login-demo-toggle"
-              onClick={() => setShowDemo(v => !v)}
-              disabled={loading}
-            >
-              {showDemo ? 'Hide demo accounts' : 'Demo workspace access'}
-            </button>
-            {showDemo && (
-              <div className="login-demo-grid">
-                {DEMOS.map(d => (
-                  <button
-                    key={d.role}
-                    type="button"
-                    disabled={loading}
-                    className="login-demo-btn"
-                    onClick={() => doDemoLogin(d.role)}
-                  >
-                    {d.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
         <p className="login-legal">Internal use only · Secure session</p>

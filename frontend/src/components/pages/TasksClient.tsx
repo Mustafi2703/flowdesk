@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { SessionUser, TaskStatus } from '@/types'
 import { Icon } from '@/components/app/Icons'
+import { PageHeader, PageShell, Section } from '@/components/app/Section'
 
 const STATUSES: TaskStatus[] = ['Not Started','In Progress','Under Review','Revision Needed','Completed','On Hold','Struggling','Needs Attention']
 const PRIORITIES = ['Critical','High','Medium','Low']
@@ -87,20 +88,19 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   if (loading) return <div style={{ color:'var(--sf-muted)', padding:40, textAlign:'center' }}>Loading tasks…</div>
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'calc(100vh - 3rem)', minHeight:520 }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, flexShrink:0 }}>
-        <div>
-          <h2 style={{ color:'var(--sf-text)', fontFamily:"'Space Grotesk',sans-serif", fontSize:20, fontWeight:700, margin:0 }}>
-            {['team','developer'].includes(session.role) ? 'My Tasks' : 'Tasks'}
-          </h2>
-          <p style={{ color:'var(--sf-muted)', fontSize:13, margin:'4px 0 0' }}>{filtered.length} items</p>
-        </div>
+    <PageShell>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexShrink:0 }}>
+        <PageHeader
+          title={['team','developer'].includes(session.role) ? 'My Tasks' : 'Tasks'}
+          subtitle={`${filtered.length} items`}
+        />
         {canCreate && (
-          <button onClick={() => setShowCreate(true)} className="sf-btn sf-btn-primary">New task</button>
+          <button onClick={() => setShowCreate(true)} className="sf-btn sf-btn-primary" style={{ marginTop:4 }}>New task</button>
         )}
       </div>
 
-      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap', alignItems:'center', flexShrink:0 }}>
+      <Section title="Filters & view" subtitle="Sort and filter the task list" flush style={{ flexShrink:0 }}>
+        <div style={{ padding:'0.75rem 1rem', display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
         <div style={{ display:'flex', background:'var(--sf-surface)', border:'1px solid var(--sf-border)', borderRadius:8, overflow:'hidden' }}>
           {(['list','kanban'] as const).map(v => (
             <button key={v} onClick={() => setView(v)} style={{ padding:'7px 14px', background:view===v?'var(--sf-accent)':'transparent', border:'none', color:view===v?'#fff':'var(--sf-muted)', cursor:'pointer', fontSize:12, fontWeight:600 }}>
@@ -130,11 +130,12 @@ export default function TasksClient({ session }: { session: SessionUser }) {
         >
           {sortDir === 'asc' ? 'Ascending' : 'Descending'}
         </button>
-      </div>
+        </div>
+      </Section>
 
       {view === 'list' ? (
-        <div className="sf-table-wrap" style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-          <div style={{ overflowY:'auto', flex:1 }}>
+        <Section title="Task list" subtitle={`${filtered.length} tasks`} flush flex={1}>
+          <div className="sf-table-wrap" style={{ border:'none', borderRadius:0, boxShadow:'none', height:'100%' }}>
             <table className="sf-table">
               <thead>
                 <tr>
@@ -180,9 +181,10 @@ export default function TasksClient({ session }: { session: SessionUser }) {
               <div style={{ color:'var(--sf-muted)', textAlign:'center', padding:48 }}>No tasks match your filters.</div>
             )}
           </div>
-        </div>
+        </Section>
       ) : (
-        <div style={{ flex:1, minHeight:0, overflowX:'auto', overflowY:'hidden', display:'flex', gap:10, paddingBottom:4 }}>
+        <Section title="Task board" subtitle="Kanban by status" flush flex={1}>
+          <div style={{ display:'flex', gap:10, overflowX:'auto', overflowY:'auto', height:'100%', padding:'0.75rem' }}>
           {(['Not Started','In Progress','Under Review','Revision Needed','Completed','On Hold'] as TaskStatus[]).map(col => {
             const colTasks = filtered.filter(t => t.status===col)
             return (
@@ -205,13 +207,14 @@ export default function TasksClient({ session }: { session: SessionUser }) {
               </div>
             )
           })}
-        </div>
+          </div>
+        </Section>
       )}
 
       {showCreate && canCreate && (
         <CreateModal session={session} brands={brands} users={users} onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); load() }} canSeeBilling={canSeeBilling} />
       )}
-    </div>
+    </PageShell>
   )
 }
 

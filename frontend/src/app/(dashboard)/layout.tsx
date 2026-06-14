@@ -16,7 +16,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     >
       <Sidebar session={session} />
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem 1.75rem' }}>{children}</div>
+        <div className="sf-main-scroll">{children}</div>
       </main>
     </div>
   )

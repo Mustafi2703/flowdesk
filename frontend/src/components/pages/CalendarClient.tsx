@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { SessionUser } from '@/types'
+import { PageHeader, PageShell, Section } from '@/components/app/Section'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const COMPANY = 'company'
@@ -73,14 +74,12 @@ export default function CalendarClient({ session }: { session: SessionUser }) {
       : 'Your assigned tasks, leave, and attendance'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 3rem)', minHeight: 480 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, gap: 12, flexWrap: 'wrap', flexShrink: 0 }}>
-        <div>
-          <h2 style={{ color: 'var(--sf-text)', fontFamily: "'Space Grotesk',sans-serif", fontSize: 20, fontWeight: 700, margin: 0 }}>
-            {isCompanyView ? 'Company Calendar' : 'My Calendar'}
-          </h2>
-          <p style={{ color: 'var(--sf-muted)', fontSize: 13, margin: '4px 0 0' }}>{subtitle}</p>
-        </div>
+    <PageShell>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, flexShrink: 0 }}>
+        <PageHeader
+          title={isCompanyView ? 'Company Calendar' : 'My Calendar'}
+          subtitle={subtitle}
+        />
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           {showPicker && (
             <select value={selectedUser} onChange={e => { setSelectedUser(e.target.value); setSelectedDay(null) }} style={selectStyle}>
@@ -100,8 +99,8 @@ export default function CalendarClient({ session }: { session: SessionUser }) {
       {loading ? (
         <div style={{ color: 'var(--sf-muted)', padding: 40, textAlign: 'center' }}>Loading calendar…</div>
       ) : (
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ flex: 1, minHeight: 0, background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <>
+          <Section title="Month view" subtitle={data?.user?.name || session.name} flush flex={1}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--sf-border)', flexShrink: 0 }}>
               {WEEKDAYS.map(w => (
                 <div key={w} style={{ padding: '10px 8px', textAlign: 'center', color: 'var(--sf-muted)', fontSize: 11, fontWeight: 600, background: 'var(--sf-surface-2)' }}>{w}</div>
@@ -147,10 +146,10 @@ export default function CalendarClient({ session }: { session: SessionUser }) {
                 })}
               </div>
             </div>
-          </div>
+          </Section>
 
           {dayDetail && (
-            <div style={{ flexShrink: 0, maxHeight: 220, overflowY: 'auto', background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, padding: 16 }}>
+            <Section title="Day detail" subtitle={selectedDay || ''} style={{ flexShrink: 0 }} bodyStyle={{ maxHeight: 220 }}>
               <div style={{ color: 'var(--sf-text)', fontWeight: 700, marginBottom: 10, fontSize: 14 }}>
                 {new Date(selectedDay + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
               </div>
@@ -202,11 +201,11 @@ export default function CalendarClient({ session }: { session: SessionUser }) {
               {!dayDetail.tasks?.length && !dayDetail.leave?.length && !dayDetail.attendance && (
                 <div style={{ color: 'var(--sf-muted)', fontSize: 13 }}>Nothing scheduled.</div>
               )}
-            </div>
+            </Section>
           )}
-        </div>
+        </>
       )}
-    </div>
+    </PageShell>
   )
 }
 

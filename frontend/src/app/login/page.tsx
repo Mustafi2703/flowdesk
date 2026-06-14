@@ -9,22 +9,24 @@ const FEATURES = [
   'Calendar, attendance, leave, and performance',
 ]
 
+const DEMOS = [
+  { role: 'owner', label: 'Owner' },
+  { role: 'manager', label: 'Manager' },
+  { role: 'team', label: 'Team Member' },
+  { role: 'hr', label: 'HR' },
+  { role: 'accountant', label: 'Accountant' },
+  { role: 'developer', label: 'Developer' },
+]
+
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showDemo, setShowDemo] = useState(false)
 
-  async function doLogin(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    })
+  async function handleAuth(res: Response) {
     let data: any = {}
     try {
       data = await res.json()
@@ -35,11 +37,35 @@ export default function LoginPage() {
     }
     if (!res.ok) {
       const detail = typeof data.detail === 'string' ? data.detail : Array.isArray(data.detail) ? data.detail[0]?.msg : null
-      setError(data.error || detail || 'Invalid email or password')
+      setError(data.error || detail || 'Sign in failed')
       setLoading(false)
       return
     }
     router.push('/overview')
+  }
+
+  async function doLogin(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
+    await handleAuth(res)
+  }
+
+  async function doDemoLogin(role: string) {
+    setLoading(true)
+    setError('')
+    setShowDemo(false)
+    const res = await fetch('/api/auth/demo-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    })
+    await handleAuth(res)
   }
 
   return (
@@ -78,7 +104,7 @@ export default function LoginPage() {
         <div className="login-card">
           <div className="login-card-header">
             <h2>Sign in</h2>
-            <p>Sign in with the owner account created at deploy, then onboard your team from the Team module.</p>
+            <p>Sign in with your account, or use demo roles to test an empty workspace.</p>
           </div>
 
           {error && <div className="login-error">{error}</div>}
@@ -112,6 +138,21 @@ export default function LoginPage() {
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
+
+          <div className="login-demo">
+            <button type="button" className="login-demo-toggle" onClick={() => setShowDemo(v => !v)} disabled={loading}>
+              {showDemo ? 'Hide demo roles' : 'Demo role login (empty workspace)'}
+            </button>
+            {showDemo && (
+              <div className="login-demo-grid">
+                {DEMOS.map(d => (
+                  <button key={d.role} type="button" disabled={loading} className="login-demo-btn" onClick={() => doDemoLogin(d.role)}>
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <p className="login-legal">Internal use only · Secure session</p>

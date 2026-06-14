@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const PUBLIC = ['/login', '/api/auth/login', '/api/auth/logout']
+const PUBLIC = ['/login', '/api/auth/login', '/api/auth/logout', '/api/auth/demo-login']
 const COOKIE = 'sf_sess'
 
 export function middleware(req: NextRequest) {

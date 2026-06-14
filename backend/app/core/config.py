@@ -81,6 +81,8 @@ class Settings(BaseSettings):
     # ── Seed / Bootstrap ─────────────────────────────────────────────────
     # Demo seed (9 sample users + brands + tasks) — only for demos.
     seed_demo: bool = False
+    # When true with SEED_DEMO, also seed brands/tasks/announcements (full sales demo).
+    seed_full_demo: bool = False
     # One-time wipe of all rows (keeps schema). Set true for a single deploy, then turn off.
     reset_workspace: bool = False
     # Demo seed password — MUST be supplied via SEED_PASSWORD env when SEED_DEMO=true.

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { SessionUser } from '@/types'
 import { EmptyState } from '@/components/app/Icons'
+import { PageHeader, PageShell, Section } from '@/components/app/Section'
 
 export default function AnnouncementsClient({ session }: { session: SessionUser }) {
   const [items, setItems] = useState<any[]>([])
@@ -18,12 +19,13 @@ export default function AnnouncementsClient({ session }: { session: SessionUser 
   if (loading) return <div style={{color:'var(--sf-muted)',padding:40,textAlign:'center'}}>Loading…</div>
 
   return (
-    <div>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-        <h2 style={{color:'var(--sf-text)',fontFamily:"'Space Grotesk',sans-serif",fontSize:20,fontWeight:700}}>Announcements ({items.length})</h2>
-        {canPost && <button onClick={()=>setShowCreate(true)} style={{padding:'9px 18px',background:'var(--sf-accent)',border:'none',borderRadius:9,color:'var(--sf-text)',fontWeight:700,fontSize:13,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>+ Post Announcement</button>}
+    <PageShell>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexShrink:0 }}>
+        <PageHeader title="Announcements" subtitle={`${items.length} posts`} />
+        {canPost && <button onClick={()=>setShowCreate(true)} className="sf-btn sf-btn-primary" style={{ marginTop:4 }}>New announcement</button>}
       </div>
-      <div style={{display:'flex',flexDirection:'column',gap:12}}>
+      <Section title="All announcements" subtitle="Company updates and notices" flex={1}>
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
         {items.map((a:any) => {
           const p = PRI[a.priority]||PRI.Normal
           const c = a.creator||{}
@@ -45,9 +47,10 @@ export default function AnnouncementsClient({ session }: { session: SessionUser 
           )
         })}
         {items.length===0 && <EmptyState icon="announcements" title="No announcements yet." />}
-      </div>
+        </div>
+      </Section>
       {showCreate && canPost && <CreateForm onClose={()=>setShowCreate(false)} onSaved={()=>{setShowCreate(false); load()}} />}
-    </div>
+    </PageShell>
   )
 }
 

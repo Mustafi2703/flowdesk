@@ -59,8 +59,13 @@ if [ "${RESET_WORKSPACE:-false}" = "true" ]; then
 fi
 
 if [ "${SEED_DEMO:-false}" = "true" ]; then
-    echo "[backend] seeding demo data (idempotent)"
-    python -m app.scripts.seed
+    if [ "${SEED_FULL_DEMO:-false}" = "true" ]; then
+        echo "[backend] seeding full demo data"
+        python -m app.scripts.seed
+    else
+        echo "[backend] seeding demo users only (no sample data)"
+        python -c "from app.scripts.seed import seed_users_only; seed_users_only()"
+    fi
 else
     echo "[backend] production mode - bootstrapping owner account only"
     python -m app.scripts.bootstrap_admin

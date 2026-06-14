@@ -161,35 +161,49 @@ LEAVES = [
 ]
 
 
+def _seed_users(db) -> None:
+    existing_users = {profile.email: profile for profile in db.scalars(select(Profile)).all()}
+    password_hash = hash_password(settings.seed_password)
+    for uid, name, email, role, dept, designation, avatar, manager_id in USERS:
+        if email in existing_users:
+            profile = existing_users[email]
+            profile.password_hash = password_hash
+            if profile.manager_id != manager_id:
+                profile.manager_id = manager_id
+            continue
+        db.add(
+            Profile(
+                id=uid,
+                name=name,
+                email=email,
+                password_hash=password_hash,
+                role=role,
+                department=dept,
+                designation=designation,
+                avatar=avatar,
+                manager_id=manager_id,
+            )
+        )
+    db.flush()
+
+
+def seed_users_only() -> None:
+    """Create demo role accounts only — no brands, tasks, or sample content."""
+    if not settings.seed_password or len(settings.seed_password) < 8:
+        print("ERROR: Set SEED_PASSWORD (min 8 chars) before running seed.", file=sys.stderr)  # noqa: T201
+        raise SystemExit(1)
+    with db_session() as db:
+        _seed_users(db)
+    print("[seed] demo users ready (no sample data)")  # noqa: T201
+
+
 def seed() -> None:
     if not settings.seed_password or len(settings.seed_password) < 8:
         print("ERROR: Set SEED_PASSWORD (min 8 chars) before running seed.", file=sys.stderr)  # noqa: T201
         raise SystemExit(1)
 
     with db_session() as db:
-        existing_users = {profile.email: profile for profile in db.scalars(select(Profile)).all()}
-        password_hash = hash_password(settings.seed_password)
-        for uid, name, email, role, dept, designation, avatar, manager_id in USERS:
-            if email in existing_users:
-                profile = existing_users[email]
-                profile.password_hash = password_hash
-                if profile.manager_id != manager_id:
-                    profile.manager_id = manager_id
-                continue
-            db.add(
-                Profile(
-                    id=uid,
-                    name=name,
-                    email=email,
-                    password_hash=password_hash,
-                    role=role,
-                    department=dept,
-                    designation=designation,
-                    avatar=avatar,
-                    manager_id=manager_id,
-                )
-            )
-        db.flush()
+        _seed_users(db)
 
         existing_brands = set(db.scalars(select(Brand.id)).all())
         for bid, name, logo, desc, ctype, prio, short, long, resp, members in BRANDS:

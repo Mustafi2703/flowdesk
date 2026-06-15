@@ -113,6 +113,10 @@ body {
   flex-direction: column;
 }
 
+.sf-main-scroll:has(.sf-brands-layout) {
+  padding: 0;
+}
+
 .sf-page {
   display: flex;
   flex-direction: column;

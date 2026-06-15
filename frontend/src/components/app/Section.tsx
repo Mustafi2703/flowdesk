@@ -16,8 +16,8 @@ type SectionProps = {
   flex?: number | string
 }
 
-export function PageShell({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`sf-page ${className}`.trim()}>{children}</div>
+export function PageShell({ children, className = '', style }: { children: ReactNode; className?: string; style?: CSSProperties }) {
+  return <div className={`sf-page ${className}`.trim()} style={style}>{children}</div>
 }
 
 export function PageHeader({ title, subtitle }: { title: string; subtitle?: string }) {

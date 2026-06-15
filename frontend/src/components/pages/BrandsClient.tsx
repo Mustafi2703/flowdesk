@@ -183,7 +183,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
         <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '20px 24px' }}>
           {!selected ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: 'var(--sf-muted)' }}>
-              <EmptyState icon="brands" title="Select a brand" subtitle="Choose a client from the list on the left to view projects, tasks, and goals." />
+              <EmptyState icon="brands" title="Select a brand from the list on the left to view projects, tasks, and goals." />
             </div>
           ) : (
             <BrandDetail

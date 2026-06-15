@@ -5,15 +5,43 @@ import { SessionUser, ROLE_COLORS, STATUS_BG, STATUS_TEXT } from '@/types'
 import { EmptyState } from '@/components/app/Icons'
 import { PageHeader, PageShell, Section, StatCard, StatGrid } from '@/components/app/Section'
 
+const STATUSES = ['Not Started','In Progress','Under Review','Revision Needed','Completed','On Hold','Struggling','Needs Attention']
+
 export default function DevBoardClient({ session }: { session: SessionUser }) {
   const [tasks, setTasks] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
   const [brands, setBrands] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    Promise.all([fetch('/api/tasks').then(r=>r.json()), fetch('/api/users').then(r=>r.json()), fetch('/api/brands').then(r=>r.json())]).then(([t,u,b]) => { setTasks(Array.isArray(t)?t:[]); setUsers(Array.isArray(u)?u:[]); setBrands(Array.isArray(b)?b:[]); setLoading(false) })
-  }, [])
+  function load() {
+    return Promise.all([
+      fetch('/api/tasks').then(r=>r.json()),
+      fetch('/api/users').then(r=>r.json()),
+      fetch('/api/brands').then(r=>r.json()),
+    ]).then(([t,u,b]) => {
+      setTasks(Array.isArray(t)?t:[])
+      setUsers(Array.isArray(u)?u:[])
+      setBrands(Array.isArray(b)?b:[])
+      setLoading(false)
+    })
+  }
+
+  useEffect(() => { load() }, [])
+
+  async function updateSubTaskStatus(task: any, subId: string, status: string) {
+    const updated = (task.sub_tasks || []).map((st: any) => (st.id === subId ? { ...st, status } : st))
+    await fetch(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sub_tasks: updated }),
+    })
+    load()
+  }
+
+  const canUpdateSub = (st: any, task: any) =>
+    ['owner','manager'].includes(session.role) ||
+    (st.assigned_to || []).includes(session.id) ||
+    (task.assigned_to || []).includes(session.id)
 
   const devTasks = ['owner','manager'].includes(session.role) ? tasks.filter(t => t.type==='Development' || t.task_mode==='project') : tasks.filter(t => t.assigned_to?.includes(session.id) || (t.sub_tasks||[]).some((s:any) => s.assigned_to?.includes(session.id)))
   const mySub = devTasks.flatMap(t => (t.sub_tasks||[]).filter((s:any) => ['owner','manager'].includes(session.role) || s.assigned_to?.includes(session.id)).map((s:any) => ({...s, parent:t})))
@@ -46,7 +74,17 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
                     <div style={{color:'var(--sf-muted)',fontSize:11}}>{getBrand(st.parent.brand_id)?.name}</div>
                   </div>
                   <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                    <span style={{background:STATUS_BG[st.status]||'#F3F4F6',color:STATUS_TEXT[st.status]||'#374151',fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:5}}>{st.status}</span>
+                    {canUpdateSub(st, st.parent) ? (
+                      <select
+                        value={st.status}
+                        onChange={(e) => updateSubTaskStatus(st.parent, st.id, e.target.value)}
+                        style={{ padding:'3px 6px', background:'var(--sf-surface-2)', border:'1px solid var(--sf-border)', borderRadius:5, color:'var(--sf-text)', fontSize:10 }}
+                      >
+                        {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    ) : (
+                      <span style={{background:STATUS_BG[st.status]||'#F3F4F6',color:STATUS_TEXT[st.status]||'#374151',fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:5}}>{st.status}</span>
+                    )}
                     {dl!==null && <span style={{color:late?'#F87171':'var(--sf-muted)',fontSize:11}}>{late?`${Math.abs(dl)}d late`:`${dl}d`}</span>}
                   </div>
                 </div>
@@ -89,6 +127,17 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
                       <div style={{width:7,height:7,borderRadius:'50%',background:st.status==='Completed'?'#10B981':st.status==='In Progress'?'#3B82F6':'var(--sf-muted-2)',flexShrink:0}}/>
                       <span style={{flex:1,color:st.status==='Completed'?'var(--sf-muted-2)':'#C0C0D0',fontSize:12,textDecoration:st.status==='Completed'?'line-through':'none'}}>{st.title}</span>
                       {(st.assigned_to||[]).map((uid:string) => { const u=getUser(uid); return u ? <div key={uid} style={{width:20,height:20,borderRadius:4,background:ROLE_COLORS[u.role]||'var(--sf-accent)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--sf-text)',fontSize:8,fontWeight:700}}>{u.avatar||u.name?.slice(0,2)}</div> : null })}
+                      {canUpdateSub(st, task) ? (
+                        <select
+                          value={st.status}
+                          onChange={(e) => updateSubTaskStatus(task, st.id, e.target.value)}
+                          style={{ padding:'2px 6px', background:'var(--sf-bg)', border:'1px solid var(--sf-border)', borderRadius:5, color:'var(--sf-text)', fontSize:10 }}
+                        >
+                          {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      ) : (
+                        <span style={{ background:STATUS_BG[st.status]||'#F3F4F6', color:STATUS_TEXT[st.status]||'#374151', fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:4 }}>{st.status}</span>
+                      )}
                       <span style={{color:'var(--sf-muted-2)',fontSize:10}}>{st.due_date}</span>
                     </div>
                   ))}

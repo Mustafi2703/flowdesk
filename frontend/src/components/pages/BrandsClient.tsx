@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
 import { EmptyState, Icon } from '@/components/app/Icons'
 import { PageHeader, PageShell, Section } from '@/components/app/Section'
+import { TaskFormModal } from '@/components/pages/TasksClient'
 
 const sInp = { width:'100%', padding:'9px 12px', background:'var(--sf-surface-2)', border:'1px solid #2A2A45', borderRadius:8, color:'var(--sf-text)', fontSize:13, outline:'none', fontFamily:"'DM Sans',sans-serif" }
 
@@ -34,7 +35,22 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   const TC: Record<string,string> = { Retainer:'#3B82F6','Project-Based':'#8B5CF6','One-Time':'#6B7280',Internal:'#10B981' }
   const PD: Record<string,string> = { P1:'#EF4444',P2:'#F97316',P3:'#FBBF24',P4:'#22C55E' }
 
-  if (selected) return <BrandDetail brand={selected} tasks={tasks.filter(t=>t.brand_id===selected.id)} users={users} canEdit={canEdit} onBack={() => setSelected(null)} onUpdate={async (u:any) => { await fetch(`/api/brands/${selected.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(u)}); setSelected({...selected,...u}); load() }} />
+  if (selected) return (
+    <BrandDetail
+      brand={selected}
+      tasks={tasks.filter(t => t.brand_id === selected.id)}
+      users={users}
+      session={session}
+      canEdit={canEdit}
+      onBack={() => setSelected(null)}
+      onRefresh={load}
+      onUpdate={async (u:any) => {
+        await fetch(`/api/brands/${selected.id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(u) })
+        setSelected({ ...selected, ...u })
+        load()
+      }}
+    />
+  )
 
   if (loading) return <div style={{ color:'var(--sf-muted)', padding:40, textAlign:'center' }}>Loading brands…</div>
 
@@ -54,6 +70,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(288px,1fr))', gap:16 }}>
         {visible.map(b => {
           const bt = tasks.filter(t=>t.brand_id===b.id)
+          const projects = bt.filter(t => t.task_mode === 'project')
           const fl = bt.filter(t=>['Struggling','Needs Attention'].includes(t.status))
           const done = bt.filter(t=>t.status==='Completed').length
           return (
@@ -72,8 +89,8 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                 {fl.length>0 && <div style={{ background:'rgba(239,68,68,0.15)', color:'#F87171', fontSize:10, fontWeight:700, padding:'3px 7px', borderRadius:5, flexShrink:0 }}>⚠ {fl.length}</div>}
               </div>
               <p style={{ color:'var(--sf-muted)', fontSize:12, lineHeight:1.5, marginBottom:12, overflow:'hidden', display:'-webkit-box' as any, WebkitLineClamp:2, WebkitBoxOrient:'vertical' as any }}>{b.description}</p>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:10 }}>
-                {[['Tasks',bt.length,'white'],['Flagged',fl.length,fl.length>0?'#F87171':'white'],['Done',done,'#10B981']].map(([l,v,c]) => (
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:8, marginBottom:10 }}>
+                {[['Tasks',bt.length,'var(--sf-text)'],['Projects',projects.length,'#06B6D4'],['Flagged',fl.length,fl.length>0?'#F87171':'var(--sf-text)'],['Done',done,'#10B981']].map(([l,v,c]) => (
                   <div key={String(l)} style={{ background:'var(--sf-surface-2)', borderRadius:8, padding:'8px', textAlign:'center' }}>
                     <div style={{ color:String(c), fontWeight:700, fontSize:16 }}>{v}</div>
                     <div style={{ color:'var(--sf-muted)', fontSize:10 }}>{l}</div>
@@ -94,9 +111,20 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   )
 }
 
-function BrandDetail({ brand, tasks, users, canEdit, onBack, onUpdate }: any) {
+function BrandDetail({ brand, tasks, users, session, canEdit, onBack, onRefresh, onUpdate }: any) {
   const [tab, setTab] = useState('overview')
-  const TABS = [{id:'overview',label:'Overview'},{id:'tasks',label:`Tasks (${tasks.length})`},{id:'goals',label:'Goals'},{id:'identity',label:'Identity'},{id:'journey',label:'Journey'}]
+  const [showCreateProject, setShowCreateProject] = useState(false)
+  const [editingProject, setEditingProject] = useState<any>(null)
+  const projects = tasks.filter((t:any) => t.task_mode === 'project')
+  const standardTasks = tasks.filter((t:any) => t.task_mode !== 'project')
+  const TABS = [
+    { id:'overview', label:'Overview' },
+    { id:'projects', label:`Projects (${projects.length})` },
+    { id:'tasks', label:`Tasks (${standardTasks.length})` },
+    { id:'goals', label:'Goals' },
+    { id:'identity', label:'Identity' },
+    { id:'journey', label:'Journey' },
+  ]
   const fl = tasks.filter((t:any)=>['Struggling','Needs Attention'].includes(t.status))
   const done = tasks.filter((t:any)=>t.status==='Completed').length
 
@@ -118,8 +146,8 @@ function BrandDetail({ brand, tasks, users, canEdit, onBack, onUpdate }: any) {
             </div>
             <p style={{ color:'#A0A0C0', fontSize:13, lineHeight:1.6 }}>{brand.description}</p>
           </div>
-          <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,flexShrink:0 }}>
-            {[['Total',tasks.length,'#3B82F6'],['Done',done,'#10B981'],['Flagged',fl.length,'#EF4444']].map(([l,v,c]) => (
+          <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:10,flexShrink:0 }}>
+            {[['Total',tasks.length,'#3B82F6'],['Projects',projects.length,'#06B6D4'],['Done',done,'#10B981'],['Flagged',fl.length,'#EF4444']].map(([l,v,c]) => (
               <div key={String(l)} style={{ background:'var(--sf-bg)',borderRadius:10,padding:'10px 14px',textAlign:'center',border:'1px solid var(--sf-border)' }}>
                 <div style={{ color:String(c),fontWeight:700,fontSize:20,fontFamily:"'Space Grotesk',sans-serif" }}>{v}</div>
                 <div style={{ color:'var(--sf-muted)',fontSize:10,marginTop:2 }}>{l}</div>
@@ -128,8 +156,11 @@ function BrandDetail({ brand, tasks, users, canEdit, onBack, onUpdate }: any) {
           </div>
         </div>
       </div>
-      <div style={{ display:'flex',gap:2,background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:12,padding:4,marginBottom:20,overflowX:'auto' }}>
+      <div style={{ display:'flex',gap:2,background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:12,padding:4,marginBottom:20,overflowX:'auto', alignItems:'center' }}>
         {TABS.map(t => <button key={t.id} onClick={() => setTab(t.id)} style={{ padding:'8px 18px',background:tab===t.id?'var(--sf-accent)':'transparent',border:'none',borderRadius:9,color:tab===t.id?'white':'var(--sf-muted)',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap' }}>{t.label}</button>)}
+        {canEdit && tab === 'projects' && (
+          <button onClick={() => { setEditingProject(null); setShowCreateProject(true) }} className="sf-btn sf-btn-primary" style={{ marginLeft:'auto', marginRight:4, fontSize:12, padding:'6px 12px' }}>Add project</button>
+        )}
       </div>
       {tab==='overview' && (
         <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:16 }}>
@@ -149,10 +180,63 @@ function BrandDetail({ brand, tasks, users, canEdit, onBack, onUpdate }: any) {
           </div>
         </div>
       )}
+      {tab==='projects' && (
+        <div>
+          {projects.length === 0 && (
+            <div style={{ textAlign:'center', padding:40, color:'var(--sf-muted-2)' }}>
+              <div style={{ marginBottom:12, fontSize:15, fontWeight:600, color:'var(--sf-muted)' }}>No projects for this brand yet.</div>
+              {canEdit && (
+                <button onClick={() => setShowCreateProject(true)} className="sf-btn sf-btn-primary">Create first project</button>
+              )}
+            </div>
+          )}
+          {projects.map((t:any) => {
+            const sub = t.sub_tasks || []
+            const stDone = sub.filter((s:any) => s.status === 'Completed').length
+            return (
+              <div key={t.id} style={{ padding:'16px 18px', background:'var(--sf-surface)', border:'1px solid var(--sf-border)', borderRadius:12, marginBottom:10 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:10 }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:4 }}>
+                      <span style={{ background:'rgba(6,182,212,0.15)', color:'#06B6D4', fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:4 }}>PROJECT</span>
+                      <span style={{ color:'var(--sf-text)', fontSize:14, fontWeight:700 }}>{t.title}</span>
+                    </div>
+                    <div style={{ color:'var(--sf-muted)', fontSize:11 }}>{t.type} · Due {t.due_date || '—'}</div>
+                    {t.description && <p style={{ color:'var(--sf-muted-2)', fontSize:12, marginTop:8, marginBottom:0 }}>{t.description}</p>}
+                  </div>
+                  <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                    <span style={{ background:STATUS_BG[t.status]||'#F3F4F6', color:STATUS_TEXT[t.status]||'#374151', fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:5 }}>{t.status}</span>
+                    {canEdit && (
+                      <button onClick={() => { setEditingProject(t); setShowCreateProject(true) }} className="sf-btn sf-btn-ghost" style={{ fontSize:11, padding:'4px 10px' }}>Edit</button>
+                    )}
+                  </div>
+                </div>
+                {sub.length > 0 && (
+                  <>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
+                      <span style={{ color:'var(--sf-muted)', fontSize:11 }}>Sub-tasks</span>
+                      <span style={{ color:'#06B6D4', fontWeight:700, fontSize:11 }}>{stDone}/{sub.length} done</span>
+                    </div>
+                    <div style={{ height:4, background:'var(--sf-surface-2)', borderRadius:2, marginBottom:10, overflow:'hidden' }}>
+                      <div style={{ width:`${sub.length ? (stDone/sub.length)*100 : 0}%`, height:'100%', background:'#06B6D4' }} />
+                    </div>
+                    {sub.map((st:any) => (
+                      <div key={st.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 10px', background:'var(--sf-surface-2)', borderRadius:7, marginBottom:5 }}>
+                        <span style={{ color:'var(--sf-text)', fontSize:12 }}>{st.title}</span>
+                        <span style={{ background:STATUS_BG[st.status]||'#F3F4F6', color:STATUS_TEXT[st.status]||'#374151', fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:4 }}>{st.status}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
       {tab==='tasks' && (
         <div>
-          {tasks.length===0 && <div style={{ textAlign:'center',padding:40,color:'var(--sf-muted-2)' }}>No tasks for this brand.</div>}
-          {tasks.map((t:any) => <div key={t.id} style={{ display:'flex',justifyContent:'space-between',alignItems:'center',padding:'13px 16px',background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:10,marginBottom:8 }}><div><div style={{ color:'var(--sf-text)',fontSize:13,fontWeight:600,marginBottom:2 }}>{t.title}</div><div style={{ color:'var(--sf-muted)',fontSize:11 }}>{t.type} · Due {t.due_date}</div></div><span style={{ background:STATUS_BG[t.status]||'#F3F4F6',color:STATUS_TEXT[t.status]||'#374151',fontSize:10,fontWeight:700,padding:'3px 8px',borderRadius:5 }}>{t.status}</span></div>)}
+          {standardTasks.length===0 && <div style={{ textAlign:'center',padding:40,color:'var(--sf-muted-2)' }}>No standard tasks for this brand.</div>}
+          {standardTasks.map((t:any) => <div key={t.id} style={{ display:'flex',justifyContent:'space-between',alignItems:'center',padding:'13px 16px',background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:10,marginBottom:8 }}><div><div style={{ color:'var(--sf-text)',fontSize:13,fontWeight:600,marginBottom:2 }}>{t.title}</div><div style={{ color:'var(--sf-muted)',fontSize:11 }}>{t.type} · Due {t.due_date}</div></div><span style={{ background:STATUS_BG[t.status]||'#F3F4F6',color:STATUS_TEXT[t.status]||'#374151',fontSize:10,fontWeight:700,padding:'3px 8px',borderRadius:5 }}>{t.status}</span></div>)}
         </div>
       )}
       {tab==='goals' && (
@@ -195,6 +279,20 @@ function BrandDetail({ brand, tasks, users, canEdit, onBack, onUpdate }: any) {
             {['Monthly Task Calendar','Campaign Timeline','Key Milestones','Performance History','Client Communication Log','Deliverables Archive','Blog Management','Category Management'].map(item => <div key={item} style={{ background:'var(--sf-surface)',border:'1px dashed #2A2A45',borderRadius:10,padding:16,textAlign:'center' }}><div style={{ color:'var(--sf-muted-2)',fontSize:20,marginBottom:8 }}>+</div><div style={{ color:'var(--sf-muted-2)',fontSize:12 }}>{item}</div></div>)}
           </div>
         </div>
+      )}
+      {(showCreateProject || editingProject) && canEdit && (
+        <TaskFormModal
+          session={session}
+          brands={[brand]}
+          users={users}
+          task={editingProject || undefined}
+          initialBrandId={brand.id}
+          forceProjectMode={!editingProject}
+          onClose={() => { setShowCreateProject(false); setEditingProject(null) }}
+          onSaved={() => { setShowCreateProject(false); setEditingProject(null); onRefresh() }}
+          canSeeBilling={['owner','manager','accountant'].includes(session.role)}
+          canDelete={false}
+        />
       )}
     </div>
   )

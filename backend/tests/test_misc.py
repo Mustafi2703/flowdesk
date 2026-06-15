@@ -159,10 +159,15 @@ def test_seed_users_respects_existing_owner_id(db, monkeypatch):
 def test_seed_users_fresh_database(db, monkeypatch):
     from app.core.config import settings
     from app.models.profile import Profile
-    from app.scripts.seed import USERS, _seed_users
+    from app.scripts.seed import PRIYA, USERS, _seed_users
     from sqlalchemy import select
 
     monkeypatch.setattr(settings, "seed_password", "DemoPass123!")
     _seed_users(db)
     db.commit()
-    assert len(db.scalars(select(Profile)).all()) == len(USERS)
+
+    profiles = {p.email: p for p in db.scalars(select(Profile)).all()}
+    assert len(profiles) == len(USERS)
+    owner = profiles["owner@scrumfolks.com"]
+    assert profiles["manager@scrumfolks.com"].manager_id == owner.id
+    assert profiles["manager@scrumfolks.com"].id == PRIYA

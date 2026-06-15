@@ -1,4 +1,4 @@
-"""Seed Scrumfolks TMS launch data.
+"""Seed demo login accounts (and optionally full sample content).
 
 Run after `alembic upgrade head`:
 
@@ -7,8 +7,9 @@ Run after `alembic upgrade head`:
 The 9 demo accounts match the quick-login buttons on the Next.js login
 screen. Password is read from SEED_PASSWORD only — never hardcoded here.
 
-A handful of brands and tasks are also seeded so every role lands on a
-populated dashboard immediately.
+Default deploy path (`SEED_DEMO=true`, `SEED_FULL_DEMO=false`) creates
+accounts only — no brands, tasks, announcements, or leave requests.
+Use `seed()` / `SEED_FULL_DEMO=true` only for a populated sales demo.
 """
 
 from __future__ import annotations
@@ -162,52 +163,48 @@ LEAVES = [
 
 
 def _seed_users(db) -> None:
-    existing_users = {profile.email: profile for profile in db.scalars(select(Profile)).all()}
-    password_hash = hash_password(settings.seed_password)
-
-    # Map seed UUIDs to actual DB UUIDs (bootstrap owner may use a different id).
-    id_map: dict[uuid.UUID, uuid.UUID] = {
-        uid: existing_users[email].id
-        for uid, _name, email, *_rest in USERS
-        if email in existing_users
+    """Create/update demo accounts. Manager links are applied in a second pass."""
+    existing_by_email = {
+        profile.email.lower(): profile for profile in db.scalars(select(Profile)).all()
     }
+    password_hash = hash_password(settings.seed_password)
+    # Map seed UUID constants to actual profile rows (bootstrap owner may differ).
+    id_map: dict[uuid.UUID, uuid.UUID] = {}
 
-    def resolve_manager(manager_id: uuid.UUID | None) -> uuid.UUID | None:
-        if manager_id is None:
-            return None
-        return id_map.get(manager_id)
-
-    for uid, name, email, role, dept, designation, avatar, manager_id in USERS:
-        resolved_manager = resolve_manager(manager_id)
-
-        if email in existing_users:
-            profile = existing_users[email]
+    # Pass 1 — ensure every account exists; defer manager_id to avoid FK ordering issues.
+    for seed_uid, name, email, role, dept, designation, avatar, _manager in USERS:
+        email_key = email.lower()
+        if email_key in existing_by_email:
+            profile = existing_by_email[email_key]
             profile.password_hash = password_hash
-            if profile.manager_id != resolved_manager:
-                profile.manager_id = resolved_manager
-            id_map.setdefault(uid, profile.id)
+            id_map[seed_uid] = profile.id
             continue
-
-        if manager_id is not None and resolved_manager is None:
-            raise RuntimeError(
-                f"Cannot seed {email}: manager profile for {manager_id} is missing"
-            )
 
         db.add(
             Profile(
-                id=uid,
+                id=seed_uid,
                 name=name,
-                email=email,
+                email=email_key,
                 password_hash=password_hash,
                 role=role,
                 department=dept,
                 designation=designation,
                 avatar=avatar,
-                manager_id=resolved_manager,
+                manager_id=None,
             )
         )
         db.flush()
-        id_map[uid] = uid
+        id_map[seed_uid] = seed_uid
+        existing_by_email[email_key] = db.get(Profile, seed_uid)  # type: ignore[assignment]
+
+    # Pass 2 — wire reporting hierarchy using resolved DB UUIDs.
+    for seed_uid, _name, email, *_rest, seed_manager in USERS:
+        profile = existing_by_email[email.lower()]
+        resolved_manager = id_map.get(seed_manager) if seed_manager is not None else None
+        if profile.manager_id != resolved_manager:
+            profile.manager_id = resolved_manager
+
+    db.flush()
 
 
 def seed_users_only() -> None:

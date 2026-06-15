@@ -4,7 +4,7 @@
 # Sequence:
 #   1. Wait for Postgres to accept connections (driver-level probe).
 #   2. Run Alembic migrations (idempotent — no-op after the first run).
-#   3. Seed demo data if the tasks table is empty (skipped when SEED_DEMO=false).
+#   3. Seed demo accounts (or bootstrap owner only when SEED_DEMO=false).
 #   4. Exec the app server.
 #
 # Server selection:

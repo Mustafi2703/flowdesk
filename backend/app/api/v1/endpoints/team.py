@@ -27,6 +27,8 @@ from app.api.v1.deps import get_current_user
 from app.core.roles import Role
 from app.core.security import hash_password
 from app.db.session import get_db
+from app.api.v1.endpoints import departments as team_departments
+from app.models.department import Department
 from app.models.notification import Notification
 from app.models.profile import Profile
 from app.models.task import Task
@@ -34,6 +36,7 @@ from app.schemas.profile import ProfileCreate, ProfileOut, ProfileUpdate
 from app.utils.queues import DASHBOARD_CACHE
 
 router = APIRouter(prefix="/team", tags=["team"])
+router.include_router(team_departments.router)
 
 
 # ── Role-allowlists for who-can-create-whom ─────────────────────────────────
@@ -93,8 +96,33 @@ def _resolve_manager_id(
     return manager.id
 
 
+def _resolve_department_for_user(
+    db: Session,
+    *,
+    actor: Profile,
+    department_id: uuid.UUID | None,
+    department_name: str | None,
+    manager_id: uuid.UUID | None,
+) -> tuple[str | None, uuid.UUID | None]:
+    if department_id is None:
+        return department_name, manager_id
+    dept = db.get(Department, department_id)
+    if not dept:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid department")
+    actor_role = Role(actor.role)
+    if actor_role is Role.MANAGER and dept.manager_id != actor.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only assign users to departments you manage",
+        )
+    resolved_manager = manager_id
+    if resolved_manager is None and dept.manager_id is not None:
+        resolved_manager = dept.manager_id
+    return dept.name, resolved_manager
+
+
 def _team_query_for(user: Profile, include_inactive: bool):
-    stmt = select(Profile).order_by(Profile.department, Profile.name)
+    stmt = select(Profile).order_by(Profile.is_active.desc(), Profile.name)
     if not include_inactive:
         stmt = stmt.where(Profile.is_active.is_(True))
     role = Role(user.role)
@@ -196,15 +224,22 @@ def create_user(
     # If the caller did not provide a password, we generate one and return it
     # exactly once. This is the standard onboarding flow used by Managers.
     plain_password = payload.password.strip() if payload.password else _generate_temp_password()
+    department_name, manager_id = _resolve_department_for_user(
+        db,
+        actor=user,
+        department_id=payload.department_id,
+        department_name=payload.department,
+        manager_id=payload.manager_id,
+    )
     manager_id = _resolve_manager_id(
-        db, actor=user, new_role=new_role, requested_manager_id=payload.manager_id
+        db, actor=user, new_role=new_role, requested_manager_id=manager_id
     )
     profile = Profile(
         name=payload.name.strip(),
         email=email,
         password_hash=hash_password(plain_password),
         role=new_role.value,
-        department=payload.department,
+        department=department_name,
         designation=payload.designation,
         avatar=(payload.avatar or payload.name[:2]).upper(),
         leaves_total=payload.leaves_total,

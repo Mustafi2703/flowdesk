@@ -23,6 +23,7 @@ class ProfileCreate(ProfileBase):
     password: str | None = Field(default=None, min_length=8, max_length=128)
     leaves_total: int = 21
     manager_id: uuid.UUID | None = None
+    department_id: uuid.UUID | None = None
 
 
 class ProfileUpdate(BaseModel):

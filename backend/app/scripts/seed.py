@@ -26,6 +26,7 @@ from app.core.security import hash_password
 from app.db.session import db_session
 from app.models.announcement import Announcement
 from app.models.brand import Brand
+from app.models.department import Department
 from app.models.leave import LeaveRequest
 from app.models.profile import Profile
 from app.models.task import Task
@@ -215,6 +216,41 @@ def _seed_users(db) -> None:
     db.flush()
 
 
+def _seed_departments(db, id_map: dict[uuid.UUID, uuid.UUID]) -> None:
+    """Create default departments linked to demo managers (idempotent)."""
+    if db.scalars(select(Department).limit(1)).first():
+        return
+    defaults = [
+        ("Leadership", OWNER, "Executive leadership and strategy"),
+        ("Operations", MANAGER, "Operations and client delivery"),
+        ("Design", MANAGER, "Design and creative production"),
+        ("HR", OWNER, "People operations and leave"),
+        ("Finance", OWNER, "Billing and finance"),
+        ("Technology", MANAGER, "Development and technical delivery"),
+    ]
+    owner_profile_id = id_map.get(OWNER)
+    for name, manager_seed, description in defaults:
+        manager_profile_id = id_map.get(manager_seed)
+        db.add(
+            Department(
+                name=name,
+                description=description,
+                manager_id=manager_profile_id,
+                created_by=owner_profile_id,
+            )
+        )
+    db.flush()
+
+
+def _build_id_map(db) -> dict[uuid.UUID, uuid.UUID]:
+    profiles = {p.email.lower(): p for p in db.scalars(select(Profile)).all()}
+    return {
+        uid: profiles[email.lower()].id
+        for uid, _n, email, *_rest in USERS
+        if email.lower() in profiles
+    }
+
+
 def seed_users_only() -> None:
     """Create demo role accounts only — no brands, tasks, or sample content."""
     if not settings.seed_password or len(settings.seed_password) < 8:
@@ -222,6 +258,7 @@ def seed_users_only() -> None:
         raise SystemExit(1)
     with db_session() as db:
         _seed_users(db)
+        _seed_departments(db, _build_id_map(db))
     print("[seed] demo users ready (no sample data)")  # noqa: T201
 
 
@@ -232,6 +269,7 @@ def seed() -> None:
 
     with db_session() as db:
         _seed_users(db)
+        _seed_departments(db, _build_id_map(db))
 
         existing_brands = set(db.scalars(select(Brand.id)).all())
         for bid, name, logo, desc, ctype, prio, short, long, resp, members in BRANDS:

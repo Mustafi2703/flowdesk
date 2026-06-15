@@ -122,3 +122,47 @@ def test_bootstrap_skips_without_password(db, monkeypatch):
     monkeypatch.setattr(settings, "bootstrap_owner_password", None)
     assert bootstrap_admin() is False
     assert db.scalars(select(Profile)).first() is None
+
+
+def test_seed_users_respects_existing_owner_id(db, monkeypatch):
+    from app.core.config import settings
+    from app.core.security import hash_password
+    from app.models.profile import Profile
+    from app.scripts.seed import OWNER, PRIYA, USERS, _seed_users
+    from sqlalchemy import select
+
+    monkeypatch.setattr(settings, "seed_password", "DemoPass123!")
+
+    owner = Profile(
+        name="Rushabh Shah",
+        email="owner@scrumfolks.com",
+        password_hash=hash_password("BootStrong123!"),
+        role="owner",
+        department="Leadership",
+        designation="Director",
+        avatar="RS",
+    )
+    db.add(owner)
+    db.flush()
+
+    _seed_users(db)
+    db.commit()
+
+    profiles = {p.email: p for p in db.scalars(select(Profile)).all()}
+    assert len(profiles) == len(USERS)
+    assert profiles["owner@scrumfolks.com"].id == owner.id
+    assert profiles["owner@scrumfolks.com"].id != OWNER
+    assert profiles["manager@scrumfolks.com"].manager_id == owner.id
+    assert profiles["manager@scrumfolks.com"].id == PRIYA
+
+
+def test_seed_users_fresh_database(db, monkeypatch):
+    from app.core.config import settings
+    from app.models.profile import Profile
+    from app.scripts.seed import USERS, _seed_users
+    from sqlalchemy import select
+
+    monkeypatch.setattr(settings, "seed_password", "DemoPass123!")
+    _seed_users(db)
+    db.commit()
+    assert len(db.scalars(select(Profile)).all()) == len(USERS)

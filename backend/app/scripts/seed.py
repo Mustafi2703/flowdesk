@@ -164,13 +164,35 @@ LEAVES = [
 def _seed_users(db) -> None:
     existing_users = {profile.email: profile for profile in db.scalars(select(Profile)).all()}
     password_hash = hash_password(settings.seed_password)
+
+    # Map seed UUIDs to actual DB UUIDs (bootstrap owner may use a different id).
+    id_map: dict[uuid.UUID, uuid.UUID] = {
+        uid: existing_users[email].id
+        for uid, _name, email, *_rest in USERS
+        if email in existing_users
+    }
+
+    def resolve_manager(manager_id: uuid.UUID | None) -> uuid.UUID | None:
+        if manager_id is None:
+            return None
+        return id_map.get(manager_id)
+
     for uid, name, email, role, dept, designation, avatar, manager_id in USERS:
+        resolved_manager = resolve_manager(manager_id)
+
         if email in existing_users:
             profile = existing_users[email]
             profile.password_hash = password_hash
-            if profile.manager_id != manager_id:
-                profile.manager_id = manager_id
+            if profile.manager_id != resolved_manager:
+                profile.manager_id = resolved_manager
+            id_map.setdefault(uid, profile.id)
             continue
+
+        if manager_id is not None and resolved_manager is None:
+            raise RuntimeError(
+                f"Cannot seed {email}: manager profile for {manager_id} is missing"
+            )
+
         db.add(
             Profile(
                 id=uid,
@@ -181,10 +203,11 @@ def _seed_users(db) -> None:
                 department=dept,
                 designation=designation,
                 avatar=avatar,
-                manager_id=manager_id,
+                manager_id=resolved_manager,
             )
         )
-    db.flush()
+        db.flush()
+        id_map[uid] = uid
 
 
 def seed_users_only() -> None:

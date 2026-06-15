@@ -1,7 +1,8 @@
-import { getSession } from '@/lib/auth'
+import { canAccessTeam } from '@/lib/auth'
+import { requireRole } from '@/lib/page-guard'
 import TeamClient from '@/components/pages/TeamClient'
 
 export default async function TeamPage() {
-  const session = await getSession()
-  return <TeamClient session={session!} />
+  const session = await requireRole(canAccessTeam)
+  return <TeamClient session={session} />
 }

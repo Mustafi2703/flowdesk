@@ -159,7 +159,7 @@ def test_seed_users_respects_existing_owner_id(db, monkeypatch):
 def test_seed_users_fresh_database(db, monkeypatch):
     from app.core.config import settings
     from app.models.profile import Profile
-    from app.scripts.seed import PRIYA, USERS, _seed_users
+    from app.scripts.seed import DEV, PRIYA, TEAM, USERS, _seed_users
     from sqlalchemy import select
 
     monkeypatch.setattr(settings, "seed_password", "DemoPass123!")
@@ -167,7 +167,39 @@ def test_seed_users_fresh_database(db, monkeypatch):
     db.commit()
 
     profiles = {p.email: p for p in db.scalars(select(Profile)).all()}
-    assert len(profiles) == len(USERS)
+    assert len(profiles) == len(USERS) == 6
     owner = profiles["owner@scrumfolks.com"]
     assert profiles["manager@scrumfolks.com"].manager_id == owner.id
     assert profiles["manager@scrumfolks.com"].id == PRIYA
+    assert profiles["team@scrumfolks.com"].manager_id == PRIYA
+    assert profiles["dev@scrumfolks.com"].manager_id == PRIYA
+    assert profiles["team@scrumfolks.com"].id == TEAM
+    assert profiles["dev@scrumfolks.com"].id == DEV
+
+
+def test_seed_reactivates_inactive_demo_account(db, monkeypatch):
+    from app.core.config import settings
+    from app.core.security import hash_password
+    from app.models.profile import Profile
+    from app.scripts.seed import _seed_users
+    from sqlalchemy import select
+
+    monkeypatch.setattr(settings, "seed_password", "DemoPass123!")
+    inactive = Profile(
+        name="Arjun Patel",
+        email="team@scrumfolks.com",
+        password_hash=hash_password("OldPass123!"),
+        role="team",
+        department="Design",
+        designation="Senior Designer",
+        avatar="AP",
+        is_active=False,
+    )
+    db.add(inactive)
+    db.flush()
+
+    _seed_users(db)
+    db.commit()
+
+    profile = db.scalar(select(Profile).where(Profile.email == "team@scrumfolks.com"))
+    assert profile.is_active is True

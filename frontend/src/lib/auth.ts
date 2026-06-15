@@ -46,3 +46,7 @@ export const canViewBilling  = (r: string) => ['owner','manager','accountant'].i
 export const canEditBilling  = (r: string) => ['owner','accountant'].includes(r)
 export const canApproveLeave = (r: string) => ['owner','hr'].includes(r)
 export const canViewAll      = (r: string) => ['owner','manager','hr'].includes(r)
+export const canAccessTasks  = (r: string) => ['owner','manager','team'].includes(r)
+export const canAccessDevBoard = (r: string) => ['owner','manager','developer'].includes(r)
+export const canAccessTeam   = (r: string) => ['owner','manager','hr'].includes(r)
+export const canAccessPerformance = (r: string) => ['owner','manager','hr'].includes(r)

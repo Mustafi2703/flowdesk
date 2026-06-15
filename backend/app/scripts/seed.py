@@ -4,8 +4,9 @@ Run after `alembic upgrade head`:
 
     SEED_PASSWORD='your-demo-password' python -m app.scripts.seed
 
-The 9 demo accounts match the quick-login buttons on the Next.js login
-screen. Password is read from SEED_PASSWORD only — never hardcoded here.
+The 6 demo accounts match the quick-login buttons on the Next.js login
+screen (one per role). Additional team members are onboarded by Owner/
+Manager via the Team module. Password is read from SEED_PASSWORD only.
 
 Default deploy path (`SEED_DEMO=true`, `SEED_FULL_DEMO=false`) creates
 accounts only — no brands, tasks, announcements, or leave requests.
@@ -36,18 +37,19 @@ def _u(s: str) -> uuid.UUID:
 
 OWNER = _u("11111111-0000-0000-0000-000000000001")
 PRIYA = _u("11111111-0000-0000-0000-000000000002")
-AMIT = _u("11111111-0000-0000-0000-000000000009")
+TEAM = _u("11111111-0000-0000-0000-000000000003")
+HR = _u("11111111-0000-0000-0000-000000000004")
+ACCOUNTANT = _u("11111111-0000-0000-0000-000000000007")
+DEV = _u("11111111-0000-0000-0000-000000000008")
 
+# One account per role for demo login; owner/manager onboard the rest via Team.
 USERS = [
     (OWNER, "Rushabh Shah",  "owner@scrumfolks.com",      "owner",      "Leadership",  "Director",                "RS", None),
     (PRIYA, "Priya Mehta",   "manager@scrumfolks.com",    "manager",    "Creative",    "Creative Manager",        "PM", OWNER),
-    (_u("11111111-0000-0000-0000-000000000003"), "Arjun Patel",   "team@scrumfolks.com",       "team",       "Design",      "Senior Designer",         "AP", PRIYA),
-    (_u("11111111-0000-0000-0000-000000000004"), "Neha Joshi",    "hr@scrumfolks.com",         "hr",         "HR",          "HR Manager",              "NJ", OWNER),
-    (_u("11111111-0000-0000-0000-000000000005"), "Ravi Kumar",    "ravi@scrumfolks.com",       "team",       "Content",     "Content Writer",          "RK", PRIYA),
-    (_u("11111111-0000-0000-0000-000000000006"), "Sonal Shah",    "sonal@scrumfolks.com",      "team",       "Social Media","Social Media Executive",  "SS", PRIYA),
-    (_u("11111111-0000-0000-0000-000000000007"), "Kavita Rao",    "accountant@scrumfolks.com", "accountant", "Finance",     "Accountant",              "KR", OWNER),
-    (_u("11111111-0000-0000-0000-000000000008"), "Dev Sharma",    "dev@scrumfolks.com",        "developer",  "Technology",  "Full Stack Developer",    "DS", PRIYA),
-    (AMIT, "Amit Verma",    "amit@scrumfolks.com",       "manager",    "Digital",     "Digital Manager",         "AV", OWNER),
+    (TEAM, "Arjun Patel",   "team@scrumfolks.com",       "team",       "Design",      "Senior Designer",         "AP", PRIYA),
+    (HR, "Neha Joshi",    "hr@scrumfolks.com",         "hr",         "HR",          "HR Manager",              "NJ", OWNER),
+    (ACCOUNTANT, "Kavita Rao",    "accountant@scrumfolks.com", "accountant", "Finance",     "Accountant",              "KR", OWNER),
+    (DEV, "Dev Sharma",    "dev@scrumfolks.com",        "developer",  "Technology",  "Full Stack Developer",    "DS", PRIYA),
 ]
 
 
@@ -60,7 +62,7 @@ BRANDS = [
         ["Launch dealer portal", "Complete 30 new product listings"],
         ["Achieve 200 dealer network", "Pan-India brand presence"],
         "Social media, dealer content, brochures, photography, digital ads",
-        [_u("11111111-0000-0000-0000-000000000003"), _u("11111111-0000-0000-0000-000000000005")],
+        [TEAM],
     ),
     (
         _u("22222222-0000-0000-0000-000000000002"),
@@ -70,7 +72,7 @@ BRANDS = [
         ["Q3 lead generation campaign", "New project launch content"],
         ["13,500+ leads pipeline", "350+ deal closures"],
         "Lead gen, hoardings, social media, event management",
-        [_u("11111111-0000-0000-0000-000000000003"), _u("11111111-0000-0000-0000-000000000006")],
+        [TEAM, DEV],
     ),
     (
         _u("22222222-0000-0000-0000-000000000003"),
@@ -80,7 +82,7 @@ BRANDS = [
         ["Product launch campaign", "Website revamp"],
         ["Market leadership in Gujarat smart home"],
         "Digital marketing, product photography, B2B content, lead gen",
-        [_u("11111111-0000-0000-0000-000000000005"), _u("11111111-0000-0000-0000-000000000006")],
+        [TEAM, DEV],
     ),
     (
         _u("22222222-0000-0000-0000-000000000004"),
@@ -90,7 +92,7 @@ BRANDS = [
         ["Instagram content calendar", "Brand story reels"],
         ["Premium brand positioning", "10K Instagram followers"],
         "Social media strategy, content creation, campaign management",
-        [_u("11111111-0000-0000-0000-000000000003"), _u("11111111-0000-0000-0000-000000000006")],
+        [TEAM],
     ),
     (
         _u("22222222-0000-0000-0000-000000000005"),
@@ -100,7 +102,7 @@ BRANDS = [
         ["GESIA Connect portal launch", "Member newsletter"],
         ["Digital-first member engagement"],
         "Web portal, event content, social media, member communications",
-        [_u("11111111-0000-0000-0000-000000000005"), _u("11111111-0000-0000-0000-000000000008")],
+        [TEAM, DEV],
     ),
 ]
 
@@ -133,19 +135,19 @@ def _task(title, desc, brand_idx, assignee_idxs, status_, priority, days_offset,
 def _all_tasks():
     return [
         _task("Design 10 Static Posts — Dinamoo May", "Create 10 static posts for Dinamoo's May calendar.", 0, [2], "In Progress", "High", 1, "Design", billable=True),
-        _task("Script 3 Reels — Dinamoo", "Write scripts for 3 product reels. Confident, modern.", 0, [4], "Under Review", "High", -1, "Content"),
-        _task("Edit 3 Reels — Minotti India", "Edit 3 shoot reels. Upbeat BGM. Subtitles required.", 3, [5], "Struggling", "Medium", -3, "Content"),
+        _task("Script 3 Reels — Dinamoo", "Write scripts for 3 product reels. Confident, modern.", 0, [2], "Under Review", "High", -1, "Content"),
+        _task("Edit 3 Reels — Minotti India", "Edit 3 shoot reels. Upbeat BGM. Subtitles required.", 3, [2], "Struggling", "Medium", -3, "Content"),
         _task("15 Stories — Minotti India", "Design 15 Instagram stories. Luxury tone.", 3, [2], "Not Started", "Medium", 4, "Design", billable=True),
-        _task("Ayodhya Q3 Lead Gen Brief", "Plan Q3 lead generation campaign.", 1, [1, 5], "In Progress", "Critical", 0, "Strategy"),
-        _task("SmartiQo Website Revamp", "Rebuild marketing site with new IA.", 2, [7], "In Progress", "High", 12, "Development", mode="project", sub_tasks=[
-            {"id": str(uuid.uuid4()), "title": "Wireframes", "assigned_to": [str(USERS[7][0])], "status": "Completed", "due_date": (date.today() - timedelta(days=2)).isoformat()},
-            {"id": str(uuid.uuid4()), "title": "API integration", "assigned_to": [str(USERS[7][0])], "status": "In Progress", "due_date": (date.today() + timedelta(days=6)).isoformat()},
-            {"id": str(uuid.uuid4()), "title": "QA + launch", "assigned_to": [str(USERS[7][0])], "status": "Not Started", "due_date": (date.today() + timedelta(days=11)).isoformat()},
+        _task("Ayodhya Q3 Lead Gen Brief", "Plan Q3 lead generation campaign.", 1, [1, 2], "In Progress", "Critical", 0, "Strategy"),
+        _task("SmartiQo Website Revamp", "Rebuild marketing site with new IA.", 2, [5], "In Progress", "High", 12, "Development", mode="project", sub_tasks=[
+            {"id": str(uuid.uuid4()), "title": "Wireframes", "assigned_to": [str(USERS[5][0])], "status": "Completed", "due_date": (date.today() - timedelta(days=2)).isoformat()},
+            {"id": str(uuid.uuid4()), "title": "API integration", "assigned_to": [str(USERS[5][0])], "status": "In Progress", "due_date": (date.today() + timedelta(days=6)).isoformat()},
+            {"id": str(uuid.uuid4()), "title": "QA + launch", "assigned_to": [str(USERS[5][0])], "status": "Not Started", "due_date": (date.today() + timedelta(days=11)).isoformat()},
         ]),
-        _task("GESIA Member Newsletter", "Write May newsletter draft.", 4, [4], "Needs Attention", "Medium", -1, "Content"),
-        _task("Dinamoo Catalogue v2", "Update product catalogue PDF.", 0, [2, 4], "Completed", "Medium", -5, "Design", billable=True),
+        _task("GESIA Member Newsletter", "Write May newsletter draft.", 4, [2], "Needs Attention", "Medium", -1, "Content"),
+        _task("Dinamoo Catalogue v2", "Update product catalogue PDF.", 0, [2], "Completed", "Medium", -5, "Design", billable=True),
         _task("Ayodhya New Launch Hoardings", "10 hoarding designs for new launch.", 1, [2], "Revision Needed", "High", 2, "Design"),
-        _task("SmartiQo Performance Marketing", "Run May google ads campaign.", 2, [8], "In Progress", "High", 5, "Strategy", billable=True),
+        _task("SmartiQo Performance Marketing", "Run May google ads campaign.", 2, [5], "In Progress", "High", 5, "Strategy", billable=True),
     ]
 
 
@@ -157,8 +159,7 @@ ANNOUNCEMENTS = [
 
 
 LEAVES = [
-    (4, "Casual", 2, "Family event"),     # Ravi
-    (5, "Sick",   1, "Down with flu"),    # Sonal
+    (2, "Casual", 2, "Family event"),     # team demo user
 ]
 
 
@@ -177,6 +178,12 @@ def _seed_users(db) -> None:
         if email_key in existing_by_email:
             profile = existing_by_email[email_key]
             profile.password_hash = password_hash
+            profile.is_active = True
+            profile.name = name
+            profile.role = role
+            profile.department = dept
+            profile.designation = designation
+            profile.avatar = avatar
             id_map[seed_uid] = profile.id
             continue
 

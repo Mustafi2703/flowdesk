@@ -89,6 +89,11 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
           <StatCard label="Pending Billing" value={tasks.filter(t=>t.is_billable&&!t.billed_at).length} accent="#F59E0B" />
         </>}
       </StatGrid>
+      {session.role === 'accountant' && (
+        <div style={{ marginBottom: '0.5rem', flexShrink: 0 }}>
+          <button type="button" className="sf-link-btn" onClick={() => router.push('/billing')}>Open Billing module →</button>
+        </div>
+      )}
 
       <div className="sf-page-grid-2" style={{ flex: 1 }}>
         <Section

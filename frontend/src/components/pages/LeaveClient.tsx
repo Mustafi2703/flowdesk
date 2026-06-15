@@ -2,20 +2,35 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { SessionUser } from '@/types'
+import { PageHeader, PageShell, Section, StatCard, StatGrid } from '@/components/app/Section'
 
 const sInp = { width:'100%',padding:'9px 12px',background:'var(--sf-surface-2)',border:'1px solid #2A2A45',borderRadius:8,color:'var(--sf-text)',fontSize:13,outline:'none',fontFamily:"'DM Sans',sans-serif" }
 
+const STAFF_ROLES = ['team','developer','manager','hr','accountant']
+
 export default function LeaveClient({ session }: { session: SessionUser }) {
   const [leaves, setLeaves] = useState<any[]>([])
+  const [balance, setBalance] = useState<{ total: number; taken: number; remaining: number } | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [loading, setLoading] = useState(true)
 
-  function load() { return fetch('/api/leave').then(r=>r.json()).then(d => { setLeaves(Array.isArray(d)?d:[]); setLoading(false) }) }
+  function load() {
+    return Promise.all([
+      fetch('/api/leave').then(r => r.json()),
+      fetch('/api/leave/balance').then(r => r.json()),
+    ]).then(([leaveData, balanceData]) => {
+      setLeaves(Array.isArray(leaveData) ? leaveData : [])
+      if (balanceData && typeof balanceData.total === 'number') {
+        setBalance(balanceData)
+      }
+      setLoading(false)
+    })
+  }
   useEffect(() => { load() }, [])
 
   const canApprove = ['owner','hr'].includes(session.role)
-  const myLeaves = leaves.filter(l => l.user_id===session.id)
-  const taken = myLeaves.filter(l => l.status==='Approved').reduce((s,l) => s+l.days, 0)
+  const canRequest = STAFF_ROLES.includes(session.role)
+  const myLeaves = leaves.filter(l => l.user_id === session.id)
   const STAT: Record<string,{bg:string;c:string}> = { Pending:{bg:'#FBBF2420',c:'#FBBF24'}, Approved:{bg:'#10B98120',c:'#10B981'}, Rejected:{bg:'#EF444420',c:'#F87171'} }
 
   async function approve(id: string, status: string) {
@@ -26,24 +41,27 @@ export default function LeaveClient({ session }: { session: SessionUser }) {
   if (loading) return <div style={{color:'var(--sf-muted)',padding:40,textAlign:'center'}}>Loading…</div>
 
   const displayed = ['team','developer','accountant'].includes(session.role) ? myLeaves : leaves
+  const total = balance?.total ?? 21
+  const taken = balance?.taken ?? myLeaves.filter(l => l.status === 'Approved').reduce((s, l) => s + l.days, 0)
+  const remaining = balance?.remaining ?? Math.max(0, total - taken)
 
   return (
-    <div>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-        <h2 style={{color:'var(--sf-text)',fontFamily:"'Space Grotesk',sans-serif",fontSize:20,fontWeight:700}}>Leave Management</h2>
-        {!['owner','manager'].includes(session.role) && <button onClick={()=>setShowCreate(true)} style={{padding:'9px 18px',background:'var(--sf-accent)',border:'none',borderRadius:9,color:'var(--sf-text)',fontWeight:700,fontSize:13,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>+ Request Leave</button>}
+    <PageShell>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexShrink:0 }}>
+        <PageHeader title="Leave Management" subtitle={`${displayed.length} requests`} />
+        {canRequest && (
+          <button onClick={()=>setShowCreate(true)} className="sf-btn sf-btn-primary" style={{ marginTop:4 }}>Request leave</button>
+        )}
       </div>
-      {['team','developer','accountant','hr','manager'].includes(session.role) && (
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:24}}>
-          {[['Total',21,'#8B5CF6'],['Taken',taken,'#EF4444'],['Remaining',21-taken,'#10B981']].map(([l,v,c]) => (
-            <div key={String(l)} style={{background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:12,padding:'18px 20px',borderLeft:`3px solid ${c}`}}>
-              <div style={{color:'var(--sf-muted)',fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>{l}</div>
-              <div style={{color:'var(--sf-text)',fontSize:26,fontWeight:700,fontFamily:"'Space Grotesk',sans-serif"}}>{v}</div>
-            </div>
-          ))}
-        </div>
+      {(canRequest || canApprove) && (
+        <StatGrid>
+          <StatCard label="Total" value={total} accent="#8B5CF6" />
+          <StatCard label="Taken" value={taken} accent="#EF4444" />
+          <StatCard label="Remaining" value={remaining} accent="#10B981" />
+        </StatGrid>
       )}
-      <div style={{background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:14,overflow:'hidden'}}>
+      <Section title={canApprove ? 'Team leave requests' : 'Leave requests'} subtitle="All requests in this view" flush flex={1}>
+        <div style={{ minWidth: 720 }}>
         <div style={{display:'grid',gridTemplateColumns:canApprove?'1.5fr 1fr 1fr 1fr 1fr 1.2fr':'1.5fr 1fr 1fr 1fr 1fr',padding:'12px 20px',borderBottom:'1px solid var(--sf-border)',background:'var(--sf-surface-2)'}}>
           {['Employee','Type','Dates','Days','Status',...(canApprove?['Action']:[])].map(h=><div key={h} style={{color:'var(--sf-muted)',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>)}
         </div>
@@ -77,9 +95,10 @@ export default function LeaveClient({ session }: { session: SessionUser }) {
           )
         })}
         {displayed.length===0 && <div style={{padding:32,textAlign:'center',color:'var(--sf-muted-2)',fontSize:13}}>No leave requests.</div>}
-      </div>
+        </div>
+      </Section>
       {showCreate && <LeaveForm session={session} onClose={()=>setShowCreate(false)} onSaved={()=>{setShowCreate(false); load()}} />}
-    </div>
+    </PageShell>
   )
 }
 

@@ -2,6 +2,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { SessionUser, ROLE_COLORS } from '@/types'
+import { PageHeader, PageShell, Section, StatCard, StatGrid } from '@/components/app/Section'
 
 export default function PerformanceClient({ session }: { session: SessionUser }) {
   const [users, setUsers] = useState<any[]>([])
@@ -47,39 +48,29 @@ export default function PerformanceClient({ session }: { session: SessionUser })
   if (loading) return <div style={{color:'var(--sf-muted)',padding:40,textAlign:'center'}}>Loading…</div>
 
   return (
-    <div>
-      <h2 style={{color:'var(--sf-text)',fontFamily:"'Space Grotesk',sans-serif",fontSize:20,fontWeight:700,marginBottom:20}}>Performance Tracker</h2>
-      <div style={{display:'flex',gap:10,marginBottom:24,flexWrap:'wrap',alignItems:'center'}}>
-        <select value={sel} onChange={e=>setSel(e.target.value)} style={{padding:'8px 12px',background:'var(--sf-surface)',border:'1px solid #2A2A45',borderRadius:9,color:'var(--sf-text)',fontSize:13,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+    <PageShell>
+      <PageHeader title="Performance" subtitle="Team metrics and individual drill-down" />
+      <Section title="Filters" style={{ flexShrink: 0 }}>
+        <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'center' }}>
+        <select value={sel} onChange={e=>setSel(e.target.value)} style={{padding:'8px 12px',background:'var(--sf-surface-2)',border:'1px solid var(--sf-border)',borderRadius:9,color:'var(--sf-text)',fontSize:13,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
           <option value="all">All Team — Overview</option>
           {teamU.map(u=><option key={u.id} value={u.id}>{u.name} ({u.designation})</option>)}
         </select>
-        <div style={{display:'flex',background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:9,overflow:'hidden'}}>
+        <div style={{display:'flex',background:'var(--sf-surface-2)',border:'1px solid var(--sf-border)',borderRadius:9,overflow:'hidden'}}>
           {['monthly','quarterly','yearly'].map(p => <button key={p} onClick={()=>setPeriod(p)} style={{padding:'7px 14px',background:period===p?'var(--sf-accent)':'transparent',border:'none',color:period===p?'white':'var(--sf-muted)',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",textTransform:'capitalize'}}>{p}</button>)}
         </div>
-      </div>
+        </div>
+      </Section>
       {sel!=='all' && sm && su && (
-        <div>
-          <div style={{background:'linear-gradient(135deg,var(--sf-surface),#16162A)',border:'1px solid var(--sf-border)',borderRadius:16,padding:'22px 28px',marginBottom:20,display:'flex',gap:20,alignItems:'center',flexWrap:'wrap'}}>
-            <div style={{width:54,height:54,borderRadius:13,background:ROLE_COLORS[su.role]||'var(--sf-accent)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--sf-text)',fontWeight:700,fontSize:18}}>{su.avatar||su.name?.slice(0,2)}</div>
-            <div style={{flex:1}}>
-              <h2 style={{color:'var(--sf-text)',fontFamily:"'Space Grotesk',sans-serif",fontSize:22,fontWeight:700}}>{su.name}</h2>
-              <div style={{color:'var(--sf-muted)',fontSize:13}}>{su.designation} · {su.department}</div>
-            </div>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-              <span style={{background:sm.perf.color+'20',color:sm.perf.color,fontSize:12,padding:'4px 10px',borderRadius:6,fontWeight:700}}>{sm.perf.label}</span>
-              <span style={{background:'#10B98120',color:'#10B981',fontSize:12,padding:'4px 10px',borderRadius:6,fontWeight:700}}>{sm.rate}% Done</span>
-              <span style={{background:'#3B82F620',color:'#3B82F6',fontSize:12,padding:'4px 10px',borderRadius:6,fontWeight:700}}>{sm.ontime}% On-Time</span>
-            </div>
-          </div>
+        <Section title={su.name} subtitle={`${su.designation} · ${su.department}`} flex={1}>
           <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:14}}>
             {[['Assigned',sm.total,'#3B82F6'],['Completed',sm.done,'#10B981'],['In Progress',sm.ip,'var(--sf-accent)'],['Overdue',sm.overdue,'#EF4444']].map(([l,v,c]) => (
-              <Stat key={String(l)} label={String(l)} value={v} accent={String(c)} />
+              <StatCard key={String(l)} label={String(l)} value={v as any} accent={String(c)} />
             ))}
           </div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}}>
             {[['Flagged',sm.strug,'#F59E0B'],['Days Present',sm.days,'#8B5CF6'],['Avg Hours',`${sm.avg}h`,'#06B6D4'],['Leaves',sm.taken,'#EC4899']].map(([l,v,c]) => (
-              <Stat key={String(l)} label={String(l)} value={v} accent={String(c)} />
+              <StatCard key={String(l)} label={String(l)} value={v as any} accent={String(c)} />
             ))}
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:20}}>
@@ -107,20 +98,21 @@ export default function PerformanceClient({ session }: { session: SessionUser })
               </div>
             ))}
           </div>
-        </div>
+        </Section>
       )}
       {sel==='all' && (
-        <div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:24}}>
-            {[['Team Size',teamU.length,'var(--sf-accent)'],['Total Tasks',tasks.length,'#3B82F6'],['Avg Completion',`${Math.round(tm.reduce((s,m)=>s+m.rate,0)/Math.max(tm.length,1))}%`,'#10B981'],['Total Overdue',tm.reduce((s,m)=>s+m.overdue,0),'#EF4444']].map(([l,v,c]) => (
-              <Stat key={String(l)} label={String(l)} value={v as any} accent={String(c)} />
-            ))}
-          </div>
-          <div style={{background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:12,padding:20,marginBottom:20}}>
-            <div style={{color:'var(--sf-muted)',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:14}}>Team Tasks — Jan to May</div>
+        <>
+          <StatGrid>
+            <StatCard label="Team size" value={teamU.length} accent="var(--sf-accent)" />
+            <StatCard label="Total tasks" value={tasks.length} accent="#3B82F6" />
+            <StatCard label="Avg completion" value={`${Math.round(tm.reduce((s,m)=>s+m.rate,0)/Math.max(tm.length,1))}%`} accent="#10B981" />
+            <StatCard label="Total overdue" value={tm.reduce((s,m)=>s+m.overdue,0)} accent="#EF4444" />
+          </StatGrid>
+          <Section title="Team tasks" subtitle="Jan to May" style={{ flexShrink: 0 }}>
             <Bars data={[{label:'Jan',value:18},{label:'Feb',value:22},{label:'Mar',value:19},{label:'Apr',value:28},{label:'May',value:24}]} color="#10B981" height={80} />
-          </div>
-          <div style={{background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:14,overflow:'hidden'}}>
+          </Section>
+          <Section title="Team overview" subtitle="Click a row to drill into individual performance" flush flex={1}>
+            <div style={{ minWidth: 900 }}>
             <div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr 1fr 1fr 1.5fr',padding:'12px 20px',borderBottom:'1px solid var(--sf-border)',background:'var(--sf-surface-2)'}}>
               {['Member','Assigned','Done','Overdue','On-Time%','Attendance','Performance'].map(h=><div key={h} style={{color:'var(--sf-muted)',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em'}}>{h}</div>)}
             </div>
@@ -140,20 +132,11 @@ export default function PerformanceClient({ session }: { session: SessionUser })
                 <span style={{background:perf.color+'20',color:perf.color,fontSize:11,padding:'3px 8px',borderRadius:5,fontWeight:700}}>{perf.label}</span>
               </div>
             ))}
-          </div>
-          <div style={{color:'var(--sf-muted-2)',fontSize:11,marginTop:10,textAlign:'center'}}>Click any row to drill into individual performance →</div>
-        </div>
+            </div>
+          </Section>
+        </>
       )}
-    </div>
-  )
-}
-
-function Stat({ label, value, accent }: any) {
-  return (
-    <div style={{background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:12,padding:'15px 18px',borderLeft:`3px solid ${accent}`}}>
-      <div style={{color:'var(--sf-muted)',fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>{label}</div>
-      <div style={{color:'var(--sf-text)',fontSize:24,fontWeight:700,fontFamily:"'Space Grotesk',sans-serif"}}>{value}</div>
-    </div>
+    </PageShell>
   )
 }
 

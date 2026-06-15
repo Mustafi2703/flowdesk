@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { SessionUser, ROLE_COLORS, STATUS_BG, STATUS_TEXT } from '@/types'
 import { EmptyState } from '@/components/app/Icons'
+import { PageHeader, PageShell, Section, StatCard, StatGrid } from '@/components/app/Section'
 
 export default function DevBoardClient({ session }: { session: SessionUser }) {
   const [tasks, setTasks] = useState<any[]>([])
@@ -23,20 +24,17 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
   if (loading) return <div style={{color:'var(--sf-muted)',padding:40,textAlign:'center'}}>Loading…</div>
 
   return (
-    <div>
-      <h2 style={{color:'var(--sf-text)',fontFamily:"'Space Grotesk',sans-serif",fontSize:20,fontWeight:700,marginBottom:20}}>Developer Board</h2>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:24}}>
-        {[['Tasks',devTasks.length,'#06B6D4'],['In Progress',devTasks.filter(t=>t.status==='In Progress').length,'#3B82F6'],['Sub-Tasks',mySub.length,'#8B5CF6'],['ST Done',subDone,'#10B981']].map(([l,v,c]) => (
-          <div key={String(l)} style={{background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:12,padding:'18px 20px',borderLeft:`3px solid ${c}`}}>
-            <div style={{color:'var(--sf-muted)',fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>{l}</div>
-            <div style={{color:'var(--sf-text)',fontSize:26,fontWeight:700,fontFamily:"'Space Grotesk',sans-serif"}}>{v}</div>
-          </div>
-        ))}
-      </div>
+    <PageShell>
+      <PageHeader title="Developer board" subtitle={`${devTasks.length} project tasks · ${mySub.length} sub-tasks`} />
+      <StatGrid>
+        <StatCard label="Tasks" value={devTasks.length} accent="#06B6D4" />
+        <StatCard label="In progress" value={devTasks.filter(t=>t.status==='In Progress').length} accent="#3B82F6" />
+        <StatCard label="Sub-tasks" value={mySub.length} accent="#8B5CF6" />
+        <StatCard label="ST done" value={subDone} accent="#10B981" />
+      </StatGrid>
       {mySub.length>0 && (
-        <div style={{marginBottom:26}}>
-          <div style={{color:'var(--sf-text)',fontWeight:700,fontSize:15,fontFamily:"'Space Grotesk',sans-serif",marginBottom:12}}>My Sub-Task Assignments</div>
-          <div style={{display:'flex',flexDirection:'column',gap:7}}>
+        <Section title="My sub-task assignments" subtitle={`${subDone} completed`} flex={mySub.length > 3 ? 1 : undefined} style={mySub.length <= 3 ? { flexShrink: 0 } : undefined}>
+          <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
             {mySub.map((st:any) => {
               const dl = st.due_date ? Math.ceil((new Date(st.due_date).getTime()-Date.now())/86400000) : null
               const late = dl!==null && dl<0 && st.status!=='Completed'
@@ -55,10 +53,10 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
               )
             })}
           </div>
-        </div>
+        </Section>
       )}
-      <div style={{color:'var(--sf-text)',fontWeight:700,fontSize:15,fontFamily:"'Space Grotesk',sans-serif",marginBottom:12}}>Project Tasks</div>
-      <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <Section title="Project tasks" subtitle={`${devTasks.length} tasks`} flex={1}>
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
         {devTasks.map((task:any) => {
           const brand = getBrand(task.brand_id)
           const sub = task.sub_tasks||[]
@@ -107,7 +105,8 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
           )
         })}
         {devTasks.length===0 && <EmptyState icon="code" title="No development tasks yet." />}
-      </div>
-    </div>
+        </div>
+      </Section>
+    </PageShell>
   )
 }

@@ -41,10 +41,25 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   const [sortBy, setSortBy] = useState<SortKey>('due_date')
   const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc')
   const [showCreate, setShowCreate] = useState(false)
+  const [editingTask, setEditingTask] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
 
   const canCreate = ['owner','manager'].includes(session.role)
+  const canEdit = canCreate
+  const canDelete = canCreate
   const canSeeBilling = ['owner','manager','accountant'].includes(session.role)
+
+  function isAssigned(task: any) {
+    return (task.assigned_to || []).includes(session.id)
+  }
+
+  function canUpdateStatus(task: any) {
+    return canEdit || isAssigned(task)
+  }
+
+  function openTask(task: any) {
+    if (canEdit) setEditingTask(task)
+  }
 
   function load() {
     return Promise.all([
@@ -151,8 +166,13 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                 {filtered.map(task => {
                   const dl = task.due_date ? Math.ceil((new Date(task.due_date).getTime()-Date.now())/86400000) : null
                   const late = dl !== null && dl < 0 && task.status !== 'Completed'
+                  const clickable = canEdit
                   return (
-                    <tr key={task.id}>
+                    <tr
+                      key={task.id}
+                      onClick={() => openTask(task)}
+                      style={{ cursor: clickable ? 'pointer' : 'default' }}
+                    >
                       <td>
                         <div style={{ fontWeight:600 }}>{task.title}</div>
                         {task.is_billable && canSeeBilling && (
@@ -161,7 +181,26 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                       </td>
                       <td>{task.brand?.name || '—'}</td>
                       <td>{task.type || '—'}</td>
-                      <td><span className={statusClass(task.status)}>{task.status}</span></td>
+                      <td onClick={e => e.stopPropagation()}>
+                        {canUpdateStatus(task) ? (
+                          <select
+                            value={task.status}
+                            onChange={async e => {
+                              await fetch(`/api/tasks/${task.id}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ status: e.target.value }),
+                              })
+                              load()
+                            }}
+                            style={{ ...toolbarSelect, padding: '4px 8px', fontSize: 11 }}
+                          >
+                            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        ) : (
+                          <span className={statusClass(task.status)}>{task.status}</span>
+                        )}
+                      </td>
                       <td>{priorityLabel(task.priority)}</td>
                       <td style={{ color: late ? 'var(--sf-danger)' : 'var(--sf-text-secondary)' }}>
                         {task.due_date
@@ -194,7 +233,11 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                   <span style={{ background:'var(--sf-surface-2)', color:'var(--sf-muted)', fontSize:10, padding:'1px 6px', borderRadius:4 }}>{colTasks.length}</span>
                 </div>
                 {colTasks.map(task => (
-                  <div key={task.id} style={{ background:'var(--sf-surface-2)', border:'1px solid #2A2A45', borderRadius:9, padding:10, marginBottom:7 }}>
+                  <div
+                    key={task.id}
+                    onClick={() => openTask(task)}
+                    style={{ background:'var(--sf-surface-2)', border:'1px solid #2A2A45', borderRadius:9, padding:10, marginBottom:7, cursor: canEdit ? 'pointer' : 'default' }}
+                  >
                     <div style={{ color:'var(--sf-text)', fontSize:12, fontWeight:600, marginBottom:4 }}>{task.title}</div>
                     <div style={{ color:'var(--sf-muted)', fontSize:10, marginBottom:6 }}>{task.brand?.name||'—'}</div>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -212,7 +255,19 @@ export default function TasksClient({ session }: { session: SessionUser }) {
       )}
 
       {showCreate && canCreate && (
-        <CreateModal session={session} brands={brands} users={users} onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); load() }} canSeeBilling={canSeeBilling} />
+        <TaskFormModal session={session} brands={brands} users={users} onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); load() }} canSeeBilling={canSeeBilling} canDelete={false} />
+      )}
+      {editingTask && canEdit && (
+        <TaskFormModal
+          session={session}
+          brands={brands}
+          users={users}
+          task={editingTask}
+          onClose={() => setEditingTask(null)}
+          onSaved={() => { setEditingTask(null); load() }}
+          canSeeBilling={canSeeBilling}
+          canDelete={canDelete}
+        />
       )}
     </PageShell>
   )
@@ -228,20 +283,23 @@ const toolbarSelect: any = {
   fontFamily: 'inherit',
 }
 
-function CreateModal({ session, brands, users, onClose, onSaved, canSeeBilling }: any) {
-  const [title, setTitle] = useState('')
-  const [desc, setDesc] = useState('')
-  const [brandId, setBrandId] = useState(brands[0]?.id||'')
-  const [assignedTo, setAssignedTo] = useState<string[]>([])
-  const [type, setType] = useState('Design')
-  const [priority, setPriority] = useState('Medium')
-  const [taskMode, setTaskMode] = useState('standard')
-  const [dueDate, setDueDate] = useState('')
-  const [isBillable, setIsBillable] = useState(false)
-  const [requiresReview, setRequiresReview] = useState(true)
-  const [recurring, setRecurring] = useState(false)
-  const [recurFreq, setRecurFreq] = useState('monthly')
+function TaskFormModal({ session, brands, users, task, onClose, onSaved, canSeeBilling, canDelete }: any) {
+  const isEdit = Boolean(task)
+  const [title, setTitle] = useState(task?.title || '')
+  const [desc, setDesc] = useState(task?.description || '')
+  const [brandId, setBrandId] = useState(task?.brand_id || brands[0]?.id || '')
+  const [assignedTo, setAssignedTo] = useState<string[]>(task?.assigned_to || [])
+  const [type, setType] = useState(task?.type || 'Design')
+  const [priority, setPriority] = useState(task?.priority || 'Medium')
+  const [status, setStatus] = useState(task?.status || 'Not Started')
+  const [taskMode, setTaskMode] = useState(task?.task_mode || 'standard')
+  const [dueDate, setDueDate] = useState(task?.due_date || '')
+  const [isBillable, setIsBillable] = useState(Boolean(task?.is_billable))
+  const [requiresReview, setRequiresReview] = useState(task?.requires_review ?? true)
+  const [recurring, setRecurring] = useState(Boolean(task?.recurring_config?.enabled))
+  const [recurFreq, setRecurFreq] = useState(task?.recurring_config?.frequency || 'monthly')
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
 
   const teamUsers = users.filter((u:any) => ['team','developer'].includes(u.role))
@@ -268,13 +326,27 @@ function CreateModal({ session, brands, users, onClose, onSaved, canSeeBilling }
   async function save() {
     if (!title||!dueDate) return
     setSaving(true)
-    await fetch('/api/tasks', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+    const body = {
       title, description:desc, brand_id:brandId||null, assigned_to:assignedTo,
-      assigned_managers:[session.id], type, task_mode:taskMode, priority, due_date:dueDate,
+      assigned_managers:[session.id], type, task_mode:taskMode, priority, status, due_date:dueDate,
       requires_review:requiresReview, is_billable:isBillable,
       recurring_config: recurring ? { enabled:true, frequency:recurFreq, next_due:dueDate } : null,
-    })})
+    }
+    if (isEdit) {
+      await fetch(`/api/tasks/${task.id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+    } else {
+      await fetch('/api/tasks', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+    }
     setSaving(false)
+    onSaved()
+  }
+
+  async function remove() {
+    if (!isEdit || !canDelete) return
+    if (!window.confirm(`Delete "${task.title}"? This cannot be undone.`)) return
+    setDeleting(true)
+    await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
+    setDeleting(false)
     onSaved()
   }
 
@@ -285,16 +357,26 @@ function CreateModal({ session, brands, users, onClose, onSaved, canSeeBilling }
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:20 }} onClick={onClose}>
       <div style={{ background:'var(--sf-surface)', border:'1px solid var(--sf-border)', borderRadius:16, padding:28, width:'100%', maxWidth:560, maxHeight:'88vh', overflowY:'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-          <h3 style={{ color:'var(--sf-text)', fontFamily:"'Space Grotesk',sans-serif", fontSize:18, fontWeight:700 }}>Create New Task</h3>
+          <h3 style={{ color:'var(--sf-text)', fontFamily:"'Space Grotesk',sans-serif", fontSize:18, fontWeight:700 }}>{isEdit ? 'Edit Task' : 'Create New Task'}</h3>
           <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--sf-muted)', cursor:'pointer', fontSize:22 }}>×</button>
         </div>
 
-        {/* Mode */}
+        {!isEdit && (
         <div style={{ display:'flex', background:'var(--sf-surface-2)', borderRadius:9, overflow:'hidden', marginBottom:16 }}>
           {[['standard','Standard Task'],['project','Project Task (Sub-tasks)']].map(([m,l]) => (
             <button key={m} onClick={() => setTaskMode(m)} style={{ flex:1, padding:'9px', background:taskMode===m?(m==='project'?'#06B6D4':'var(--sf-accent)'):'transparent', border:'none', color:taskMode===m?'white':'var(--sf-muted)', cursor:'pointer', fontSize:12, fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>{l}</button>
           ))}
         </div>
+        )}
+
+        {isEdit && (
+          <div style={{ marginBottom:12 }}>
+            <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:5, display:'block' }}>Status</label>
+            <select value={status} onChange={e => setStatus(e.target.value)} style={sSel}>
+              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        )}
 
         <div style={{ marginBottom:12 }}>
           <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:5, display:'block' }}>Task Title *</label>
@@ -368,11 +450,18 @@ function CreateModal({ session, brands, users, onClose, onSaved, canSeeBilling }
           )}
         </div>
 
-        <div style={{ display:'flex', gap:8 }}>
-          <button onClick={save} disabled={!title||!dueDate||saving} style={{ padding:'10px 20px', background:'var(--sf-accent)', border:'none', borderRadius:9, color:'var(--sf-text)', fontWeight:700, fontSize:13, cursor:(!title||!dueDate||saving)?'not-allowed':'pointer', opacity:(!title||!dueDate)?0.5:1, fontFamily:"'DM Sans',sans-serif" }}>
-            {saving?'Creating…':'Create Task'}
-          </button>
-          <button onClick={onClose} style={{ padding:'10px 20px', background:'var(--sf-surface-2)', border:'1px solid #2A2A45', borderRadius:9, color:'#A0A0C0', fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
+        <div style={{ display:'flex', gap:8, justifyContent:'space-between', flexWrap:'wrap' }}>
+          <div style={{ display:'flex', gap:8 }}>
+            <button onClick={save} disabled={!title||!dueDate||saving||deleting} style={{ padding:'10px 20px', background:'var(--sf-accent)', border:'none', borderRadius:9, color:'var(--sf-text)', fontWeight:700, fontSize:13, cursor:(!title||!dueDate||saving)?'not-allowed':'pointer', opacity:(!title||!dueDate)?0.5:1, fontFamily:"'DM Sans',sans-serif" }}>
+              {saving ? (isEdit ? 'Saving…' : 'Creating…') : (isEdit ? 'Save Changes' : 'Create Task')}
+            </button>
+            <button onClick={onClose} style={{ padding:'10px 20px', background:'var(--sf-surface-2)', border:'1px solid #2A2A45', borderRadius:9, color:'#A0A0C0', fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
+          </div>
+          {isEdit && canDelete && (
+            <button onClick={remove} disabled={deleting||saving} style={{ padding:'10px 20px', background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.35)', borderRadius:9, color:'#F87171', fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+              {deleting ? 'Deleting…' : 'Delete Task'}
+            </button>
+          )}
         </div>
       </div>
     </div>

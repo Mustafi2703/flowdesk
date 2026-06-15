@@ -16,7 +16,10 @@ class MarkBilledRequest(BaseModel):
 
 
 class BillingSummary(BaseModel):
-    total_billable: Decimal
-    pending: Decimal
-    billed: Decimal
+    total_billable: Decimal | None = None
+    pending: Decimal | None = None
+    billed: Decimal | None = None
     unpriced: int
+    pending_count: int = 0
+    billed_count: int = 0
+    total_count: int = 0

@@ -36,14 +36,31 @@ def _require_billing_edit(user: Profile) -> None:
 @router.get("/summary", response_model=BillingSummary)
 def summary(db: Session = Depends(get_db), user: Profile = Depends(get_current_user)) -> BillingSummary:
     _require_billing_view(user)
+    role = Role(user.role)
     tasks = db.scalars(select(Task).where(Task.is_billable.is_(True))).all()
+    unpriced = sum(1 for task in tasks if not task.billable_amount)
+    billed_tasks = [task for task in tasks if task.billed_at]
+    pending_tasks = [task for task in tasks if not task.billed_at]
     total = sum((Decimal(task.billable_amount or 0) for task in tasks), Decimal("0"))
-    billed = sum((Decimal(task.billable_amount or 0) for task in tasks if task.billed_at), Decimal("0"))
+    billed = sum((Decimal(task.billable_amount or 0) for task in billed_tasks), Decimal("0"))
+
+    if role is Role.MANAGER:
+        # Managers see counts only — never rupee totals (requirements §4.10).
+        return BillingSummary(
+            unpriced=unpriced,
+            pending_count=len(pending_tasks),
+            billed_count=len(billed_tasks),
+            total_count=len(tasks),
+        )
+
     return BillingSummary(
         total_billable=total,
         pending=total - billed,
         billed=billed,
-        unpriced=sum(1 for task in tasks if not task.billable_amount),
+        unpriced=unpriced,
+        pending_count=len(pending_tasks),
+        billed_count=len(billed_tasks),
+        total_count=len(tasks),
     )
 
 

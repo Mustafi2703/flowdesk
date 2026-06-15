@@ -64,6 +64,13 @@ def test_rejection_does_not_change_balance(client, users):
     assert bal["taken"] == 0
 
 
+def test_manager_can_submit_leave(client, users):
+    manager = users.create("manager")
+    resp = _submit(client, users, manager, days=1, leave_type="Casual")
+    assert resp.status_code == 201
+    assert resp.json()["status"] == "Pending"
+
+
 def test_team_cannot_approve(client, users):
     team = users.create("team")
     other = users.create("team")

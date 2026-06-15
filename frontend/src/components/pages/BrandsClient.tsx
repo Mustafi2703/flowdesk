@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
 import { EmptyState, Icon } from '@/components/app/Icons'
+import { PageHeader, PageShell, Section } from '@/components/app/Section'
 
 const sInp = { width:'100%', padding:'9px 12px', background:'var(--sf-surface-2)', border:'1px solid #2A2A45', borderRadius:8, color:'var(--sf-text)', fontSize:13, outline:'none', fontFamily:"'DM Sans',sans-serif" }
 
@@ -38,15 +39,19 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   if (loading) return <div style={{ color:'var(--sf-muted)', padding:40, textAlign:'center' }}>Loading brands…</div>
 
   return (
-    <div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-        <h2 style={{ color:'var(--sf-text)', fontFamily:"'Space Grotesk',sans-serif", fontSize:20, fontWeight:700 }}>{session.role==='team'?'My Brands':'Brands'} ({visible.length})</h2>
-        {canEdit && <button onClick={() => setShowCreate(true)} style={{ padding:'9px 18px', background:'var(--sf-accent)', border:'none', borderRadius:9, color:'var(--sf-text)', fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>+ Add Brand</button>}
+    <PageShell>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexShrink:0 }}>
+        <PageHeader title={session.role==='team'?'My brands':'Brands'} subtitle={`${visible.length} brands`} />
+        {canEdit && <button onClick={() => setShowCreate(true)} className="sf-btn sf-btn-primary" style={{ marginTop:4 }}>Add brand</button>}
       </div>
       {!loading && visible.length===0 && (
-        <EmptyState icon="brands" title={session.role==='team' ? 'No brands assigned to you yet.' : 'No brands yet.'} />
+        <Section title="Brands" flex={1}>
+          <EmptyState icon="brands" title={session.role==='team' ? 'No brands assigned to you yet.' : 'No brands yet.'} />
+        </Section>
       )}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(288px,1fr))', gap:16 }}>
+      {visible.length > 0 && (
+        <Section title="All brands" subtitle="Click a card for details" flex={1}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(288px,1fr))', gap:16 }}>
         {visible.map(b => {
           const bt = tasks.filter(t=>t.brand_id===b.id)
           const fl = bt.filter(t=>['Struggling','Needs Attention'].includes(t.status))
@@ -81,9 +86,11 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
             </div>
           )
         })}
-      </div>
+          </div>
+        </Section>
+      )}
       {showCreate && canEdit && <CreateBrand onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); load() }} />}
-    </div>
+    </PageShell>
   )
 }
 

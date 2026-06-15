@@ -75,15 +75,20 @@ def test_team_can_update_status_only(client, users):
     assert bad.status_code == 403
 
 
-def test_only_owner_can_delete_task(client, users):
+def test_owner_and_manager_can_delete_task(client, users):
     owner = users.create("owner")
     manager = users.create("manager")
+    team = users.create("team")
     task = _create_task(client, users.auth_headers(owner)).json()
     assert client.delete(
-        f"/api/v1/tasks/{task['id']}", headers=users.auth_headers(manager)
+        f"/api/v1/tasks/{task['id']}", headers=users.auth_headers(team)
     ).status_code == 403
     assert client.delete(
-        f"/api/v1/tasks/{task['id']}", headers=users.auth_headers(owner)
+        f"/api/v1/tasks/{task['id']}", headers=users.auth_headers(manager)
+    ).status_code == 200
+    task2 = _create_task(client, users.auth_headers(owner)).json()
+    assert client.delete(
+        f"/api/v1/tasks/{task2['id']}", headers=users.auth_headers(owner)
     ).status_code == 200
 
 

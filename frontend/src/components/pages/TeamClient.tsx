@@ -2,6 +2,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { SessionUser, ROLE_COLORS, ROLE_LABELS } from '@/types'
+import { PageHeader, PageShell, Section, StatCard, StatGrid } from '@/components/app/Section'
 
 export default function TeamClient({ session }: { session: SessionUser }) {
   const [users, setUsers] = useState<any[]>([])
@@ -105,16 +106,16 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   const managerName = (id:string|null) => team.find(u => u.id === id)?.name
 
   return (
-    <div>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,gap:12}}>
-        <h2 style={{color:'var(--sf-text)',fontFamily:"'Space Grotesk',sans-serif",fontSize:20,fontWeight:700,margin:0}}>Team Management</h2>
-        {canOnboard && <button onClick={()=>{ setShowAdd(!showAdd); setNotice(''); setError('') }} style={{background:'var(--sf-accent)',border:'none',color:'var(--sf-text)',fontWeight:800,borderRadius:10,padding:'10px 14px',cursor:'pointer'}}>+ Add User</button>}
+    <PageShell>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexShrink:0 }}>
+        <PageHeader title="Team" subtitle={`${team.filter(u=>u.is_active).length} active members · ${online} online`} />
+        {canOnboard && <button onClick={()=>{ setShowAdd(!showAdd); setNotice(''); setError('') }} className="sf-btn sf-btn-primary" style={{ marginTop:4 }}>Add user</button>}
       </div>
-      {notice && <div style={{background:'#052E1A',border:'1px solid #10B981',color:'#D1FAE5',borderRadius:10,padding:12,marginBottom:14,fontSize:13}}>{notice}</div>}
-      {error && <div style={{background:'#3B0A0A',border:'1px solid #EF4444',color:'#FEE2E2',borderRadius:10,padding:12,marginBottom:14,fontSize:13}}>{error}</div>}
+      {notice && <div style={{ background:'#052E1A', border:'1px solid #10B981', color:'#D1FAE5', borderRadius:10, padding:12, fontSize:13, flexShrink:0 }}>{notice}</div>}
+      {error && <div style={{ background:'#3B0A0A', border:'1px solid #EF4444', color:'#FEE2E2', borderRadius:10, padding:12, fontSize:13, flexShrink:0 }}>{error}</div>}
       {showAdd && (
-        <form onSubmit={addUser} style={{background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:14,padding:18,marginBottom:18}}>
-          <div style={{color:'var(--sf-text)',fontWeight:800,marginBottom:12}}>Onboard New User</div>
+        <Section title="Onboard new user" style={{ flexShrink: 0 }}>
+          <form onSubmit={addUser}>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:10}}>
             <input required placeholder="Full name" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} style={inputStyle} />
             <input required type="email" placeholder="Email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} style={inputStyle} />
@@ -140,17 +141,17 @@ export default function TeamClient({ session }: { session: SessionUser }) {
             <button type="button" onClick={()=>setShowAdd(false)} style={secondaryBtn}>Cancel</button>
             <button disabled={saving} style={primaryBtn}>{saving?'Creating...':'Create User'}</button>
           </div>
-        </form>
+          </form>
+        </Section>
       )}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:24}}>
-        {[['Members',team.filter(u=>u.is_active).length,'var(--sf-accent)'],['Online',online,'#10B981'],['Total Tasks',tasks.length,'#3B82F6'],['Flagged',tasks.filter(t=>['Struggling','Needs Attention'].includes(t.status)).length,'#F59E0B']].map(([l,v,c]) => (
-          <div key={String(l)} style={{background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:12,padding:'18px 20px',borderLeft:`3px solid ${c}`}}>
-            <div style={{color:'var(--sf-muted)',fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>{l}</div>
-            <div style={{color:'var(--sf-text)',fontSize:26,fontWeight:700,fontFamily:"'Space Grotesk',sans-serif"}}>{v}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(258px,1fr))',gap:14}}>
+      <StatGrid>
+        <StatCard label="Members" value={team.filter(u=>u.is_active).length} accent="var(--sf-accent)" />
+        <StatCard label="Online" value={online} accent="#10B981" />
+        <StatCard label="Total tasks" value={tasks.length} accent="#3B82F6" />
+        <StatCard label="Flagged" value={tasks.filter(t=>['Struggling','Needs Attention'].includes(t.status)).length} accent="#F59E0B" />
+      </StatGrid>
+      <Section title="Team members" subtitle="Workload and status per person" flex={1}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(258px,1fr))', gap:14 }}>
         {team.map((u:any) => {
           const l = load(u.id)
           const all = tasks.filter(t => t.assigned_to?.includes(u.id))
@@ -191,8 +192,9 @@ export default function TeamClient({ session }: { session: SessionUser }) {
             </div>
           )
         })}
-      </div>
-    </div>
+        </div>
+      </Section>
+    </PageShell>
   )
 }
 

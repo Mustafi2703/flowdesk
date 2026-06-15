@@ -63,6 +63,43 @@ def test_manager_sees_billable_flag_but_not_amount(client, users):
     rows = client.get("/api/v1/billing", headers=users.auth_headers(manager)).json()
     assert rows[0]["is_billable"] is True
     assert rows[0]["billable_amount"] is None  # hidden from manager
+    assert rows[0]["has_price"] is True
+
+
+def test_manager_summary_hides_amounts(client, users):
+    owner = users.create("owner")
+    manager = users.create("manager")
+    accountant = users.create("accountant")
+    task = _billable_task(client, users, owner)
+    client.post(
+        f"/api/v1/billing/{task['id']}/price",
+        headers=users.auth_headers(accountant),
+        json={"amount": "12000.00"},
+    )
+    summary = client.get("/api/v1/billing/summary", headers=users.auth_headers(manager)).json()
+    assert summary["unpriced"] == 0
+    assert summary["total_count"] == 1
+    assert summary["total_billable"] is None
+    assert summary["pending"] is None
+    assert summary["billed"] is None
+
+
+def test_manager_cannot_mark_billed(client, users):
+    owner = users.create("owner")
+    manager = users.create("manager")
+    accountant = users.create("accountant")
+    task = _billable_task(client, users, owner)
+    client.post(
+        f"/api/v1/billing/{task['id']}/price",
+        headers=users.auth_headers(accountant),
+        json={"amount": "8000.00"},
+    )
+    resp = client.post(
+        f"/api/v1/billing/{task['id']}/mark-billed",
+        headers=users.auth_headers(manager),
+        json={"billed": True},
+    )
+    assert resp.status_code == 403
 
 
 def test_team_never_sees_billable_amount_in_tasks(client, users):

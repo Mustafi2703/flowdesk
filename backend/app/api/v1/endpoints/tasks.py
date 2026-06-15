@@ -49,6 +49,7 @@ def _serialize(task: Task, brand_map: dict[uuid.UUID, Brand] | None = None, *, r
         "requires_review": task.requires_review,
         "is_billable": task.is_billable,
         "billable_amount": float(task.billable_amount) if task.billable_amount is not None else None,
+        "has_price": task.billable_amount is not None,
         "billed_at": task.billed_at.isoformat() if task.billed_at else None,
         "checklist": task.checklist or [],
         "sub_tasks": task.sub_tasks or [],
@@ -65,6 +66,7 @@ def _serialize(task: Task, brand_map: dict[uuid.UUID, Brand] | None = None, *, r
     if role in {Role.TEAM, Role.DEVELOPER, Role.HR}:
         payload["is_billable"] = False
         payload["billable_amount"] = None
+        payload["has_price"] = False
         payload["billed_at"] = None
     if role is Role.MANAGER:
         payload["billable_amount"] = None
@@ -227,8 +229,8 @@ def delete_task(
     db: Session = Depends(get_db),
     user: Profile = Depends(get_current_user),
 ) -> dict[str, bool]:
-    if Role(user.role) is not Role.OWNER:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owner can delete tasks")
+    if Role(user.role) not in {Role.OWNER, Role.MANAGER}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owner or manager can delete tasks")
     task = db.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")

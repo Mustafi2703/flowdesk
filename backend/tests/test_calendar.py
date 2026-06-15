@@ -53,6 +53,19 @@ def test_owner_company_calendar(client, users):
     assert body["viewable_users"][0]["id"] == "company"
 
 
+def test_hr_can_view_any_employee_calendar(client, users):
+    hr = users.create("hr")
+    team = users.create("team")
+    month = date.today().strftime("%Y-%m")
+    resp = client.get(
+        f"/api/v1/calendar?month={month}&user_id={team.id}",
+        headers=users.auth_headers(hr),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["user"]["id"] == str(team.id)
+    assert len(resp.json()["viewable_users"]) >= 2
+
+
 def test_non_owner_cannot_view_company_calendar(client, users):
     manager = users.create("manager")
     month = date.today().strftime("%Y-%m")

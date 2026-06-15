@@ -36,20 +36,21 @@ def _u(s: str) -> uuid.UUID:
 
 
 OWNER = _u("11111111-0000-0000-0000-000000000001")
-PRIYA = _u("11111111-0000-0000-0000-000000000002")
+MANAGER = _u("11111111-0000-0000-0000-000000000002")
 TEAM = _u("11111111-0000-0000-0000-000000000003")
 HR = _u("11111111-0000-0000-0000-000000000004")
 ACCOUNTANT = _u("11111111-0000-0000-0000-000000000007")
 DEV = _u("11111111-0000-0000-0000-000000000008")
 
-# One account per role for demo login; owner/manager onboard the rest via Team.
+# One account per requirements-doc role for quick demo login.
+# Names are role labels — real hires are onboarded via Team by Owner/Manager.
 USERS = [
-    (OWNER, "Rushabh Shah",  "owner@scrumfolks.com",      "owner",      "Leadership",  "Director",                "RS", None),
-    (PRIYA, "Priya Mehta",   "manager@scrumfolks.com",    "manager",    "Creative",    "Creative Manager",        "PM", OWNER),
-    (TEAM, "Arjun Patel",   "team@scrumfolks.com",       "team",       "Design",      "Senior Designer",         "AP", PRIYA),
-    (HR, "Neha Joshi",    "hr@scrumfolks.com",         "hr",         "HR",          "HR Manager",              "NJ", OWNER),
-    (ACCOUNTANT, "Kavita Rao",    "accountant@scrumfolks.com", "accountant", "Finance",     "Accountant",              "KR", OWNER),
-    (DEV, "Dev Sharma",    "dev@scrumfolks.com",        "developer",  "Technology",  "Full Stack Developer",    "DS", PRIYA),
+    (OWNER, "Demo Owner",      "owner@scrumfolks.com",      "owner",      "Leadership",  "Director",      "OW", None),
+    (MANAGER, "Demo Manager",  "manager@scrumfolks.com",    "manager",    "Operations",  "Manager",       "MG", OWNER),
+    (TEAM, "Demo Team Member", "team@scrumfolks.com",       "team",       "Design",      "Team Member",   "TM", MANAGER),
+    (HR, "Demo HR Manager",  "hr@scrumfolks.com",         "hr",         "HR",          "HR Manager",    "HR", OWNER),
+    (ACCOUNTANT, "Demo Accountant", "accountant@scrumfolks.com", "accountant", "Finance", "Accountant",  "AC", OWNER),
+    (DEV, "Demo Developer",  "dev@scrumfolks.com",        "developer",  "Technology",  "Developer",     "DV", MANAGER),
 ]
 
 

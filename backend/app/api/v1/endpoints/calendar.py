@@ -30,6 +30,8 @@ def _can_view_calendar(viewer: Profile, subject: Profile) -> bool:
     role = Role(viewer.role)
     if role is Role.OWNER:
         return True
+    if role is Role.HR:
+        return True
     if role is Role.MANAGER and subject.manager_id == viewer.id:
         return True
     return False
@@ -208,6 +210,7 @@ def calendar(
 
     - Owner: company overview (`scope=company`) or any employee calendar.
     - Manager: own calendar + direct reports.
+    - HR: any employee calendar (attendance / leave cross-reference).
     - Everyone else: own assigned tasks only (+ own leave/attendance).
     """
     year, mon = int(month[:4]), int(month[5:7])
@@ -270,6 +273,11 @@ def calendar(
         viewable_users = [{"id": str(viewer.id), "name": viewer.name}] + [
             {"id": str(r.id), "name": r.name} for r in reports
         ]
+    elif role is Role.HR:
+        everyone = db.scalars(
+            select(Profile).where(Profile.is_active.is_(True)).order_by(Profile.name)
+        ).all()
+        viewable_users = [{"id": str(p.id), "name": p.name} for p in everyone]
 
     return {
         "month": month,

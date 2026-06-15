@@ -144,6 +144,10 @@ export default function LoginPage() {
               {showDemo ? 'Hide demo roles' : 'Demo role login (empty workspace)'}
             </button>
             {showDemo && (
+              <>
+              <p style={{ color: 'var(--sf-muted)', fontSize: 12, margin: '8px 0 10px', lineHeight: 1.45 }}>
+                One account per role (Owner, Manager, Team, HR, Accountant, Developer). Add real staff via Team after signing in as Owner or Manager.
+              </p>
               <div className="login-demo-grid">
                 {DEMOS.map(d => (
                   <button key={d.role} type="button" disabled={loading} className="login-demo-btn" onClick={() => doDemoLogin(d.role)}>
@@ -151,6 +155,7 @@ export default function LoginPage() {
                   </button>
                 ))}
               </div>
+              </>
             )}
           </div>
         </div>

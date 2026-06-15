@@ -19,6 +19,7 @@ function localDateKey(d: Date) {
 export default function CalendarClient({ session }: { session: SessionUser }) {
   const isOwner = session.role === 'owner'
   const isManager = session.role === 'manager'
+  const isHr = session.role === 'hr'
   const [cursor, setCursor] = useState(() => new Date())
   const [selectedUser, setSelectedUser] = useState(isOwner ? COMPANY : session.id)
   const [data, setData] = useState<any>(null)
@@ -65,11 +66,11 @@ export default function CalendarClient({ session }: { session: SessionUser }) {
   }, [cursor])
 
   const viewable = data?.viewable_users || [{ id: session.id, name: session.name }]
-  const showPicker = (isOwner || isManager) && viewable.length > 1
+  const showPicker = (isOwner || isManager || isHr) && viewable.length > 1
   const dayDetail = selectedDay && data?.days?.[selectedDay]
   const subtitle = isCompanyView
     ? 'Company-wide tasks, leave, and attendance'
-    : isOwner || isManager
+    : isOwner || isManager || isHr
       ? `Assigned tasks — ${data?.user?.name || session.name}`
       : 'Your assigned tasks, leave, and attendance'
 

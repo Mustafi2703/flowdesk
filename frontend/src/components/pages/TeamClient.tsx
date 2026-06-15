@@ -187,7 +187,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
               {all.length>0 && <div style={{height:4,background:'var(--sf-surface-2)',borderRadius:2,overflow:'hidden'}}><div style={{width:`${rate}%`,height:'100%',background:'#10B981',borderRadius:2}}/></div>}
               <div style={{display:'flex',gap:8,marginTop:12}}>
                 {canReset && u.id!==session.id && <button onClick={()=>resetPassword(u.id,u.name)} style={smallBtn}>Reset Password</button>}
-                {['owner','manager'].includes(session.role) && u.id!==session.id && u.is_active && <button onClick={()=>deactivateUser(u.id,u.name)} style={{...smallBtn,color:'#FCA5A5',borderColor:'#7F1D1D'}}>Deactivate</button>}
+                {session.role === 'owner' && u.id!==session.id && u.is_active && <button onClick={()=>deactivateUser(u.id,u.name)} style={{...smallBtn,color:'#FCA5A5',borderColor:'#7F1D1D'}}>Deactivate</button>}
               </div>
             </div>
           )

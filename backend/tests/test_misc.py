@@ -128,7 +128,7 @@ def test_seed_users_respects_existing_owner_id(db, monkeypatch):
     from app.core.config import settings
     from app.core.security import hash_password
     from app.models.profile import Profile
-    from app.scripts.seed import OWNER, PRIYA, USERS, _seed_users
+    from app.scripts.seed import OWNER, MANAGER, USERS, _seed_users
     from sqlalchemy import select
 
     monkeypatch.setattr(settings, "seed_password", "DemoPass123!")
@@ -153,13 +153,13 @@ def test_seed_users_respects_existing_owner_id(db, monkeypatch):
     assert profiles["owner@scrumfolks.com"].id == owner.id
     assert profiles["owner@scrumfolks.com"].id != OWNER
     assert profiles["manager@scrumfolks.com"].manager_id == owner.id
-    assert profiles["manager@scrumfolks.com"].id == PRIYA
+    assert profiles["manager@scrumfolks.com"].id == MANAGER
 
 
 def test_seed_users_fresh_database(db, monkeypatch):
     from app.core.config import settings
     from app.models.profile import Profile
-    from app.scripts.seed import DEV, PRIYA, TEAM, USERS, _seed_users
+    from app.scripts.seed import DEV, MANAGER, TEAM, USERS, _seed_users
     from sqlalchemy import select
 
     monkeypatch.setattr(settings, "seed_password", "DemoPass123!")
@@ -170,9 +170,9 @@ def test_seed_users_fresh_database(db, monkeypatch):
     assert len(profiles) == len(USERS) == 6
     owner = profiles["owner@scrumfolks.com"]
     assert profiles["manager@scrumfolks.com"].manager_id == owner.id
-    assert profiles["manager@scrumfolks.com"].id == PRIYA
-    assert profiles["team@scrumfolks.com"].manager_id == PRIYA
-    assert profiles["dev@scrumfolks.com"].manager_id == PRIYA
+    assert profiles["manager@scrumfolks.com"].id == MANAGER
+    assert profiles["team@scrumfolks.com"].manager_id == MANAGER
+    assert profiles["dev@scrumfolks.com"].manager_id == MANAGER
     assert profiles["team@scrumfolks.com"].id == TEAM
     assert profiles["dev@scrumfolks.com"].id == DEV
 
@@ -186,7 +186,7 @@ def test_seed_reactivates_inactive_demo_account(db, monkeypatch):
 
     monkeypatch.setattr(settings, "seed_password", "DemoPass123!")
     inactive = Profile(
-        name="Arjun Patel",
+        name="Demo Team Member",
         email="team@scrumfolks.com",
         password_hash=hash_password("OldPass123!"),
         role="team",

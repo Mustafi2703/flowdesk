@@ -17,6 +17,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   const [showDept, setShowDept] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
+  const [deptError, setDeptError] = useState('')
   const [form, setForm] = useState({ name: '', email: '', role: 'team', department: '', department_id: '', designation: '', password: '', manager_id: '' })
   const [deptForm, setDeptForm] = useState({ name: '', description: '', manager_id: '' })
   const today = new Date().toISOString().split('T')[0]
@@ -26,6 +27,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   const canReset = ['owner','hr'].includes(session.role)
 
   async function refresh() {
+    setDeptError('')
     const fetches: Promise<any>[] = [
       fetch(`/api/team${session.role==='owner'?'?include_inactive=true':''}`).then(r=>r.json()),
       fetch('/api/tasks').then(r=>r.json()),
@@ -36,7 +38,20 @@ export default function TeamClient({ session }: { session: SessionUser }) {
       fetches.push(fetch('/api/team/managers').then(r=>r.json()).catch(()=>[]))
     }
     if (canViewDepartments) {
-      fetches.push(fetch('/api/team/departments').then(r=>r.json()).catch(()=>[]))
+      fetches.push(
+        fetch('/api/team/departments').then(async (r) => {
+          const data = await r.json().catch(() => ({}))
+          if (!r.ok) {
+            const msg = data.error || data.detail || 'Could not load departments'
+            setDeptError(typeof msg === 'string' ? msg : 'Could not load departments')
+            return []
+          }
+          return data
+        }).catch(() => {
+          setDeptError('Could not load departments')
+          return []
+        })
+      )
     }
     Promise.all(fetches).then((results) => {
       const [u,t,a,roles,...rest] = results
@@ -159,9 +174,23 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     <PageShell>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexShrink:0 }}>
         <PageHeader title="Team" subtitle={`${team.filter(u=>u.is_active).length} active members · ${online} online`} />
-        <div style={{ display:'flex', gap:10, marginTop:4 }}>
-          {canManageDepartments && <button onClick={()=>{ setShowDept(!showDept); setShowAdd(false); setNotice(''); setError('') }} className="sf-btn sf-btn-ghost">Add department</button>}
-          {canOnboard && <button onClick={()=>{ setShowAdd(!showAdd); setShowDept(false); setNotice(''); setError('') }} className="sf-btn sf-btn-primary">Add user</button>}
+        <div style={{ display:'flex', gap:10, marginTop:4, flexWrap:'wrap' }}>
+          {canManageDepartments && (
+            <button
+              onClick={()=>{ setShowDept(true); setShowAdd(false); setNotice(''); setError(''); setDeptError('') }}
+              className="sf-btn sf-btn-primary"
+            >
+              {sortedDepartments.length ? 'Add department' : 'Create first department'}
+            </button>
+          )}
+          {canOnboard && (
+            <button
+              onClick={()=>{ setShowAdd(true); setShowDept(false); setNotice(''); setError('') }}
+              className={canManageDepartments ? 'sf-btn sf-btn-ghost' : 'sf-btn sf-btn-primary'}
+            >
+              Add user
+            </button>
+          )}
         </div>
       </div>
       {notice && <div style={{ background:'#052E1A', border:'1px solid #10B981', color:'#D1FAE5', borderRadius:10, padding:12, fontSize:13, flexShrink:0 }}>{notice}</div>}
@@ -225,28 +254,53 @@ export default function TeamClient({ session }: { session: SessionUser }) {
           </form>
         </Section>
       )}
+      {canViewDepartments && (
+        <Section title="Departments" subtitle="Org units with assigned managers" style={{ flexShrink: 0 }}>
+          {deptError && (
+            <div style={{ background:'#3B0A0A', border:'1px solid #EF4444', color:'#FEE2E2', borderRadius:10, padding:12, fontSize:13, marginBottom:12 }}>
+              {deptError}
+            </div>
+          )}
+          {sortedDepartments.length > 0 ? (
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))', gap:12 }}>
+              {sortedDepartments.map((d:any) => (
+                <div key={d.id} style={{ background:'var(--sf-surface)', border:'1px solid var(--sf-border)', borderRadius:12, padding:14 }}>
+                  <div style={{ color:'var(--sf-text)', fontWeight:700, fontSize:14 }}>{d.name}</div>
+                  {d.description && <div style={{ color:'var(--sf-muted)', fontSize:12, marginTop:4 }}>{d.description}</div>}
+                  <div style={{ color:'var(--sf-muted-2)', fontSize:11, marginTop:8 }}>
+                    Manager: {d.manager?.name || '—'}
+                  </div>
+                  <div style={{ color:'var(--sf-muted)', fontSize:11, marginTop:4 }}>{d.member_count} member{d.member_count === 1 ? '' : 's'}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ background:'var(--sf-surface-2)', border:'1px dashed var(--sf-border)', borderRadius:12, padding:20, textAlign:'center' }}>
+              <p style={{ color:'var(--sf-muted)', fontSize:13, margin:0 }}>
+                {canManageDepartments
+                  ? 'No departments yet. Create one to group team members and assign a department manager.'
+                  : 'No departments configured yet.'}
+              </p>
+              {canManageDepartments && (
+                <button
+                  type="button"
+                  onClick={()=>{ setShowDept(true); setShowAdd(false); setNotice(''); setError('') }}
+                  className="sf-btn sf-btn-primary"
+                  style={{ marginTop:14 }}
+                >
+                  Create department
+                </button>
+              )}
+            </div>
+          )}
+        </Section>
+      )}
       <StatGrid>
         <StatCard label="Members" value={team.filter(u=>u.is_active).length} accent="var(--sf-accent)" />
         <StatCard label="Online" value={online} accent="#10B981" />
         <StatCard label="Total tasks" value={tasks.length} accent="#3B82F6" />
         <StatCard label="Flagged" value={tasks.filter(t=>['Struggling','Needs Attention'].includes(t.status)).length} accent="#F59E0B" />
       </StatGrid>
-      {canViewDepartments && sortedDepartments.length > 0 && (
-        <Section title="Departments" subtitle="Org units and assigned managers" style={{ flexShrink: 0 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))', gap:12 }}>
-            {sortedDepartments.map((d:any) => (
-              <div key={d.id} style={{ background:'var(--sf-surface)', border:'1px solid var(--sf-border)', borderRadius:12, padding:14 }}>
-                <div style={{ color:'var(--sf-text)', fontWeight:700, fontSize:14 }}>{d.name}</div>
-                {d.description && <div style={{ color:'var(--sf-muted)', fontSize:12, marginTop:4 }}>{d.description}</div>}
-                <div style={{ color:'var(--sf-muted-2)', fontSize:11, marginTop:8 }}>
-                  Manager: {d.manager?.name || '—'}
-                </div>
-                <div style={{ color:'var(--sf-muted)', fontSize:11, marginTop:4 }}>{d.member_count} member{d.member_count === 1 ? '' : 's'}</div>
-              </div>
-            ))}
-          </div>
-        </Section>
-      )}
       <Section title="Team members" subtitle="Workload and status per person" flex={1}>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(258px,1fr))', gap:14 }}>
         {team.map((u:any) => {

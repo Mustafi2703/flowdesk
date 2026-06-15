@@ -117,6 +117,10 @@ body {
   padding: 0;
 }
 
+.sf-main-scroll:has(.sf-team-layout) {
+  padding: 0;
+}
+
 .sf-page {
   display: flex;
   flex-direction: column;

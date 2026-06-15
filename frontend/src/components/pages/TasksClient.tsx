@@ -76,6 +76,19 @@ export default function TasksClient({ session }: { session: SessionUser }) {
     if (canEdit) setEditingTask(task)
   }
 
+  async function deleteTask(task: any) {
+    if (!canDelete) return
+    if (!window.confirm(`Delete "${task.title}"? This cannot be undone.`)) return
+    const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || data.detail || 'Could not delete task')
+      return
+    }
+    if (editingTask?.id === task.id) setEditingTask(null)
+    load()
+  }
+
   function load() {
     return Promise.all([
       fetch('/api/tasks').then(r=>r.json()),
@@ -128,6 +141,11 @@ export default function TasksClient({ session }: { session: SessionUser }) {
           <button onClick={() => setShowCreate(true)} className="sf-btn sf-btn-primary" style={{ marginTop:4 }}>New task</button>
         )}
       </div>
+      {canEdit && (
+        <p style={{ color:'var(--sf-muted)', fontSize:12, margin:'-8px 0 12px', flexShrink:0 }}>
+          Click a task row or use Edit to update details. Delete removes the task permanently.
+        </p>
+      )}
 
       <Section title="Filters & view" subtitle="Sort and filter the task list" flush style={{ flexShrink:0 }}>
         <div style={{ padding:'0.75rem 1rem', display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
@@ -175,27 +193,29 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                   <th>Status</th>
                   <th>Priority</th>
                   <th>Due</th>
+                  {canEdit && <th style={{ width:120 }}>Actions</th>}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(task => {
                   const dl = task.due_date ? Math.ceil((new Date(task.due_date).getTime()-Date.now())/86400000) : null
                   const late = dl !== null && dl < 0 && task.status !== 'Completed'
-                  const clickable = canEdit
                   return (
-                    <tr
-                      key={task.id}
-                      onClick={() => openTask(task)}
-                      style={{ cursor: clickable ? 'pointer' : 'default' }}
-                    >
-                      <td>
+                    <tr key={task.id}>
+                      <td
+                        onClick={() => openTask(task)}
+                        style={{ cursor: canEdit ? 'pointer' : 'default' }}
+                      >
                         <div style={{ fontWeight:600 }}>{task.title}</div>
+                        {task.task_mode === 'project' && (
+                          <div style={{ color:'#06B6D4', fontSize:10, fontWeight:700, marginTop:2 }}>PROJECT</div>
+                        )}
                         {task.is_billable && canSeeBilling && (
                           <div style={{ color:'var(--sf-muted)', fontSize:11, marginTop:2 }}>Billable</div>
                         )}
                       </td>
-                      <td>{task.brand?.name || '—'}</td>
-                      <td>{task.type || '—'}</td>
+                      <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default' }}>{task.brand?.name || '—'}</td>
+                      <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default' }}>{task.type || '—'}</td>
                       <td onClick={e => e.stopPropagation()}>
                         {canUpdateStatus(task) ? (
                           <select
@@ -226,6 +246,28 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                               : new Date(task.due_date).toLocaleDateString()
                           : '—'}
                       </td>
+                      {canEdit && (
+                        <td onClick={e => e.stopPropagation()}>
+                          <div style={{ display:'flex', gap:6 }}>
+                            <button
+                              type="button"
+                              onClick={() => openTask(task)}
+                              className="sf-btn sf-btn-ghost"
+                              style={{ fontSize:11, padding:'4px 8px' }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteTask(task)}
+                              className="sf-btn sf-btn-ghost"
+                              style={{ fontSize:11, padding:'4px 8px', color:'var(--sf-danger)' }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   )
                 })}
@@ -250,15 +292,25 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                 {colTasks.map(task => (
                   <div
                     key={task.id}
-                    onClick={() => openTask(task)}
-                    style={{ background:'var(--sf-surface-2)', border:'1px solid #2A2A45', borderRadius:9, padding:10, marginBottom:7, cursor: canEdit ? 'pointer' : 'default' }}
+                    style={{ background:'var(--sf-surface-2)', border:'1px solid var(--sf-border)', borderRadius:9, padding:10, marginBottom:7 }}
                   >
-                    <div style={{ color:'var(--sf-text)', fontSize:12, fontWeight:600, marginBottom:4 }}>{task.title}</div>
-                    <div style={{ color:'var(--sf-muted)', fontSize:10, marginBottom:6 }}>{task.brand?.name||'—'}</div>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                      <span style={{ color:'var(--sf-muted)', fontSize:10 }}>{priorityLabel(task.priority)}</span>
-                      {task.due_date && <span style={{ color:'var(--sf-muted)', fontSize:10 }}>{Math.ceil((new Date(task.due_date).getTime()-Date.now())/86400000)}d</span>}
+                    <div
+                      onClick={() => openTask(task)}
+                      style={{ cursor: canEdit ? 'pointer' : 'default' }}
+                    >
+                      <div style={{ color:'var(--sf-text)', fontSize:12, fontWeight:600, marginBottom:4 }}>{task.title}</div>
+                      <div style={{ color:'var(--sf-muted)', fontSize:10, marginBottom:6 }}>{task.brand?.name||'—'}</div>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: canEdit ? 8 : 0 }}>
+                        <span style={{ color:'var(--sf-muted)', fontSize:10 }}>{priorityLabel(task.priority)}</span>
+                        {task.due_date && <span style={{ color:'var(--sf-muted)', fontSize:10 }}>{Math.ceil((new Date(task.due_date).getTime()-Date.now())/86400000)}d</span>}
+                      </div>
                     </div>
+                    {canEdit && (
+                      <div style={{ display:'flex', gap:6 }}>
+                        <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-ghost" style={{ flex:1, fontSize:10, padding:'4px 6px' }}>Edit</button>
+                        <button type="button" onClick={() => deleteTask(task)} className="sf-btn sf-btn-ghost" style={{ flex:1, fontSize:10, padding:'4px 6px', color:'var(--sf-danger)' }}>Delete</button>
+                      </div>
+                    )}
                   </div>
                 ))}
                 {colTasks.length===0 && <div style={{ color:'var(--sf-muted-2)', fontSize:11, textAlign:'center', padding:'14px 0' }}>Empty</div>}
@@ -379,9 +431,21 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
       sub_tasks: cleanedSubTasks,
     }
     if (isEdit) {
-      await fetch(`/api/tasks/${task.id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+      const res = await fetch(`/api/tasks/${task.id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || data.detail || 'Could not save task')
+        setSaving(false)
+        return
+      }
     } else {
-      await fetch('/api/tasks', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+      const res = await fetch('/api/tasks', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || data.detail || 'Could not create task')
+        setSaving(false)
+        return
+      }
     }
     setSaving(false)
     onSaved()
@@ -391,8 +455,13 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
     if (!isEdit || !canDelete) return
     if (!window.confirm(`Delete "${task.title}"? This cannot be undone.`)) return
     setDeleting(true)
-    await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
     setDeleting(false)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || data.detail || 'Could not delete task')
+      return
+    }
     onSaved()
   }
 

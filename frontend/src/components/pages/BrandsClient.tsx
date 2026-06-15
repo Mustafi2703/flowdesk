@@ -113,8 +113,9 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
 
 function BrandDetail({ brand, tasks, users, session, canEdit, onBack, onRefresh, onUpdate }: any) {
   const [tab, setTab] = useState('overview')
-  const [showCreateProject, setShowCreateProject] = useState(false)
-  const [editingProject, setEditingProject] = useState<any>(null)
+  const [showTaskModal, setShowTaskModal] = useState(false)
+  const [editingTask, setEditingTask] = useState<any>(null)
+  const [createAsProject, setCreateAsProject] = useState(false)
   const projects = tasks.filter((t:any) => t.task_mode === 'project')
   const standardTasks = tasks.filter((t:any) => t.task_mode !== 'project')
   const TABS = [
@@ -159,7 +160,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, onBack, onRefresh,
       <div style={{ display:'flex',gap:2,background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:12,padding:4,marginBottom:20,overflowX:'auto', alignItems:'center' }}>
         {TABS.map(t => <button key={t.id} onClick={() => setTab(t.id)} style={{ padding:'8px 18px',background:tab===t.id?'var(--sf-accent)':'transparent',border:'none',borderRadius:9,color:tab===t.id?'white':'var(--sf-muted)',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap' }}>{t.label}</button>)}
         {canEdit && tab === 'projects' && (
-          <button onClick={() => { setEditingProject(null); setShowCreateProject(true) }} className="sf-btn sf-btn-primary" style={{ marginLeft:'auto', marginRight:4, fontSize:12, padding:'6px 12px' }}>Add project</button>
+          <button onClick={() => { setEditingTask(null); setCreateAsProject(true); setShowTaskModal(true) }} className="sf-btn sf-btn-primary" style={{ marginLeft:'auto', marginRight:4, fontSize:12, padding:'6px 12px' }}>Add project</button>
         )}
       </div>
       {tab==='overview' && (
@@ -186,7 +187,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, onBack, onRefresh,
             <div style={{ textAlign:'center', padding:40, color:'var(--sf-muted-2)' }}>
               <div style={{ marginBottom:12, fontSize:15, fontWeight:600, color:'var(--sf-muted)' }}>No projects for this brand yet.</div>
               {canEdit && (
-                <button onClick={() => setShowCreateProject(true)} className="sf-btn sf-btn-primary">Create first project</button>
+                <button onClick={() => { setEditingTask(null); setCreateAsProject(true); setShowTaskModal(true) }} className="sf-btn sf-btn-primary">Create first project</button>
               )}
             </div>
           )}
@@ -207,7 +208,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, onBack, onRefresh,
                   <div style={{ display:'flex', gap:8, alignItems:'center' }}>
                     <span style={{ background:STATUS_BG[t.status]||'#F3F4F6', color:STATUS_TEXT[t.status]||'#374151', fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:5 }}>{t.status}</span>
                     {canEdit && (
-                      <button onClick={() => { setEditingProject(t); setShowCreateProject(true) }} className="sf-btn sf-btn-ghost" style={{ fontSize:11, padding:'4px 10px' }}>Edit</button>
+                      <button onClick={() => { setEditingTask(t); setCreateAsProject(false); setShowTaskModal(true) }} className="sf-btn sf-btn-ghost" style={{ fontSize:11, padding:'4px 10px' }}>Edit</button>
                     )}
                   </div>
                 </div>
@@ -236,7 +237,20 @@ function BrandDetail({ brand, tasks, users, session, canEdit, onBack, onRefresh,
       {tab==='tasks' && (
         <div>
           {standardTasks.length===0 && <div style={{ textAlign:'center',padding:40,color:'var(--sf-muted-2)' }}>No standard tasks for this brand.</div>}
-          {standardTasks.map((t:any) => <div key={t.id} style={{ display:'flex',justifyContent:'space-between',alignItems:'center',padding:'13px 16px',background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:10,marginBottom:8 }}><div><div style={{ color:'var(--sf-text)',fontSize:13,fontWeight:600,marginBottom:2 }}>{t.title}</div><div style={{ color:'var(--sf-muted)',fontSize:11 }}>{t.type} · Due {t.due_date}</div></div><span style={{ background:STATUS_BG[t.status]||'#F3F4F6',color:STATUS_TEXT[t.status]||'#374151',fontSize:10,fontWeight:700,padding:'3px 8px',borderRadius:5 }}>{t.status}</span></div>)}
+          {standardTasks.map((t:any) => (
+            <div key={t.id} style={{ display:'flex',justifyContent:'space-between',alignItems:'center',padding:'13px 16px',background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:10,marginBottom:8,gap:12 }}>
+              <div style={{ flex:1 }}>
+                <div style={{ color:'var(--sf-text)',fontSize:13,fontWeight:600,marginBottom:2 }}>{t.title}</div>
+                <div style={{ color:'var(--sf-muted)',fontSize:11 }}>{t.type} · Due {t.due_date}</div>
+              </div>
+              <span style={{ background:STATUS_BG[t.status]||'#F3F4F6',color:STATUS_TEXT[t.status]||'#374151',fontSize:10,fontWeight:700,padding:'3px 8px',borderRadius:5 }}>{t.status}</span>
+              {canEdit && (
+                <div style={{ display:'flex', gap:6 }}>
+                  <button type="button" onClick={() => { setEditingTask(t); setCreateAsProject(false); setShowTaskModal(true) }} className="sf-btn sf-btn-ghost" style={{ fontSize:11, padding:'4px 8px' }}>Edit</button>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
       {tab==='goals' && (
@@ -280,18 +294,18 @@ function BrandDetail({ brand, tasks, users, session, canEdit, onBack, onRefresh,
           </div>
         </div>
       )}
-      {(showCreateProject || editingProject) && canEdit && (
+      {showTaskModal && canEdit && (
         <TaskFormModal
           session={session}
           brands={[brand]}
           users={users}
-          task={editingProject || undefined}
+          task={editingTask || undefined}
           initialBrandId={brand.id}
-          forceProjectMode={!editingProject}
-          onClose={() => { setShowCreateProject(false); setEditingProject(null) }}
-          onSaved={() => { setShowCreateProject(false); setEditingProject(null); onRefresh() }}
+          forceProjectMode={createAsProject && !editingTask}
+          onClose={() => { setShowTaskModal(false); setEditingTask(null); setCreateAsProject(false) }}
+          onSaved={() => { setShowTaskModal(false); setEditingTask(null); setCreateAsProject(false); onRefresh() }}
           canSeeBilling={['owner','manager','accountant'].includes(session.role)}
-          canDelete={false}
+          canDelete={true}
         />
       )}
     </div>

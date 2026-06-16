@@ -29,6 +29,7 @@ class ProfileCreate(ProfileBase):
 class ProfileUpdate(BaseModel):
     name: str | None = None
     department: str | None = None
+    department_id: uuid.UUID | None = None
     designation: str | None = None
     avatar: str | None = None
     role: str | None = None

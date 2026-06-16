@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { SessionUser, TaskStatus } from '@/types'
 import { Icon } from '@/components/app/Icons'
 import { PageHeader, PageShell, Section } from '@/components/app/Section'
-import { TASK_STATUSES, canManageTasks, canSetTaskPrice, isTaskAssignee } from '@/lib/tasks'
+import { TASK_STATUSES, canManageTasks, canSetTaskPrice, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
 
 const STATUSES = TASK_STATUSES
 const PRIORITIES = ['Critical','High','Medium','Low']
@@ -58,7 +58,11 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc')
   const [showCreate, setShowCreate] = useState(false)
   const [editingTask, setEditingTask] = useState<any | null>(null)
+  const [progressTask, setProgressTask] = useState<any | null>(null)
+  const [attendance, setAttendance] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const today = new Date().toISOString().split('T')[0]
+  const clockedIn = isClockedInToday(attendance, session.id, today)
 
   const canCreate = canManageTasks(session.role)
   const canEdit = canCreate
@@ -71,7 +75,12 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   }
 
   function canUpdateStatus(task: any) {
-    return canEdit || isAssigned(task)
+    if (canEdit) return true
+    return isAssigned(task) && clockedIn
+  }
+
+  function canUpdateProgress(task: any) {
+    return !canEdit && isAssigned(task) && clockedIn
   }
 
   async function updateTaskStatus(taskId: string, status: string) {
@@ -110,10 +119,12 @@ export default function TasksClient({ session }: { session: SessionUser }) {
       fetch('/api/tasks').then(r=>r.json()),
       fetch('/api/brands').then(r=>r.json()),
       fetch('/api/users').then(r=>r.json()),
-    ]).then(([t,b,u]) => {
+      fetch('/api/attendance').then(r=>r.json()),
+    ]).then(([t,b,u,a]) => {
       setTasks(Array.isArray(t)?t:[])
       setBrands(Array.isArray(b)?b:[])
       setUsers(Array.isArray(u)?u:[])
+      setAttendance(Array.isArray(a)?a:[])
       setLoading(false)
     })
   }
@@ -162,9 +173,14 @@ export default function TasksClient({ session }: { session: SessionUser }) {
           Owners and managers can edit tasks and set prices. Assigned members can update status from the list.
         </p>
       )}
-      {!canEdit && (
+      {!canEdit && !clockedIn && (
+        <p style={{ color:'#FBBF24', fontSize:12, margin:'-8px 0 12px', flexShrink:0 }}>
+          Clock in from Attendance before updating task progress.
+        </p>
+      )}
+      {!canEdit && clockedIn && (
         <p style={{ color:'var(--sf-muted)', fontSize:12, margin:'-8px 0 12px', flexShrink:0 }}>
-          Update your task status using the dropdown in each row.
+          You are clocked in — update status or use Update progress for notes and checklist.
         </p>
       )}
 
@@ -214,7 +230,8 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                   <th>Status</th>
                   <th>Priority</th>
                   <th>Due</th>
-                  {canEdit && <th style={{ width:120 }}>Actions</th>}
+                  {canEdit && <th style={{ width:160 }}>Actions</th>}
+                  {!canEdit && <th style={{ width:120 }}>Progress</th>}
                 </tr>
               </thead>
               <tbody>
@@ -265,23 +282,18 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                       {canEdit && (
                         <td onClick={e => e.stopPropagation()}>
                           <div style={{ display:'flex', gap:6 }}>
-                            <button
-                              type="button"
-                              onClick={() => openTask(task)}
-                              className="sf-btn sf-btn-ghost"
-                              style={{ fontSize:11, padding:'4px 8px' }}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => deleteTask(task)}
-                              className="sf-btn sf-btn-ghost"
-                              style={{ fontSize:11, padding:'4px 8px', color:'var(--sf-danger)' }}
-                            >
-                              Delete
-                            </button>
+                            <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-ghost" style={{ fontSize:11, padding:'4px 8px' }}>Edit</button>
+                            <button type="button" onClick={() => deleteTask(task)} className="sf-btn sf-btn-ghost" style={{ fontSize:11, padding:'4px 8px', color:'var(--sf-danger)' }}>Delete</button>
                           </div>
+                        </td>
+                      )}
+                      {!canEdit && (
+                        <td onClick={e => e.stopPropagation()}>
+                          {canUpdateProgress(task) ? (
+                            <button type="button" onClick={() => setProgressTask(task)} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px' }}>Update</button>
+                          ) : (
+                            <span style={{ color:'var(--sf-muted)', fontSize:11 }}>{isAssigned(task) ? 'Clock in' : '—'}</span>
+                          )}
                         </td>
                       )}
                     </tr>
@@ -325,10 +337,13 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                       <select
                         value={task.status}
                         onChange={e => updateTaskStatus(task.id, e.target.value)}
-                        style={{ ...toolbarSelect, width:'100%', padding:'4px 6px', fontSize:10, marginBottom: canEdit ? 8 : 0 }}
+                        style={{ ...toolbarSelect, width:'100%', padding:'4px 6px', fontSize:10, marginBottom: 8 }}
                       >
                         {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
+                    )}
+                    {canUpdateProgress(task) && (
+                      <button type="button" onClick={() => setProgressTask(task)} className="sf-btn sf-btn-primary" style={{ width:'100%', fontSize:10, padding:'4px 6px', marginBottom: 8 }}>Update progress</button>
                     )}
                     {canEdit && (
                       <div style={{ display:'flex', gap:6 }}>
@@ -346,6 +361,14 @@ export default function TasksClient({ session }: { session: SessionUser }) {
         </Section>
       )}
 
+      {progressTask && (
+        <TaskProgressModal
+          session={session}
+          task={progressTask}
+          onClose={() => setProgressTask(null)}
+          onSaved={() => { setProgressTask(null); load() }}
+        />
+      )}
       {showCreate && canCreate && (
         <TaskFormModal session={session} brands={brands} users={users} onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); load() }} canSeeBilling={canSeeBilling} canSetPrice={canSetPrice} canDelete={false} />
       )}
@@ -678,6 +701,105 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
               {deleting ? 'Deleting…' : 'Delete Task'}
             </button>
           )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function TaskProgressModal({ session, task, onClose, onSaved }: any) {
+  const isParentAssignee = (task.assigned_to || []).some((id: string) => sameUserId(id, session.id))
+  const [status, setStatus] = useState(task.status || 'Not Started')
+  const [desc, setDesc] = useState(task.description || '')
+  const [checklist, setChecklist] = useState<any[]>(task.checklist || [])
+  const [subTasks, setSubTasks] = useState<any[]>(normalizeSubTasks(task.sub_tasks))
+  const [newItem, setNewItem] = useState('')
+  const [saving, setSaving] = useState(false)
+  const sInp = { width:'100%', padding:'9px 12px', background:'var(--sf-surface-2)', border:'1px solid var(--sf-border)', borderRadius:8, color:'var(--sf-text)', fontSize:13, outline:'none', fontFamily:"'DM Sans',sans-serif" }
+  const sSel = { ...sInp, cursor:'pointer' }
+
+  function toggleCheck(id: string) {
+    setChecklist(prev => prev.map(item => item.id === id ? { ...item, done: !item.done } : item))
+  }
+
+  function addChecklistItem() {
+    if (!newItem.trim()) return
+    setChecklist(prev => [...prev, { id: newSubTaskId(), text: newItem.trim(), done: false }])
+    setNewItem('')
+  }
+
+  async function save() {
+    setSaving(true)
+    const body: any = { description: desc, checklist }
+    if (isParentAssignee) body.status = status
+    const mySubTasks = subTasks.map(st => {
+      const mine = (st.assigned_to || []).some((id: string) => sameUserId(id, session.id))
+      return mine ? st : (task.sub_tasks || []).find((x: any) => x.id === st.id) || st
+    })
+    if ((task.sub_tasks || []).length > 0) body.sub_tasks = mySubTasks
+    const res = await fetch(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    setSaving(false)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || data.detail || 'Could not save progress')
+      return
+    }
+    onSaved()
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:20 }} onClick={onClose}>
+      <div style={{ background:'var(--sf-surface)', border:'1px solid var(--sf-border)', borderRadius:16, padding:28, width:'100%', maxWidth:560, maxHeight:'88vh', overflowY:'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+          <h3 style={{ color:'var(--sf-text)', fontFamily:"'Space Grotesk',sans-serif", fontSize:18, fontWeight:700 }}>Update progress</h3>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--sf-muted)', cursor:'pointer', fontSize:22 }}>×</button>
+        </div>
+        <p style={{ color:'var(--sf-muted)', fontSize:13, marginBottom:16 }}>{task.title}</p>
+        {isParentAssignee && (
+          <div style={{ marginBottom:12 }}>
+            <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:5, display:'block' }}>Status</label>
+            <select value={status} onChange={e => setStatus(e.target.value)} style={sSel}>
+              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        )}
+        <div style={{ marginBottom:12 }}>
+          <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:5, display:'block' }}>Progress notes</label>
+          <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={3} placeholder="What did you work on?" style={{ ...sInp, resize:'vertical' }} />
+        </div>
+        <div style={{ marginBottom:12 }}>
+          <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:8, display:'block' }}>Checklist</label>
+          {checklist.map(item => (
+            <label key={item.id} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6, cursor:'pointer' }}>
+              <input type="checkbox" checked={Boolean(item.done)} onChange={() => toggleCheck(item.id)} />
+              <span style={{ color: item.done ? 'var(--sf-muted)' : 'var(--sf-text)', textDecoration: item.done ? 'line-through' : 'none', fontSize:13 }}>{item.text}</span>
+            </label>
+          ))}
+          <div style={{ display:'flex', gap:8, marginTop:8 }}>
+            <input value={newItem} onChange={e => setNewItem(e.target.value)} placeholder="Add checklist item" style={{ ...sInp, flex:1 }} />
+            <button type="button" onClick={addChecklistItem} className="sf-btn sf-btn-ghost">Add</button>
+          </div>
+        </div>
+        {subTasks.some(st => (st.assigned_to || []).some((id: string) => sameUserId(id, session.id))) && (
+          <div style={{ marginBottom:16 }}>
+            <label style={{ color:'#06B6D4', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:8, display:'block' }}>Your sub-tasks</label>
+            {subTasks.filter(st => (st.assigned_to || []).some((id: string) => sameUserId(id, session.id))).map(st => (
+              <div key={st.id} style={{ display:'flex', gap:8, alignItems:'center', marginBottom:8 }}>
+                <span style={{ flex:1, color:'var(--sf-text)', fontSize:13 }}>{st.title}</span>
+                <select value={st.status} onChange={e => setSubTasks(prev => prev.map(x => x.id === st.id ? { ...x, status: e.target.value } : x))} style={{ ...sSel, width:160 }}>
+                  {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={save} disabled={saving} className="sf-btn sf-btn-primary">{saving ? 'Saving…' : 'Save progress'}</button>
+          <button onClick={onClose} className="sf-btn sf-btn-ghost">Cancel</button>
         </div>
       </div>
     </div>

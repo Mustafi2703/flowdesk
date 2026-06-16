@@ -58,7 +58,8 @@ def test_team_can_update_status_only(client, users):
     task = _create_task(
         client, users.auth_headers(owner), assigned_to=[str(team.id)]
     ).json()
-    # status update allowed
+    # Must clock in before updating assigned tasks
+    assert client.post("/api/v1/attendance/clockin", headers=users.auth_headers(team)).status_code == 200
     ok = client.patch(
         f"/api/v1/tasks/{task['id']}",
         headers=users.auth_headers(team),
@@ -111,6 +112,7 @@ def test_status_endpoint_changes_status(client, users):
     owner = users.create("owner")
     team = users.create("team")
     task = _create_task(client, users.auth_headers(owner), assigned_to=[str(team.id)]).json()
+    client.post("/api/v1/attendance/clockin", headers=users.auth_headers(team))
     resp = client.post(
         f"/api/v1/tasks/{task['id']}/status",
         headers=users.auth_headers(team),
@@ -130,6 +132,7 @@ def test_flagging_notifies_managers(client, users):
         assigned_to=[str(team.id)],
         assigned_managers=[str(manager.id)],
     ).json()
+    client.post("/api/v1/attendance/clockin", headers=users.auth_headers(team))
     client.post(
         f"/api/v1/tasks/{task['id']}/status",
         headers=users.auth_headers(team),

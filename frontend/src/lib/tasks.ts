@@ -33,3 +33,10 @@ export function canSetTaskPrice(role: string) {
 export function canMarkTaskBilled(role: string) {
   return ['owner', 'accountant'].includes(role)
 }
+
+export function isClockedInToday(attendance: any[], userId: string, today?: string) {
+  const day = today || new Date().toISOString().split('T')[0]
+  return attendance.some(
+    (a) => sameUserId(a.user_id, userId) && a.date === day && a.login_time && !a.logout_time
+  )
+}

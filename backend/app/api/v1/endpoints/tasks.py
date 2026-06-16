@@ -8,7 +8,7 @@ layer in the UI.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.api.v1.deps import get_current_user
 from app.core.roles import Role
 from app.db.session import get_db
+from app.models.attendance import AttendanceLog
 from app.models.brand import Brand
 from app.models.notification import Notification
 from app.models.profile import Profile
@@ -27,6 +28,9 @@ from app.utils.queues import DASHBOARD_CACHE
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 dev_router = APIRouter(prefix="/dev-board", tags=["developer-board"])
+
+_IST = timezone(timedelta(hours=5, minutes=30))
+_ASSIGNEE_PROGRESS_FIELDS = frozenset({"status", "checklist", "sub_tasks", "description"})
 
 
 def _serialize(task: Task, brand_map: dict[uuid.UUID, Brand] | None = None, *, role: Role | None = None) -> dict[str, Any]:
@@ -82,10 +86,6 @@ def _is_parent_assignee(task: Task, user: Profile) -> bool:
     return user.id in (task.assigned_to or [])
 
 
-def _can_set_price(role: Role) -> bool:
-    return role in {Role.OWNER, Role.MANAGER, Role.ACCOUNTANT}
-
-
 def _validate_sub_task_patch(old_subs: list[dict], new_subs: list[dict], user: Profile) -> None:
     old_map = {st.get("id"): st for st in old_subs if st.get("id")}
     me = str(user.id)
@@ -103,6 +103,21 @@ def _validate_sub_task_patch(old_subs: list[dict], new_subs: list[dict], user: P
                 continue
             if old_st.get(key) != value:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot edit sub-task metadata")
+
+
+def _can_set_price(role: Role) -> bool:
+    return role in {Role.OWNER, Role.MANAGER, Role.ACCOUNTANT}
+
+
+def _is_clocked_in_today(db: Session, user: Profile) -> bool:
+    today = datetime.now(_IST).date()
+    log = db.scalar(
+        select(AttendanceLog).where(
+            AttendanceLog.user_id == user.id,
+            AttendanceLog.date == today,
+        )
+    )
+    return log is not None and log.login_time is not None and log.logout_time is None
 
 
 def _can_view(task: Task, user: Profile) -> bool:
@@ -221,13 +236,24 @@ def update_task(
     if not allowed_manager:
         if not _is_assignee(task, user):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not assigned to this task")
-        if fields == {"status"}:
-            if not _is_parent_assignee(task, user):
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only parent assignees can update task status")
-        elif fields == {"sub_tasks"}:
-            _validate_sub_task_patch(task.sub_tasks or [], payload.sub_tasks or [], user)
-        else:
+        if not _is_clocked_in_today(db, user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Clock in for today before updating task progress",
+            )
+        if not fields.issubset(_ASSIGNEE_PROGRESS_FIELDS):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot edit task metadata")
+        if "status" in fields and not _is_parent_assignee(task, user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only direct assignees can update task status",
+            )
+        if "sub_tasks" in fields:
+            new_subs = [
+                st.model_dump() if hasattr(st, "model_dump") else dict(st)
+                for st in (payload.sub_tasks or [])
+            ]
+            _validate_sub_task_patch(task.sub_tasks or [], new_subs, user)
     if "billable_amount" in fields and not _can_set_price(role):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot set task price")
     update = payload.model_dump(exclude_unset=True, mode="json")

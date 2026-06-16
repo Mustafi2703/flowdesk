@@ -268,6 +268,12 @@ def create_user(
 
 
 # ── Update ──────────────────────────────────────────────────────────────────
+def _manager_can_edit(actor: Profile, profile: Profile) -> bool:
+    if Role(profile.role) not in _MANAGER_ASSIGNABLE:
+        return False
+    return profile.manager_id == actor.id
+
+
 @router.patch("/{profile_id}", response_model=ProfileOut)
 def update_user(
     profile_id: uuid.UUID,
@@ -292,7 +298,19 @@ def update_user(
         db.refresh(profile)
         return profile
 
-    # Only owner can edit other users' role, manager, or fields beyond the safe set.
+    if "department_id" in incoming:
+        dept_name, resolved_mgr = _resolve_department_for_user(
+            db,
+            actor=user,
+            department_id=incoming.pop("department_id"),
+            department_name=incoming.get("department", profile.department),
+            manager_id=incoming.get("manager_id", profile.manager_id),
+        )
+        incoming["department"] = dept_name
+        if resolved_mgr is not None and "manager_id" not in incoming:
+            incoming["manager_id"] = resolved_mgr
+
+    # Owner can edit any user.
     if role is Role.OWNER:
         if "manager_id" in incoming and incoming["manager_id"] is not None:
             incoming["manager_id"] = _resolve_manager_id(
@@ -308,10 +326,11 @@ def update_user(
         DASHBOARD_CACHE.invalidate()
         return profile
 
-    # Managers can soft-deactivate their own team/developer users only.
-    if role is Role.MANAGER and set(incoming.keys()).issubset({"is_active", "department", "designation"}):
-        if Role(profile.role) not in _MANAGER_ASSIGNABLE:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot edit privileged users")
+    # Managers can edit their direct reports (team/developer).
+    manager_fields = {"name", "department", "designation", "is_active", "department_id"}
+    if role is Role.MANAGER and set(incoming.keys()).issubset(manager_fields):
+        if not _manager_can_edit(user, profile):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Can only edit your direct reports")
         for key, value in incoming.items():
             setattr(profile, key, value)
         db.commit()

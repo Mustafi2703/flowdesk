@@ -22,10 +22,12 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   const [panel, setPanel] = useState('members')
   const [showAdd, setShowAdd] = useState(false)
   const [showDept, setShowDept] = useState(false)
+  const [editingDeptId, setEditingDeptId] = useState<string | null>(null)
+  const [editingUser, setEditingUser] = useState<any | null>(null)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [deptError, setDeptError] = useState('')
-  const [form, setForm] = useState({ name: '', email: '', role: 'team', department: '', department_id: '', designation: '', password: '', manager_id: '' })
+  const [userForm, setUserForm] = useState({ name: '', email: '', role: 'team', department: '', department_id: '', designation: '', password: '', manager_id: '', is_active: true })
   const [deptForm, setDeptForm] = useState({ name: '', description: '', manager_id: '' })
   const today = new Date().toISOString().split('T')[0]
   const canOnboard = ['owner', 'manager'].includes(role)
@@ -80,9 +82,54 @@ export default function TeamClient({ session }: { session: SessionUser }) {
 
   useEffect(() => { refresh() }, [])
 
-  function pickDepartment(departmentId: string) {
+  const canEditUser = (u: any) => {
+    if (u.id === session.id) return false
+    if (role === 'owner') return true
+    if (role === 'manager') return ['team', 'developer'].includes(u.role) && String(u.manager_id || '') === String(session.id)
+    return false
+  }
+
+  function startCreateDept() {
+    setEditingDeptId(null)
+    setDeptForm({ name: '', description: '', manager_id: '' })
+    setShowDept(true)
+    setShowAdd(false)
+    setEditingUser(null)
+    setNotice('')
+    setError('')
+  }
+
+  function startEditDept(d: any) {
+    setEditingDeptId(d.id)
+    setDeptForm({ name: d.name, description: d.description || '', manager_id: d.manager_id || '' })
+    setShowDept(true)
+    setNotice('')
+    setError('')
+  }
+
+  function startEditUser(u: any) {
+    const deptMatch = departments.find((d: any) => (d.name || '').toLowerCase() === (u.department || '').toLowerCase())
+    setEditingUser(u)
+    setUserForm({
+      name: u.name || '',
+      email: u.email || '',
+      role: u.role || 'team',
+      department: u.department || '',
+      department_id: deptMatch?.id || '',
+      designation: u.designation || '',
+      password: '',
+      manager_id: u.manager_id || '',
+      is_active: u.is_active !== false,
+    })
+    setShowAdd(false)
+    setShowDept(false)
+    setNotice('')
+    setError('')
+  }
+
+  function pickDepartmentForUser(departmentId: string) {
     const dept = departments.find((d: any) => d.id === departmentId)
-    setForm(f => ({
+    setUserForm(f => ({
       ...f,
       department_id: departmentId,
       department: dept?.name || '',
@@ -94,41 +141,79 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     e.preventDefault()
     setSaving(true); setError(''); setNotice('')
     const payload: any = {
-      name: form.name,
-      email: form.email,
-      role: form.role,
-      designation: form.designation || null,
+      name: userForm.name,
+      email: userForm.email,
+      role: userForm.role,
+      designation: userForm.designation || null,
     }
-    if (form.department_id) payload.department_id = form.department_id
-    else if (form.department) payload.department = form.department
-    if (form.password) payload.password = form.password
-    if (role === 'owner' && form.manager_id) payload.manager_id = form.manager_id
+    if (userForm.department_id) payload.department_id = userForm.department_id
+    else if (userForm.department) payload.department = userForm.department
+    if (userForm.password) payload.password = userForm.password
+    if (role === 'owner' && userForm.manager_id) payload.manager_id = userForm.manager_id
     const res = await fetch('/api/team', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
     const data = await res.json().catch(() => ({}))
     setSaving(false)
     if (!res.ok) { setError(data.error || data.detail || 'Could not create user'); return }
     setNotice(`User created. Temporary password: ${data.temporary_password}`)
-    setForm({ name: '', email: '', role: assignableRoles[0] || 'team', department: '', department_id: '', designation: '', password: '', manager_id: '' })
+    setUserForm({ name: '', email: '', role: assignableRoles[0] || 'team', department: '', department_id: '', designation: '', password: '', manager_id: '', is_active: true })
     setShowAdd(false)
     refresh()
   }
 
-  async function addDepartment(e: any) {
+  async function saveUser(e: any) {
+    e.preventDefault()
+    if (!editingUser) return
+    setSaving(true); setError(''); setNotice('')
+    const payload: any = {
+      name: userForm.name,
+      designation: userForm.designation || null,
+    }
+    if (userForm.department_id) payload.department_id = userForm.department_id
+    else if (userForm.department) payload.department = userForm.department
+    if (role === 'owner') {
+      payload.role = userForm.role
+      payload.is_active = userForm.is_active
+      if (userForm.manager_id) payload.manager_id = userForm.manager_id
+    }
+    const res = await fetch(`/api/team/${editingUser.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
+    const data = await res.json().catch(() => ({}))
+    setSaving(false)
+    if (!res.ok) { setError(data.error || data.detail || 'Could not update user'); return }
+    setNotice(`${userForm.name} updated successfully.`)
+    setEditingUser(null)
+    refresh()
+  }
+
+  async function saveDepartment(e: any) {
     e.preventDefault()
     setSaving(true); setError(''); setNotice('')
     const payload: any = {
       name: deptForm.name,
       description: deptForm.description || null,
+      manager_id: deptForm.manager_id || null,
     }
-    if (deptForm.manager_id) payload.manager_id = deptForm.manager_id
-    const res = await fetch('/api/team/departments', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
+    const url = editingDeptId ? `/api/team/departments/${editingDeptId}` : '/api/team/departments'
+    const method = editingDeptId ? 'PATCH' : 'POST'
+    const res = await fetch(url, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
     const data = await res.json().catch(() => ({}))
     setSaving(false)
-    if (!res.ok) { setError(data.error || data.detail || 'Could not create department'); return }
-    setNotice(`Department "${data.name}" created${data.manager ? ` · Manager: ${data.manager.name}` : ''}.`)
+    if (!res.ok) { setError(data.error || data.detail || `Could not ${editingDeptId ? 'update' : 'create'} department`); return }
+    setNotice(`Department "${data.name}" ${editingDeptId ? 'updated' : 'created'}${data.manager ? ` · Manager: ${data.manager.name}` : ''}.`)
     setDeptForm({ name: '', description: '', manager_id: '' })
+    setEditingDeptId(null)
     setShowDept(false)
     setPanel('departments')
+    refresh()
+  }
+
+  async function deleteDepartment(d: any) {
+    if (!window.confirm(`Delete department "${d.name}"? Users keep their department label until reassigned.`)) return
+    setError(''); setNotice('')
+    const res = await fetch(`/api/team/departments/${d.id}`, { method: 'DELETE' })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setError(data.error || data.detail || 'Could not delete department'); return }
+    setNotice(`Department "${d.name}" deleted.`)
+    if (editingDeptId === d.id) { setEditingDeptId(null); setShowDept(false) }
     refresh()
   }
 
@@ -209,7 +294,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
           </button>
         )}
         {panel === 'departments' && canManageDepartments && (
-          <button type="button" onClick={() => { setShowDept(true); setShowAdd(false); setNotice(''); setError('') }} className="sf-btn sf-btn-primary">
+          <button type="button" onClick={startCreateDept} className="sf-btn sf-btn-primary">
             Add department
           </button>
         )}
@@ -219,8 +304,8 @@ export default function TeamClient({ session }: { session: SessionUser }) {
       {error && <div style={{ background: '#3B0A0A', border: '1px solid #EF4444', color: '#FEE2E2', borderRadius: 10, padding: 12, fontSize: 13, marginBottom: 12 }}>{error}</div>}
 
       {showDept && panel === 'departments' && (
-        <Section title="Create department" style={{ flexShrink: 0, marginBottom: 16 }}>
-          <form onSubmit={addDepartment}>
+        <Section title={editingDeptId ? 'Edit department' : 'Create department'} style={{ flexShrink: 0, marginBottom: 16 }}>
+          <form onSubmit={saveDepartment}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 10 }}>
               <input required placeholder="Department name" value={deptForm.name} onChange={e => setDeptForm({ ...deptForm, name: e.target.value })} className="sf-input" />
               <input placeholder="Description (optional)" value={deptForm.description} onChange={e => setDeptForm({ ...deptForm, description: e.target.value })} className="sf-input" />
@@ -233,8 +318,47 @@ export default function TeamClient({ session }: { session: SessionUser }) {
               New hires assigned to this department will default to the department manager.
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
-              <button type="button" onClick={() => setShowDept(false)} className="sf-btn sf-btn-ghost">Cancel</button>
-              <button type="submit" disabled={saving} className="sf-btn sf-btn-primary">{saving ? 'Creating...' : 'Create Department'}</button>
+              <button type="button" onClick={() => { setShowDept(false); setEditingDeptId(null) }} className="sf-btn sf-btn-ghost">Cancel</button>
+              <button type="submit" disabled={saving} className="sf-btn sf-btn-primary">{saving ? 'Saving...' : (editingDeptId ? 'Save Department' : 'Create Department')}</button>
+            </div>
+          </form>
+        </Section>
+      )}
+
+      {editingUser && panel === 'members' && (
+        <Section title={`Edit ${editingUser.name}`} style={{ flexShrink: 0, marginBottom: 16 }}>
+          <form onSubmit={saveUser}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 10 }}>
+              <input required placeholder="Full name" value={userForm.name} onChange={e => setUserForm({ ...userForm, name: e.target.value })} className="sf-input" />
+              {role === 'owner' && (
+                <>
+                  <input disabled value={userForm.email} className="sf-input" style={{ opacity: 0.7 }} />
+                  <select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value })} className="sf-input">
+                    {Object.keys(ROLE_LABELS).map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                  </select>
+                  <select value={userForm.manager_id} onChange={e => setUserForm({ ...userForm, manager_id: e.target.value })} className="sf-input">
+                    <option value="">No manager</option>
+                    {sortedManagers.map((m: any) => <option key={m.id} value={m.id}>{m.name} ({m.role})</option>)}
+                  </select>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--sf-text-secondary)', fontSize: 13 }}>
+                    <input type="checkbox" checked={userForm.is_active} onChange={e => setUserForm({ ...userForm, is_active: e.target.checked })} />
+                    Active account
+                  </label>
+                </>
+              )}
+              {sortedDepartments.length > 0 ? (
+                <select value={userForm.department_id} onChange={e => pickDepartmentForUser(e.target.value)} className="sf-input">
+                  <option value="">Select department</option>
+                  {sortedDepartments.map((d: any) => <option key={d.id} value={d.id}>{d.name}{d.manager ? ` · ${d.manager.name}` : ''}</option>)}
+                </select>
+              ) : (
+                <input placeholder="Department" value={userForm.department} onChange={e => setUserForm({ ...userForm, department: e.target.value })} className="sf-input" />
+              )}
+              <input placeholder="Designation / responsibility" value={userForm.designation} onChange={e => setUserForm({ ...userForm, designation: e.target.value })} className="sf-input" />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
+              <button type="button" onClick={() => setEditingUser(null)} className="sf-btn sf-btn-ghost">Cancel</button>
+              <button type="submit" disabled={saving} className="sf-btn sf-btn-primary">{saving ? 'Saving...' : 'Save Changes'}</button>
             </div>
           </form>
         </Section>
@@ -244,23 +368,23 @@ export default function TeamClient({ session }: { session: SessionUser }) {
         <Section title="Onboard new user" style={{ flexShrink: 0, marginBottom: 16 }}>
           <form onSubmit={addUser}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 10 }}>
-              <input required placeholder="Full name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="sf-input" />
-              <input required type="email" placeholder="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="sf-input" />
-              <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} className="sf-input">
+              <input required placeholder="Full name" value={userForm.name} onChange={e => setUserForm({ ...userForm, name: e.target.value })} className="sf-input" />
+              <input required type="email" placeholder="Email" value={userForm.email} onChange={e => setUserForm({ ...userForm, email: e.target.value })} className="sf-input" />
+              <select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value })} className="sf-input">
                 {(assignableRoles.length ? assignableRoles : ['team']).map(r => <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>)}
               </select>
               {sortedDepartments.length > 0 ? (
-                <select value={form.department_id} onChange={e => pickDepartment(e.target.value)} className="sf-input">
+                <select value={userForm.department_id} onChange={e => pickDepartmentForUser(e.target.value)} className="sf-input">
                   <option value="">Select department</option>
                   {sortedDepartments.map((d: any) => <option key={d.id} value={d.id}>{d.name}{d.manager ? ` · ${d.manager.name}` : ''}</option>)}
                 </select>
               ) : (
-                <input placeholder="Department" value={form.department} onChange={e => setForm({ ...form, department: e.target.value })} className="sf-input" />
+                <input placeholder="Department" value={userForm.department} onChange={e => setUserForm({ ...userForm, department: e.target.value })} className="sf-input" />
               )}
-              <input placeholder="Designation / responsibility" value={form.designation} onChange={e => setForm({ ...form, designation: e.target.value })} className="sf-input" />
-              <input type="password" placeholder="Password (blank = auto generate)" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} className="sf-input" />
+              <input placeholder="Designation / responsibility" value={userForm.designation} onChange={e => setUserForm({ ...userForm, designation: e.target.value })} className="sf-input" />
+              <input type="password" placeholder="Password (blank = auto generate)" value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} className="sf-input" />
               {role === 'owner' && (
-                <select value={form.manager_id} onChange={e => setForm({ ...form, manager_id: e.target.value })} className="sf-input">
+                <select value={userForm.manager_id} onChange={e => setUserForm({ ...userForm, manager_id: e.target.value })} className="sf-input">
                   <option value="">No manager (optional)</option>
                   {sortedManagers.map((m: any) => <option key={m.id} value={m.id}>{m.name} ({m.role})</option>)}
                 </select>
@@ -299,6 +423,12 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                   <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 4 }}>
                     {d.member_count} member{d.member_count === 1 ? '' : 's'}
                   </div>
+                  {canManageDepartments && (
+                    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                      <button type="button" onClick={() => startEditDept(d)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px' }}>Edit</button>
+                      <button type="button" onClick={() => deleteDepartment(d)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px', color: 'var(--sf-danger)' }}>Delete</button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -309,9 +439,9 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                   ? 'No departments yet. Create one to group team members and assign a department manager.'
                   : 'No departments configured yet.'}
               </p>
-              {canManageDepartments && (
-                <button type="button" onClick={() => setShowDept(true)} className="sf-btn sf-btn-primary">Create department</button>
-              )}
+                  {canManageDepartments && (
+                    <button type="button" onClick={startCreateDept} className="sf-btn sf-btn-primary">Create department</button>
+                  )}
             </div>
           )}
         </>
@@ -359,7 +489,8 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                         </div>
                       ))}
                     </div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                      {canEditUser(u) && <button type="button" onClick={() => startEditUser(u)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px' }}>Edit</button>}
                       {canReset && u.id !== session.id && <button type="button" onClick={() => resetPassword(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px' }}>Reset Password</button>}
                       {role === 'owner' && u.id !== session.id && u.is_active && <button type="button" onClick={() => deactivateUser(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px', color: 'var(--sf-danger)' }}>Deactivate</button>}
                     </div>

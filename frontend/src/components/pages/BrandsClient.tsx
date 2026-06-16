@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
 import { EmptyState, Icon } from '@/components/app/Icons'
 import { PageHeader, PageShell, PageTabs, PageToolbar, Section } from '@/components/app/Section'
-import { TaskFormModal } from '@/components/pages/TasksClient'
-import { TASK_STATUSES, canSetTaskPrice, isTaskAssignee } from '@/lib/tasks'
+import { TaskFormModal, TaskProgressModal } from '@/components/pages/TasksClient'
+import { TASK_STATUSES, canManageTasks, canSetTaskPrice, isClockedInToday, isTaskAssignee } from '@/lib/tasks'
 
 const sameId = (a: string | null | undefined, b: string | null | undefined) => String(a || '') === String(b || '')
 
@@ -22,6 +22,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   const [brands, setBrands] = useState<any[]>([])
   const [tasks, setTasks] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
+  const [attendance, setAttendance] = useState<any[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [section, setSection] = useState('overview')
   const [showCreate, setShowCreate] = useState(false)
@@ -33,10 +34,12 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
       fetch('/api/brands').then(r => r.json()),
       fetch('/api/tasks').then(r => r.json()),
       fetch('/api/users').then(r => r.json()),
-    ]).then(([b, t, u]) => {
+      fetch('/api/attendance').then(r => r.json()),
+    ]).then(([b, t, u, a]) => {
       setBrands(Array.isArray(b) ? b : [])
       setTasks(Array.isArray(t) ? t : [])
       setUsers(Array.isArray(u) ? u : [])
+      setAttendance(Array.isArray(a) ? a : [])
       setLoading(false)
     })
   }
@@ -146,8 +149,9 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                 canEdit={canEdit}
                 tab={section}
                 onTabChange={setSection}
-                onRefresh={load}
-              />
+              onRefresh={load}
+              attendance={attendance}
+            />
             </>
           ) : (
             <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--sf-muted)' }}>
@@ -162,16 +166,24 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   )
 }
 
-function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, onRefresh }: any) {
+function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, onRefresh, attendance }: any) {
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [editingTask, setEditingTask] = useState<any>(null)
+  const [progressTask, setProgressTask] = useState<any>(null)
   const [createAsProject, setCreateAsProject] = useState(false)
+  const today = new Date().toISOString().split('T')[0]
+  const clockedIn = isClockedInToday(attendance || [], session.id, today)
   const canSetPrice = canSetTaskPrice(session.role)
   const canSeeBilling = ['owner', 'manager', 'accountant'].includes(session.role)
   const statusSelectStyle = { padding: '4px 8px', background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 6, color: 'var(--sf-text)', fontSize: 11, fontFamily: 'inherit' }
 
   function canUpdateStatus(task: any) {
-    return canEdit || isTaskAssignee(task, session.id)
+    if (canEdit) return true
+    return isTaskAssignee(task, session.id) && clockedIn
+  }
+
+  function canUpdateProgress(task: any) {
+    return !canEdit && isTaskAssignee(task, session.id) && clockedIn
   }
 
   async function updateTaskStatus(taskId: string, status: string) {
@@ -341,6 +353,9 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     {renderStatus(t)}
+                    {canUpdateProgress(t) && (
+                      <button type="button" onClick={() => setProgressTask(t)} className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '4px 8px' }}>Progress</button>
+                    )}
                     {canEdit && (
                       <>
                         <button type="button" onClick={() => openEditTask(t)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px' }}>Edit</button>
@@ -387,6 +402,9 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
                 <div style={{ color: 'var(--sf-muted)', fontSize: 11 }}>{t.type} · Due {t.due_date}</div>
               </div>
               {renderStatus(t)}
+              {canUpdateProgress(t) && (
+                <button type="button" onClick={() => setProgressTask(t)} className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '4px 8px' }}>Progress</button>
+              )}
               {canEdit && (
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button type="button" onClick={() => openEditTask(t)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px' }}>Edit</button>
@@ -452,6 +470,14 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
         </div>
       )}
 
+      {progressTask && (
+        <TaskProgressModal
+          session={session}
+          task={progressTask}
+          onClose={() => setProgressTask(null)}
+          onSaved={() => { setProgressTask(null); onRefresh() }}
+        />
+      )}
       {showTaskModal && (canEdit || editingTask) && (
         <TaskFormModal
           session={session}

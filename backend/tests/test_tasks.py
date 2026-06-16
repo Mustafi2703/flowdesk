@@ -75,6 +75,21 @@ def test_team_can_update_status_only(client, users):
     assert bad.status_code == 403
 
 
+def test_hr_cannot_update_unassigned_task_status(client, users):
+    owner = users.create("owner")
+    team = users.create("team")
+    hr = users.create("hr")
+    task = _create_task(
+        client, users.auth_headers(owner), assigned_to=[str(team.id)]
+    ).json()
+    resp = client.patch(
+        f"/api/v1/tasks/{task['id']}",
+        headers=users.auth_headers(hr),
+        json={"status": "In Progress"},
+    )
+    assert resp.status_code == 403
+
+
 def test_owner_and_manager_can_delete_task(client, users):
     owner = users.create("owner")
     manager = users.create("manager")

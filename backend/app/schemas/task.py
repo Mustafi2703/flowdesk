@@ -43,6 +43,7 @@ class TaskCreate(BaseModel):
     due_date: date | None = None
     requires_review: bool = True
     is_billable: bool = False
+    billable_amount: Decimal | None = None
     checklist: list[ChecklistItem] = Field(default_factory=list)
     sub_tasks: list[SubTask] = Field(default_factory=list)
     recurring_config: dict[str, Any] | None = None
@@ -62,6 +63,7 @@ class TaskUpdate(BaseModel):
     due_date: date | None = None
     requires_review: bool | None = None
     is_billable: bool | None = None
+    billable_amount: Decimal | None = None
     checklist: list[ChecklistItem] | None = None
     sub_tasks: list[SubTask] | None = None
     recurring_config: dict[str, Any] | None = None

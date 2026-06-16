@@ -68,9 +68,41 @@ def _serialize(task: Task, brand_map: dict[uuid.UUID, Brand] | None = None, *, r
         payload["billable_amount"] = None
         payload["has_price"] = False
         payload["billed_at"] = None
-    if role is Role.MANAGER:
-        payload["billable_amount"] = None
     return payload
+
+
+def _is_assignee(task: Task, user: Profile) -> bool:
+    if user.id in (task.assigned_to or []):
+        return True
+    me = str(user.id)
+    return any(me in {str(x) for x in (st.get("assigned_to") or [])} for st in (task.sub_tasks or []))
+
+
+def _is_parent_assignee(task: Task, user: Profile) -> bool:
+    return user.id in (task.assigned_to or [])
+
+
+def _can_set_price(role: Role) -> bool:
+    return role in {Role.OWNER, Role.MANAGER, Role.ACCOUNTANT}
+
+
+def _validate_sub_task_patch(old_subs: list[dict], new_subs: list[dict], user: Profile) -> None:
+    old_map = {st.get("id"): st for st in old_subs if st.get("id")}
+    me = str(user.id)
+    for st in new_subs:
+        sid = st.get("id")
+        if not sid or sid not in old_map:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot add or remove sub-tasks")
+        old_st = old_map[sid]
+        if st == old_st:
+            continue
+        if me not in {str(x) for x in (old_st.get("assigned_to") or [])}:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not assigned to this sub-task")
+        for key, value in st.items():
+            if key == "status":
+                continue
+            if old_st.get(key) != value:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot edit sub-task metadata")
 
 
 def _can_view(task: Task, user: Profile) -> bool:
@@ -118,7 +150,12 @@ def create_task(
 ) -> dict[str, Any]:
     if Role(user.role) not in {Role.OWNER, Role.MANAGER}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owner/manager can create tasks")
+    role = Role(user.role)
     data = payload.model_dump(mode="json")
+    if data.get("billable_amount") is not None and not _can_set_price(role):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot set task price")
+    if not data.get("is_billable"):
+        data["billable_amount"] = None
     data.setdefault("status", "Not Started")
     for key in ("assigned_to", "assigned_managers", "brand_id"):
         if data.get(key):
@@ -180,10 +217,22 @@ def update_task(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     role = Role(user.role)
     allowed_manager = role in {Role.OWNER, Role.MANAGER}
-    edit_only = {"status", "checklist", "sub_tasks", "flagged"}
-    if not allowed_manager and set(payload.model_fields_set) - edit_only:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot edit task metadata")
+    fields = set(payload.model_fields_set)
+    if not allowed_manager:
+        if not _is_assignee(task, user):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not assigned to this task")
+        if fields == {"status"}:
+            if not _is_parent_assignee(task, user):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only parent assignees can update task status")
+        elif fields == {"sub_tasks"}:
+            _validate_sub_task_patch(task.sub_tasks or [], payload.sub_tasks or [], user)
+        else:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot edit task metadata")
+    if "billable_amount" in fields and not _can_set_price(role):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot set task price")
     update = payload.model_dump(exclude_unset=True, mode="json")
+    if update.get("is_billable") is False:
+        update["billable_amount"] = None
     for key, value in update.items():
         setattr(task, key, value)
     task.timeline = [

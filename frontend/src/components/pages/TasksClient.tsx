@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { SessionUser, TaskStatus } from '@/types'
 import { Icon } from '@/components/app/Icons'
 import { PageHeader, PageShell, Section } from '@/components/app/Section'
+import { TASK_STATUSES, canManageTasks, canSetTaskPrice, isTaskAssignee } from '@/lib/tasks'
 
-const STATUSES: TaskStatus[] = ['Not Started','In Progress','Under Review','Revision Needed','Completed','On Hold','Struggling','Needs Attention']
+const STATUSES = TASK_STATUSES
 const PRIORITIES = ['Critical','High','Medium','Low']
 const TYPES = ['Design','Content','Development','Strategy','Operations','Other']
 const PRIORITY_RANK: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 }
@@ -59,17 +60,32 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   const [editingTask, setEditingTask] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const canCreate = ['owner','manager'].includes(session.role)
+  const canCreate = canManageTasks(session.role)
   const canEdit = canCreate
   const canDelete = canCreate
   const canSeeBilling = ['owner','manager','accountant'].includes(session.role)
+  const canSetPrice = canSetTaskPrice(session.role)
 
   function isAssigned(task: any) {
-    return (task.assigned_to || []).includes(session.id)
+    return isTaskAssignee(task, session.id)
   }
 
   function canUpdateStatus(task: any) {
     return canEdit || isAssigned(task)
+  }
+
+  async function updateTaskStatus(taskId: string, status: string) {
+    const res = await fetch(`/api/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || data.detail || 'Could not update status')
+      return
+    }
+    load()
   }
 
   function openTask(task: any) {
@@ -143,7 +159,12 @@ export default function TasksClient({ session }: { session: SessionUser }) {
       </div>
       {canEdit && (
         <p style={{ color:'var(--sf-muted)', fontSize:12, margin:'-8px 0 12px', flexShrink:0 }}>
-          Click a task row or use Edit to update details. Delete removes the task permanently.
+          Owners and managers can edit tasks and set prices. Assigned members can update status from the list.
+        </p>
+      )}
+      {!canEdit && (
+        <p style={{ color:'var(--sf-muted)', fontSize:12, margin:'-8px 0 12px', flexShrink:0 }}>
+          Update your task status using the dropdown in each row.
         </p>
       )}
 
@@ -211,7 +232,9 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                           <div style={{ color:'#06B6D4', fontSize:10, fontWeight:700, marginTop:2 }}>PROJECT</div>
                         )}
                         {task.is_billable && canSeeBilling && (
-                          <div style={{ color:'var(--sf-muted)', fontSize:11, marginTop:2 }}>Billable</div>
+                          <div style={{ color:'var(--sf-muted)', fontSize:11, marginTop:2 }}>
+                            Billable{task.billable_amount ? ` · ₹${Number(task.billable_amount).toLocaleString('en-IN')}` : task.has_price ? ' · priced' : ' · no price'}
+                          </div>
                         )}
                       </td>
                       <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default' }}>{task.brand?.name || '—'}</td>
@@ -220,14 +243,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                         {canUpdateStatus(task) ? (
                           <select
                             value={task.status}
-                            onChange={async e => {
-                              await fetch(`/api/tasks/${task.id}`, {
-                                method: 'PATCH',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ status: e.target.value }),
-                              })
-                              load()
-                            }}
+                            onChange={e => updateTaskStatus(task.id, e.target.value)}
                             style={{ ...toolbarSelect, padding: '4px 8px', fontSize: 11 }}
                           >
                             {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
@@ -300,11 +316,20 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                     >
                       <div style={{ color:'var(--sf-text)', fontSize:12, fontWeight:600, marginBottom:4 }}>{task.title}</div>
                       <div style={{ color:'var(--sf-muted)', fontSize:10, marginBottom:6 }}>{task.brand?.name||'—'}</div>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: canEdit ? 8 : 0 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 8 }}>
                         <span style={{ color:'var(--sf-muted)', fontSize:10 }}>{priorityLabel(task.priority)}</span>
                         {task.due_date && <span style={{ color:'var(--sf-muted)', fontSize:10 }}>{Math.ceil((new Date(task.due_date).getTime()-Date.now())/86400000)}d</span>}
                       </div>
                     </div>
+                    {canUpdateStatus(task) && (
+                      <select
+                        value={task.status}
+                        onChange={e => updateTaskStatus(task.id, e.target.value)}
+                        style={{ ...toolbarSelect, width:'100%', padding:'4px 6px', fontSize:10, marginBottom: canEdit ? 8 : 0 }}
+                      >
+                        {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    )}
                     {canEdit && (
                       <div style={{ display:'flex', gap:6 }}>
                         <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-ghost" style={{ flex:1, fontSize:10, padding:'4px 6px' }}>Edit</button>
@@ -322,7 +347,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
       )}
 
       {showCreate && canCreate && (
-        <TaskFormModal session={session} brands={brands} users={users} onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); load() }} canSeeBilling={canSeeBilling} canDelete={false} />
+        <TaskFormModal session={session} brands={brands} users={users} onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); load() }} canSeeBilling={canSeeBilling} canSetPrice={canSetPrice} canDelete={false} />
       )}
       {editingTask && canEdit && (
         <TaskFormModal
@@ -333,6 +358,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
           onClose={() => setEditingTask(null)}
           onSaved={() => { setEditingTask(null); load() }}
           canSeeBilling={canSeeBilling}
+          canSetPrice={canSetPrice}
           canDelete={canDelete}
         />
       )}
@@ -350,7 +376,7 @@ const toolbarSelect: any = {
   fontFamily: 'inherit',
 }
 
-export function TaskFormModal({ session, brands, users, task, onClose, onSaved, canSeeBilling, canDelete, initialBrandId, forceProjectMode }: any) {
+export function TaskFormModal({ session, brands, users, task, onClose, onSaved, canSeeBilling, canSetPrice, canDelete, initialBrandId, forceProjectMode }: any) {
   const isEdit = Boolean(task)
   const [title, setTitle] = useState(task?.title || '')
   const [desc, setDesc] = useState(task?.description || '')
@@ -363,6 +389,7 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
   const [subTasks, setSubTasks] = useState(() => normalizeSubTasks(task?.sub_tasks))
   const [dueDate, setDueDate] = useState(task?.due_date || '')
   const [isBillable, setIsBillable] = useState(Boolean(task?.is_billable))
+  const [billableAmount, setBillableAmount] = useState(task?.billable_amount != null ? String(task.billable_amount) : '')
   const [requiresReview, setRequiresReview] = useState(task?.requires_review ?? true)
   const [recurring, setRecurring] = useState(Boolean(task?.recurring_config?.enabled))
   const [recurFreq, setRecurFreq] = useState(task?.recurring_config?.frequency || 'monthly')
@@ -423,12 +450,17 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
           due_date: st.due_date || null,
         }))
       : []
-    const body = {
+    const body: any = {
       title, description:desc, brand_id:brandId||null, assigned_to:assignedTo,
       assigned_managers:[session.id], type, task_mode:taskMode, priority, status, due_date:dueDate,
       requires_review:requiresReview, is_billable:isBillable,
       recurring_config: recurring ? { enabled:true, frequency:recurFreq, next_due:dueDate } : null,
       sub_tasks: cleanedSubTasks,
+    }
+    if (canSetPrice && isBillable && billableAmount.trim()) {
+      body.billable_amount = parseFloat(billableAmount)
+    } else if (canSetPrice && isBillable && isEdit && billableAmount.trim() === '') {
+      body.billable_amount = null
     }
     if (isEdit) {
       const res = await fetch(`/api/tasks/${task.id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
@@ -617,6 +649,20 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
             <select value={recurFreq} onChange={e => setRecurFreq(e.target.value)} style={{ ...sSel, width:180, marginTop:4 }}>
               {['daily','weekly','monthly','yearly'].map(f => <option key={f} value={f}>{f.charAt(0).toUpperCase()+f.slice(1)}</option>)}
             </select>
+          )}
+          {canSetPrice && isBillable && (
+            <div style={{ marginTop:4 }}>
+              <label style={{ color:'#EC4899', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:5, display:'block' }}>Price (₹)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={billableAmount}
+                onChange={e => setBillableAmount(e.target.value)}
+                placeholder="e.g. 15000"
+                style={sInp}
+              />
+            </div>
           )}
         </div>
 

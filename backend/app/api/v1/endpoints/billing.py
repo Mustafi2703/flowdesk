@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user
 from app.api.v1.endpoints.tasks import _brand_map, _serialize
-from app.core.roles import Role
+from app.core.roles import Role, can_set_price
 from app.db.session import get_db
 from app.models.profile import Profile
 from app.models.task import Task
@@ -30,7 +30,12 @@ def _require_billing_view(user: Profile) -> None:
 
 def _require_billing_edit(user: Profile) -> None:
     if Role(user.role) not in {Role.OWNER, Role.ACCOUNTANT}:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owner/accountant can edit billing")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owner/accountant can mark billed")
+
+
+def _require_price_edit(user: Profile) -> None:
+    if not can_set_price(Role(user.role)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot set task price")
 
 
 @router.get("/summary", response_model=BillingSummary)
@@ -45,8 +50,10 @@ def summary(db: Session = Depends(get_db), user: Profile = Depends(get_current_u
     billed = sum((Decimal(task.billable_amount or 0) for task in billed_tasks), Decimal("0"))
 
     if role is Role.MANAGER:
-        # Managers see counts only — never rupee totals (requirements §4.10).
         return BillingSummary(
+            total_billable=total,
+            pending=total - billed,
+            billed=billed,
             unpriced=unpriced,
             pending_count=len(pending_tasks),
             billed_count=len(billed_tasks),
@@ -84,7 +91,7 @@ def set_price(
     db: Session = Depends(get_db),
     user: Profile = Depends(get_current_user),
 ) -> dict[str, Any]:
-    _require_billing_edit(user)
+    _require_price_edit(user)
     task = db.get(Task, task_id)
     if not task or not task.is_billable:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Billable task not found")

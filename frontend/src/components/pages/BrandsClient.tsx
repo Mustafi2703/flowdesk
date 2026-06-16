@@ -5,6 +5,7 @@ import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
 import { EmptyState, Icon } from '@/components/app/Icons'
 import { PageHeader, PageShell, PageTabs, PageToolbar, Section } from '@/components/app/Section'
 import { TaskFormModal } from '@/components/pages/TasksClient'
+import { TASK_STATUSES, canSetTaskPrice, isTaskAssignee } from '@/lib/tasks'
 
 const sameId = (a: string | null | undefined, b: string | null | undefined) => String(a || '') === String(b || '')
 
@@ -42,16 +43,16 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
 
   useEffect(() => { load() }, [])
 
+  const visible = useMemo(
+    () => (session.role === 'team' ? brands.filter(b => (b.assigned_members || []).some((id: string) => sameId(id, session.id))) : brands),
+    [brands, session.id, session.role]
+  )
+
   useEffect(() => {
     if (visible.length > 0 && !selectedId) {
       setSelectedId(String(visible[0].id))
     }
   }, [visible, selectedId])
-
-  const visible = useMemo(
-    () => (session.role === 'team' ? brands.filter(b => (b.assigned_members || []).some((id: string) => sameId(id, session.id))) : brands),
-    [brands, session.id, session.role]
-  )
 
   const selected = useMemo(
     () => visible.find(b => sameId(b.id, selectedId)) || null,
@@ -165,6 +166,40 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [editingTask, setEditingTask] = useState<any>(null)
   const [createAsProject, setCreateAsProject] = useState(false)
+  const canSetPrice = canSetTaskPrice(session.role)
+  const canSeeBilling = ['owner', 'manager', 'accountant'].includes(session.role)
+  const statusSelectStyle = { padding: '4px 8px', background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 6, color: 'var(--sf-text)', fontSize: 11, fontFamily: 'inherit' }
+
+  function canUpdateStatus(task: any) {
+    return canEdit || isTaskAssignee(task, session.id)
+  }
+
+  async function updateTaskStatus(taskId: string, status: string) {
+    const res = await fetch(`/api/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || data.detail || 'Could not update status')
+      return
+    }
+    onRefresh()
+  }
+
+  function renderStatus(task: any) {
+    if (canUpdateStatus(task)) {
+      return (
+        <select value={task.status} onChange={e => updateTaskStatus(task.id, e.target.value)} style={statusSelectStyle}>
+          {TASK_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+      )
+    }
+    return (
+      <span style={{ background: STATUS_BG[task.status] || '#F3F4F6', color: STATUS_TEXT[task.status] || '#374151', fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 5 }}>{task.status}</span>
+    )
+  }
 
   const projects = tasks.filter((t: any) => t.task_mode === 'project')
   const standardTasks = tasks.filter((t: any) => t.task_mode !== 'project')
@@ -305,7 +340,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
                     <div style={{ color: 'var(--sf-muted)', fontSize: 11 }}>{t.type} · Due {t.due_date || '—'}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <span style={{ background: STATUS_BG[t.status] || '#F3F4F6', color: STATUS_TEXT[t.status] || '#374151', fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 5 }}>{t.status}</span>
+                    {renderStatus(t)}
                     {canEdit && (
                       <>
                         <button type="button" onClick={() => openEditTask(t)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px' }}>Edit</button>
@@ -351,7 +386,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
                 <div style={{ color: 'var(--sf-text)', fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{t.title}</div>
                 <div style={{ color: 'var(--sf-muted)', fontSize: 11 }}>{t.type} · Due {t.due_date}</div>
               </div>
-              <span style={{ background: STATUS_BG[t.status] || '#F3F4F6', color: STATUS_TEXT[t.status] || '#374151', fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 5 }}>{t.status}</span>
+              {renderStatus(t)}
               {canEdit && (
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button type="button" onClick={() => openEditTask(t)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px' }}>Edit</button>
@@ -417,7 +452,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
         </div>
       )}
 
-      {showTaskModal && canEdit && (
+      {showTaskModal && (canEdit || editingTask) && (
         <TaskFormModal
           session={session}
           brands={[brand]}
@@ -427,8 +462,9 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
           forceProjectMode={createAsProject && !editingTask}
           onClose={() => { setShowTaskModal(false); setEditingTask(null); setCreateAsProject(false) }}
           onSaved={() => { setShowTaskModal(false); setEditingTask(null); setCreateAsProject(false); onRefresh() }}
-          canSeeBilling={['owner', 'manager', 'accountant'].includes(session.role)}
-          canDelete={true}
+          canSeeBilling={canSeeBilling}
+          canSetPrice={canSetPrice}
+          canDelete={canEdit}
         />
       )}
     </div>

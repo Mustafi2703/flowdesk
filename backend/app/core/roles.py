@@ -25,6 +25,7 @@ MANAGEMENT: frozenset[Role] = frozenset({Role.OWNER, Role.MANAGER})
 HR_AND_ABOVE: frozenset[Role] = frozenset({Role.OWNER, Role.MANAGER, Role.HR})
 BILLING_VIEW: frozenset[Role] = frozenset({Role.OWNER, Role.MANAGER, Role.ACCOUNTANT})
 BILLING_EDIT: frozenset[Role] = frozenset({Role.OWNER, Role.ACCOUNTANT})
+BILLING_PRICE: frozenset[Role] = frozenset({Role.OWNER, Role.MANAGER, Role.ACCOUNTANT})
 
 
 def can_manage(role: Role) -> bool:
@@ -42,8 +43,13 @@ def can_view_billing(role: Role) -> bool:
 
 
 def can_edit_billing(role: Role) -> bool:
-    """Set price + mark billed."""
+    """Mark billed."""
     return role in BILLING_EDIT
+
+
+def can_set_price(role: Role) -> bool:
+    """Set billable amount on tasks."""
+    return role in BILLING_PRICE
 
 
 def can_approve_leave(role: Role) -> bool:

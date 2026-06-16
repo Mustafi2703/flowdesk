@@ -15,11 +15,11 @@ export default function BillingClient({ session }: { session: SessionUser }) {
   const [forbidden, setForbidden] = useState(false)
   const [error, setError] = useState('')
 
-  const canEdit = ['owner', 'accountant'].includes(session.role)
-  const isManagerView = session.role === 'manager'
+  const canSetPrice = ['owner', 'manager', 'accountant'].includes(session.role)
+  const canMarkBilled = ['owner', 'accountant'].includes(session.role)
 
   function taskUnpriced(task: any) {
-    return canEdit ? !task.billable_amount : !task.has_price
+    return canSetPrice ? !task.billable_amount : !task.has_price
   }
 
   async function load() {
@@ -87,12 +87,12 @@ export default function BillingClient({ session }: { session: SessionUser }) {
   if (loading) return <div style={{ color: 'var(--sf-muted)', padding: 40, textAlign: 'center' }}>Loading…</div>
   if (forbidden) return <div style={{ color: 'var(--sf-muted)', padding: 40, textAlign: 'center' }}>You do not have access to billing.</div>
 
-  const gridCols = isManagerView
-    ? '2.5fr 1fr 1fr 1fr'
-    : '2.5fr 1fr 1fr 1fr 1fr 1.2fr'
-  const headers = isManagerView
-    ? ['Task', 'Brand', 'Status', 'Billed On']
-    : ['Task', 'Brand', 'Status', 'Amount', 'Billed On', 'Actions']
+  const gridCols = canMarkBilled
+    ? '2.5fr 1fr 1fr 1fr 1fr 1.2fr'
+    : '2.5fr 1fr 1fr 1fr 1.2fr'
+  const headers = canMarkBilled
+    ? ['Task', 'Brand', 'Status', 'Amount', 'Billed On', 'Actions']
+    : ['Task', 'Brand', 'Status', 'Amount', 'Actions']
 
   return (
     <PageShell>
@@ -104,30 +104,21 @@ export default function BillingClient({ session }: { session: SessionUser }) {
         </Section>
       )}
 
-      {(canEdit ? unpriced.length > 0 : (summary?.unpriced || 0) > 0) && (
+      {(canSetPrice ? unpriced.length > 0 : (summary?.unpriced || 0) > 0) && (
         <Section title="Action needed" style={{ flexShrink: 0 }}>
           <div style={{ color: '#FBBF24', fontSize: 13, fontWeight: 600 }}>
-            ⚠ {canEdit ? unpriced.length : summary?.unpriced} billable task{(canEdit ? unpriced.length : summary?.unpriced) !== 1 ? 's' : ''} have no price set.
+            ⚠ {canSetPrice ? unpriced.length : summary?.unpriced} billable task{(canSetPrice ? unpriced.length : summary?.unpriced) !== 1 ? 's' : ''} have no price set.
           </div>
         </Section>
       )}
 
       <StatGrid>
-        {isManagerView ? (
-          <>
-            <StatCard label="Billable tasks" value={summary?.total_count ?? tasks.length} accent="#EC4899" />
-            <StatCard label="Pending billing" value={summary?.pending_count ?? unbilled.length} accent="#F59E0B" />
-            <StatCard label="Billed" value={summary?.billed_count ?? billed.length} accent="#10B981" />
-            <StatCard label="Unpriced" value={summary?.unpriced ?? unpriced.length} accent="#EF4444" />
-          </>
-        ) : (
-          <>
-            <StatCard label="Total billable" value={fmt(Number(summary?.total_billable ?? 0))} accent="#EC4899" />
-            <StatCard label="Pending" value={fmt(Number(summary?.pending ?? 0))} accent="#F59E0B" />
-            <StatCard label="Billed" value={fmt(Number(summary?.billed ?? 0))} accent="#10B981" />
-            <StatCard label="Unpriced" value={summary?.unpriced ?? unpriced.length} accent="#EF4444" />
-          </>
-        )}
+        <>
+          <StatCard label="Total billable" value={fmt(Number(summary?.total_billable ?? 0))} accent="#EC4899" />
+          <StatCard label="Pending" value={fmt(Number(summary?.pending ?? 0))} accent="#F59E0B" />
+          <StatCard label="Billed" value={fmt(Number(summary?.billed ?? 0))} accent="#10B981" />
+          <StatCard label="Unpriced" value={summary?.unpriced ?? unpriced.length} accent="#EF4444" />
+        </>
       </StatGrid>
 
       <Section
@@ -160,7 +151,7 @@ export default function BillingClient({ session }: { session: SessionUser }) {
           </div>
         }
       >
-        <div style={{ minWidth: isManagerView ? 720 : 900 }}>
+        <div style={{ minWidth: canMarkBilled ? 900 : 760 }}>
           <div style={{ display: 'grid', gridTemplateColumns: gridCols, padding: '12px 20px', borderBottom: '1px solid var(--sf-border)', background: 'var(--sf-surface-2)' }}>
             {headers.map(h => (
               <div key={h} style={{ color: 'var(--sf-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</div>
@@ -177,7 +168,7 @@ export default function BillingClient({ session }: { session: SessionUser }) {
                   padding: '13px 20px',
                   borderBottom: '1px solid #1A1A2E',
                   alignItems: 'center',
-                  background: np && canEdit ? 'rgba(239,68,68,0.02)' : 'transparent',
+                  background: np && canSetPrice ? 'rgba(239,68,68,0.02)' : 'transparent',
                 }}
               >
                 <div>
@@ -186,41 +177,39 @@ export default function BillingClient({ session }: { session: SessionUser }) {
                 </div>
                 <div style={{ color: '#A0A0C0', fontSize: 12 }}>{task.brand?.name || '—'}</div>
                 <span style={{ background: STATUS_BG[task.status] || '#F3F4F6', color: STATUS_TEXT[task.status] || '#374151', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, display: 'inline-block' }}>{task.status}</span>
-                {!isManagerView && (
-                  <div>
-                    {task.billable_amount ? (
-                      <span style={{ color: '#EC4899', fontWeight: 700, fontSize: 14 }}>{fmt(task.billable_amount)}</span>
-                    ) : (
-                      <span style={{ color: '#EF4444', fontSize: 11, fontStyle: 'italic' }}>Not set</span>
-                    )}
-                  </div>
-                )}
-                <div style={{ color: task.billed_at ? '#10B981' : '#F59E0B', fontSize: 12 }}>
-                  {task.billed_at ? new Date(task.billed_at).toLocaleDateString('en-IN') : 'Pending'}
+                <div>
+                  {task.billable_amount ? (
+                    <span style={{ color: '#EC4899', fontWeight: 700, fontSize: 14 }}>{fmt(task.billable_amount)}</span>
+                  ) : (
+                    <span style={{ color: '#EF4444', fontSize: 11, fontStyle: 'italic' }}>Not set</span>
+                  )}
                 </div>
-                {!isManagerView && (
-                  <div style={{ display: 'flex', gap: 5 }}>
-                    {canEdit && (
-                      <button
-                        onClick={() => { setPricing(task); setPriceIn(task.billable_amount?.toString() || '') }}
-                        style={{ padding: '5px 9px', background: 'var(--sf-surface-2)', border: '1px solid #2A2A45', borderRadius: 6, color: np ? '#EC4899' : '#A0A0C0', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: "'DM Sans',sans-serif" }}
-                      >
-                        {np ? '₹ Set' : '₹ Edit'}
-                      </button>
-                    )}
-                    {!task.billed_at && canEdit && task.billable_amount && (
-                      <button
-                        onClick={() => markBilled(task.id)}
-                        style={{ padding: '5px 9px', background: 'var(--sf-accent)', border: 'none', borderRadius: 6, color: 'var(--sf-text)', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: "'DM Sans',sans-serif" }}
-                      >
-                        Mark Billed
-                      </button>
-                    )}
-                    {task.billed_at && (
-                      <span style={{ background: '#10B98120', color: '#10B981', fontSize: 10, padding: '3px 7px', borderRadius: 5, fontWeight: 700 }}>✓ Billed</span>
-                    )}
+                {canMarkBilled && (
+                  <div style={{ color: task.billed_at ? '#10B981' : '#F59E0B', fontSize: 12 }}>
+                    {task.billed_at ? new Date(task.billed_at).toLocaleDateString('en-IN') : 'Pending'}
                   </div>
                 )}
+                <div style={{ display: 'flex', gap: 5 }}>
+                  {canSetPrice && (
+                    <button
+                      onClick={() => { setPricing(task); setPriceIn(task.billable_amount?.toString() || '') }}
+                      style={{ padding: '5px 9px', background: 'var(--sf-surface-2)', border: '1px solid #2A2A45', borderRadius: 6, color: np ? '#EC4899' : '#A0A0C0', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: "'DM Sans',sans-serif" }}
+                    >
+                      {np ? '₹ Set' : '₹ Edit'}
+                    </button>
+                  )}
+                  {!task.billed_at && canMarkBilled && task.billable_amount && (
+                    <button
+                      onClick={() => markBilled(task.id)}
+                      style={{ padding: '5px 9px', background: 'var(--sf-accent)', border: 'none', borderRadius: 6, color: 'var(--sf-text)', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: "'DM Sans',sans-serif" }}
+                    >
+                      Mark Billed
+                    </button>
+                  )}
+                  {canMarkBilled && task.billed_at && (
+                    <span style={{ background: '#10B98120', color: '#10B981', fontSize: 10, padding: '3px 7px', borderRadius: 5, fontWeight: 700 }}>✓ Billed</span>
+                  )}
+                </div>
               </div>
             )
           })}

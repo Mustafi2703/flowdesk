@@ -29,6 +29,49 @@ export function PageHeader({ title, subtitle }: { title: string; subtitle?: stri
   )
 }
 
+export type PageTab = { id: string; label: string; count?: number }
+
+export function PageTabs({
+  tabs,
+  active,
+  onChange,
+}: {
+  tabs: PageTab[]
+  active: string
+  onChange: (id: string) => void
+}) {
+  return (
+    <div className="sf-page-tabs" role="tablist">
+      {tabs.map(tab => {
+        const isActive = tab.id === active
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            className={`sf-page-tab${isActive ? ' sf-page-tab-active' : ''}`}
+            onClick={() => onChange(tab.id)}
+          >
+            {tab.label}
+            {tab.count != null && <span className="sf-page-tab-count">{tab.count}</span>}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+export function PageToolbar({
+  children,
+  className = '',
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return <div className={`sf-page-toolbar ${className}`.trim()}>{children}</div>
+}
+
 export function Section({
   title,
   subtitle,

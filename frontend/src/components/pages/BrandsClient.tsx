@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
 import { EmptyState, Icon } from '@/components/app/Icons'
-import { PageHeader, PageShell, Section } from '@/components/app/Section'
+import { PageHeader, PageShell, PageTabs, PageToolbar, Section } from '@/components/app/Section'
 import { TaskFormModal } from '@/components/pages/TasksClient'
 
 const sameId = (a: string | null | undefined, b: string | null | undefined) => String(a || '') === String(b || '')
@@ -42,6 +42,12 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
 
   useEffect(() => { load() }, [])
 
+  useEffect(() => {
+    if (visible.length > 0 && !selectedId) {
+      setSelectedId(String(visible[0].id))
+    }
+  }, [visible, selectedId])
+
   const visible = useMemo(
     () => (session.role === 'team' ? brands.filter(b => (b.assigned_members || []).some((id: string) => sameId(id, session.id))) : brands),
     [brands, session.id, session.role]
@@ -66,139 +72,89 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
     return <div style={{ color: 'var(--sf-muted)', padding: 40, textAlign: 'center' }}>Loading brands…</div>
   }
 
-  return (
-    <PageShell className="sf-brands-layout" style={{ padding: 0, height: '100%', gap: 0 }}>
-      <div style={{ display: 'flex', height: '100%', minHeight: 0, overflow: 'hidden' }}>
-        {/* Left rail — brand list + section nav */}
-        <aside
-          style={{
-            width: 260,
-            flexShrink: 0,
-            borderRight: '1px solid var(--sf-border)',
-            background: 'var(--sf-surface)',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-          }}
-        >
-          <div style={{ padding: '16px 14px 10px', borderBottom: '1px solid var(--sf-border)', flexShrink: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <span style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 14 }}>
-                {session.role === 'team' ? 'My brands' : 'Brands'}
-              </span>
-              {canEdit && (
-                <button type="button" onClick={() => setShowCreate(true)} className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '4px 8px' }}>
-                  + Add
-                </button>
-              )}
-            </div>
-            <span style={{ color: 'var(--sf-muted)', fontSize: 11 }}>{visible.length} clients</span>
-          </div>
+  const brandTabs = selected
+    ? BRAND_SECTIONS.map(s => {
+        const count = s.id === 'projects'
+          ? brandTasks.filter(t => t.task_mode === 'project').length
+          : s.id === 'tasks'
+            ? brandTasks.filter(t => t.task_mode !== 'project').length
+            : undefined
+        return {
+          id: s.id,
+          label: count != null ? `${s.label} (${count})` : s.label,
+        }
+      })
+    : []
 
-          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
-            {visible.length === 0 && (
-              <div style={{ color: 'var(--sf-muted)', fontSize: 12, padding: 12, textAlign: 'center' }}>No brands yet.</div>
-            )}
+  return (
+    <PageShell>
+      <PageToolbar>
+        <PageHeader
+          title={session.role === 'team' ? 'My brands' : 'Brands'}
+          subtitle={`${visible.length} client${visible.length === 1 ? '' : 's'}`}
+        />
+        {canEdit && (
+          <button type="button" onClick={() => setShowCreate(true)} className="sf-btn sf-btn-primary">
+            Add brand
+          </button>
+        )}
+      </PageToolbar>
+
+      {visible.length === 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', color: 'var(--sf-muted)' }}>
+          <EmptyState icon="brands" title="No brands yet. Add your first client to get started." />
+          {canEdit && (
+            <button type="button" onClick={() => setShowCreate(true)} className="sf-btn sf-btn-primary" style={{ marginTop: 16 }}>
+              Add brand
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="sf-brand-picker">
             {visible.map(b => {
               const bt = tasks.filter(t => sameId(t.brand_id, b.id))
-              const projectCount = bt.filter(t => t.task_mode === 'project').length
               const active = selected && sameId(selected.id, b.id)
               return (
                 <button
                   key={b.id}
                   type="button"
+                  className={`sf-brand-chip${active ? ' sf-brand-chip-active' : ''}`}
                   onClick={() => selectBrand(b)}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '10px 10px',
-                    marginBottom: 4,
-                    background: active ? 'var(--sf-accent-soft)' : 'transparent',
-                    border: `1px solid ${active ? 'var(--sf-accent)' : 'transparent'}`,
-                    borderRadius: 10,
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                  }}
                 >
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-                    background: 'linear-gradient(135deg,#E8630A,#FF9A4A)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: 'var(--sf-text)', fontWeight: 800, fontSize: 12,
-                  }}>
-                    {b.logo || b.name?.slice(0, 2)}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: 'var(--sf-text)', fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.name}</div>
-                    <div style={{ color: 'var(--sf-muted)', fontSize: 10 }}>{bt.length} tasks · {projectCount} projects</div>
-                  </div>
+                  <span className="sf-brand-chip-logo">{b.logo || b.name?.slice(0, 2)}</span>
+                  <span>
+                    <span style={{ display: 'block', lineHeight: 1.2 }}>{b.name}</span>
+                    <span style={{ display: 'block', fontSize: 10, color: 'var(--sf-muted)', fontWeight: 400, marginTop: 2 }}>
+                      {bt.length} tasks
+                    </span>
+                  </span>
                 </button>
               )
             })}
           </div>
 
-          {selected && (
-            <div style={{ borderTop: '1px solid var(--sf-border)', padding: '10px 10px 14px', flexShrink: 0 }}>
-              <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0 6px 8px' }}>
-                {selected.name}
-              </div>
-              {BRAND_SECTIONS.map(s => {
-                const count = s.id === 'projects'
-                  ? brandTasks.filter(t => t.task_mode === 'project').length
-                  : s.id === 'tasks'
-                    ? brandTasks.filter(t => t.task_mode !== 'project').length
-                    : null
-                const label = count !== null ? `${s.label} (${count})` : s.label
-                const active = section === s.id
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => setSection(s.id)}
-                    style={{
-                      width: '100%',
-                      textAlign: 'left',
-                      padding: '8px 10px',
-                      marginBottom: 2,
-                      borderRadius: 8,
-                      border: 'none',
-                      cursor: 'pointer',
-                      background: active ? 'var(--sf-accent)' : 'transparent',
-                      color: active ? '#fff' : 'var(--sf-text-secondary)',
-                      fontSize: 12,
-                      fontWeight: active ? 700 : 500,
-                    }}
-                  >
-                    {label}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </aside>
-
-        {/* Main content */}
-        <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '20px 24px' }}>
-          {!selected ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: 'var(--sf-muted)' }}>
-              <EmptyState icon="brands" title="Select a brand from the list on the left to view projects, tasks, and goals." />
-            </div>
+          {selected ? (
+            <>
+              <PageTabs tabs={brandTabs} active={section} onChange={setSection} />
+              <BrandDetail
+                brand={selected}
+                tasks={brandTasks}
+                users={users}
+                session={session}
+                canEdit={canEdit}
+                tab={section}
+                onTabChange={setSection}
+                onRefresh={load}
+              />
+            </>
           ) : (
-            <BrandDetail
-              brand={selected}
-              tasks={brandTasks}
-              users={users}
-              session={session}
-              canEdit={canEdit}
-              tab={section}
-              onTabChange={setSection}
-              onRefresh={load}
-            />
+            <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--sf-muted)' }}>
+              Select a brand above to view projects, tasks, and goals.
+            </div>
           )}
-        </div>
-      </div>
+        </>
+      )}
 
       {showCreate && canEdit && <CreateBrand onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); load() }} />}
     </PageShell>
@@ -271,10 +227,10 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginTop: 16 }}>
         <PageHeader
           title={BRAND_SECTIONS.find(s => s.id === tab)?.label || 'Overview'}
-          subtitle={`${brand.name} · use the left menu to switch sections`}
+          subtitle={brand.name}
         />
         {canEdit && tab === 'projects' && (
           <button type="button" onClick={openCreateProject} className="sf-btn sf-btn-primary">Add project</button>
@@ -305,7 +261,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
                 <span style={{ background: STATUS_BG[t.status] || '#F3F4F6', color: STATUS_TEXT[t.status] || '#374151', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>{t.status}</span>
               </div>
             ))}
-            {tasks.length === 0 && <div style={{ color: 'var(--sf-muted-2)', fontSize: 12 }}>No tasks yet — add a project or task from the left menu.</div>}
+            {tasks.length === 0 && <div style={{ color: 'var(--sf-muted-2)', fontSize: 12 }}>No tasks yet — add a project or task from the tabs above.</div>}
           </div>
           <div style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, padding: 18 }}>
             <div style={{ color: 'var(--sf-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Assigned team</div>

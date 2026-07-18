@@ -109,7 +109,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
   if (loading) return <div style={{ color: 'var(--sf-muted)', padding: 40, textAlign: 'center' }}>Loading chat…</div>
 
   return (
-    <PageShell>
+    <PageShell fill>
       <PageHeader
         title="Updates"
         subtitle={isMgmt ? 'Slack-style task channels · all tasks' : 'Your assigned task channels'}

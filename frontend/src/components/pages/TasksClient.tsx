@@ -177,7 +177,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   if (loading) return <div style={{ color:'var(--sf-muted)', padding:40, textAlign:'center' }}>Loading tasks…</div>
 
   return (
-    <PageShell>
+    <PageShell fill>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexShrink:0 }}>
         <PageHeader
           title={session.role === 'team' ? 'My Tasks' : 'Tasks'}

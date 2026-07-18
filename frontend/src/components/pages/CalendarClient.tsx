@@ -75,7 +75,7 @@ export default function CalendarClient({ session }: { session: SessionUser }) {
       : 'Your assigned tasks, leave, and attendance'
 
   return (
-    <PageShell>
+    <PageShell fill>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, flexShrink: 0 }}>
         <PageHeader
           title={isCompanyView ? 'Company Calendar' : 'My Calendar'}

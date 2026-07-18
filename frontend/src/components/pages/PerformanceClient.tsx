@@ -54,7 +54,7 @@ export default function PerformanceClient({ session }: { session: SessionUser })
   if (loading) return <div style={{color:'var(--sf-muted)',padding:40,textAlign:'center'}}>Loading…</div>
 
   return (
-    <PageShell>
+    <PageShell fill>
       <PageHeader title="Performance" subtitle={isSelfOnly ? 'Your allocated, delayed, and on-time metrics' : 'Team metrics and individual drill-down'} />
       {!isSelfOnly && (
       <Section title="Filters" style={{ flexShrink: 0 }}>

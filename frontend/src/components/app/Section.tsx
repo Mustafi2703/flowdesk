@@ -16,8 +16,26 @@ type SectionProps = {
   flex?: number | string
 }
 
-export function PageShell({ children, className = '', style }: { children: ReactNode; className?: string; style?: CSSProperties }) {
-  return <div className={`sf-page ${className}`.trim()} style={style}>{children}</div>
+export function PageShell({
+  children,
+  className = '',
+  style,
+  fill = false,
+}: {
+  children: ReactNode
+  className?: string
+  style?: CSSProperties
+  /** Use for Slack/board layouts that need the viewport height */
+  fill?: boolean
+}) {
+  return (
+    <div
+      className={`sf-page${fill ? ' sf-page-fill' : ''} ${className}`.trim()}
+      style={style}
+    >
+      {children}
+    </div>
+  )
 }
 
 export function PageHeader({ title, subtitle }: { title: string; subtitle?: string }) {

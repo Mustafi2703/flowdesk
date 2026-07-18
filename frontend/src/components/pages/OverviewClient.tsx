@@ -107,7 +107,7 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   if (loading) return <div style={{ color:'var(--sf-muted)', padding:40, textAlign:'center' }}>Loading…</div>
 
   return (
-    <PageShell>
+    <PageShell fill>
       <PageHeader
         title={`Good ${greet}, ${session.name.split(' ')[0]}`}
         subtitle={dateStr}

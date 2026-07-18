@@ -125,6 +125,13 @@ body {
   flex: 0 0 auto;
 }
 
+/* Full-height pages (Updates chat, task board, overview widgets) */
+.sf-page-fill {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
 .sf-page-header {
   flex-shrink: 0;
 }

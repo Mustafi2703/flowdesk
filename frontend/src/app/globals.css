@@ -112,14 +112,17 @@ body {
   padding: 1.5rem 1.75rem;
   display: flex;
   flex-direction: column;
+  -webkit-overflow-scrolling: touch;
 }
 
 .sf-page {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 0;
+  /* Grow with content so the main pane scrolls — avoid nested page traps */
+  min-height: min-content;
+  width: 100%;
   gap: 1rem;
+  flex: 0 0 auto;
 }
 
 .sf-page-header {
@@ -265,7 +268,12 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: visible;
+}
+
+.sf-section-fill {
   overflow: hidden;
+  min-height: 0;
 }
 
 .sf-section-header {
@@ -300,9 +308,15 @@ body {
 
 .sf-section-body {
   padding: 0.75rem 1rem 1rem;
+  overflow: visible;
+  flex: none;
+  min-height: 0;
+}
+
+.sf-section-fill > .sf-section-body {
   overflow-y: auto;
   flex: 1;
-  min-height: 0;
+  -webkit-overflow-scrolling: touch;
 }
 
 .sf-section-body-flush {

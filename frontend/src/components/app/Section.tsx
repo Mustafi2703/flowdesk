@@ -84,8 +84,12 @@ export function Section({
   maxBodyHeight,
   flex,
 }: SectionProps) {
+  const fill = flex != null || maxBodyHeight != null
   return (
-    <section className={`sf-section ${className}`.trim()} style={{ flex, ...style }}>
+    <section
+      className={`sf-section${fill ? ' sf-section-fill' : ''} ${className}`.trim()}
+      style={{ flex, ...style }}
+    >
       <div className="sf-section-header">
         <div>
           <h2 className="sf-section-title">{title}</h2>

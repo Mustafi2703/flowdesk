@@ -3,11 +3,37 @@
 import { useEffect, useState } from 'react'
 import { SessionUser, ROLE_COLORS, ROLE_LABELS } from '@/types'
 import { PageHeader, PageShell, PageTabs, PageToolbar, Section, StatCard, StatGrid } from '@/components/app/Section'
+import { Modal } from '@/components/app/Modal'
 
 const TEAM_PANELS = [
   { id: 'members', label: 'Team members' },
   { id: 'departments', label: 'Departments' },
 ]
+
+const PRIORITY_RANK: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 }
+const PRIORITY_COLORS: Record<string, { bg: string; text: string; bar: string }> = {
+  Critical: { bg: 'rgba(239,68,68,0.18)', text: '#F87171', bar: '#EF4444' },
+  High: { bg: 'rgba(249,115,22,0.18)', text: '#FB923C', bar: '#F97316' },
+  Medium: { bg: 'rgba(234,179,8,0.18)', text: '#EAB308', bar: '#EAB308' },
+  Low: { bg: 'rgba(148,163,184,0.18)', text: '#94A3B8', bar: '#64748B' },
+}
+
+function sameId(a: unknown, b: unknown) {
+  return String(a || '') === String(b || '')
+}
+
+function priorityStyle(p?: string | null) {
+  return PRIORITY_COLORS[p || 'Medium'] || PRIORITY_COLORS.Medium
+}
+
+function PriorityBadge({ priority }: { priority?: string | null }) {
+  const c = priorityStyle(priority)
+  return (
+    <span style={{ background: c.bg, color: c.text, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, whiteSpace: 'nowrap' }}>
+      {priority || 'Medium'}
+    </span>
+  )
+}
 
 export default function TeamClient({ session }: { session: SessionUser }) {
   const role = String(session.role || '').toLowerCase()
@@ -91,6 +117,16 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     return false
   }
 
+  function startCreateUser() {
+    setUserForm({ name: '', email: '', role: assignableRoles[0] || 'team', department: '', department_id: '', designation: '', password: '', manager_id: '', is_active: true })
+    setEditingUser(null)
+    setShowAdd(true)
+    setShowDept(false)
+    setViewingUser(null)
+    setNotice('')
+    setError('')
+  }
+
   function startCreateDept() {
     setEditingDeptId(null)
     setDeptForm({ name: '', description: '', manager_id: '' })
@@ -125,6 +161,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     })
     setShowAdd(false)
     setShowDept(false)
+    setViewingUser(null)
     setNotice('')
     setError('')
   }
@@ -243,25 +280,43 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     refresh()
   }
 
+  function isAssigned(task: any, uid: string) {
+    return (task.assigned_to || []).some((id: unknown) => sameId(id, uid))
+      || (task.sub_tasks || []).some((st: any) => (st.assigned_to || []).some((id: unknown) => sameId(id, uid)))
+  }
+
   function load(uid: string) {
-    const active = tasks.filter(t => t.assigned_to?.includes(uid) && !['Completed', 'On Hold'].includes(t.status))
+    const active = tasks.filter(t => isAssigned(t, uid) && !['Completed', 'On Hold'].includes(t.status))
     if (active.length === 0) return { label: 'Available', color: '#10B981' }
     if (active.length <= 2) return { label: 'Moderate', color: '#FBBF24' }
     return { label: 'Fully Loaded', color: '#EF4444' }
   }
 
+  function sortByImportance(list: any[]) {
+    return [...list].sort((a, b) => {
+      const ra = PRIORITY_RANK[a.priority] ?? 9
+      const rb = PRIORITY_RANK[b.priority] ?? 9
+      if (ra !== rb) return ra - rb
+      const da = a.due_date || '9999-99-99'
+      const db = b.due_date || '9999-99-99'
+      return da.localeCompare(db)
+    })
+  }
+
   function memberPerf(uid: string) {
-    const all = tasks.filter(t => t.assigned_to?.includes(uid))
+    const all = sortByImportance(tasks.filter(t => isAssigned(t, uid)))
     const allocated = all.length
     const completed = all.filter(t => t.status === 'Completed')
     const delayed = all.filter(t => t.due_date && t.due_date < today && t.status !== 'Completed')
+    const critical = all.filter(t => t.priority === 'Critical' && t.status !== 'Completed').length
+    const high = all.filter(t => t.priority === 'High' && t.status !== 'Completed').length
     const onTimeCount = completed.filter(t => {
       if (!t.due_date) return true
       const doneDay = (t.updated_at || '').slice(0, 10)
       return !doneDay || doneDay <= t.due_date
     }).length
     const onTimePct = completed.length ? Math.round((onTimeCount / completed.length) * 100) : 0
-    return { allocated, completed: completed.length, delayed: delayed.length, onTimePct, all }
+    return { allocated, completed: completed.length, delayed: delayed.length, onTimePct, critical, high, all }
   }
 
   const isOnline = (uid: string) => attendance.some(a => a.user_id === uid && a.date === today && !a.logout_time)
@@ -305,7 +360,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
           )}
         </div>
         {panel === 'members' && canOnboard && (
-          <button type="button" onClick={() => { setShowAdd(true); setShowDept(false); setNotice(''); setError('') }} className="sf-btn sf-btn-primary">
+          <button type="button" onClick={startCreateUser} className="sf-btn sf-btn-primary">
             Add user
           </button>
         )}
@@ -319,106 +374,151 @@ export default function TeamClient({ session }: { session: SessionUser }) {
       {notice && <div style={{ background: '#052E1A', border: '1px solid #10B981', color: '#D1FAE5', borderRadius: 10, padding: 12, fontSize: 13, marginBottom: 12 }}>{notice}</div>}
       {error && <div style={{ background: '#3B0A0A', border: '1px solid #EF4444', color: '#FEE2E2', borderRadius: 10, padding: 12, fontSize: 13, marginBottom: 12 }}>{error}</div>}
 
-      {showDept && panel === 'departments' && (
-        <Section title={editingDeptId ? 'Edit department' : 'Create department'} style={{ flexShrink: 0, marginBottom: 16 }}>
-          <form onSubmit={saveDepartment}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 10 }}>
-              <select required value={deptForm.name} onChange={e => setDeptForm({ ...deptForm, name: e.target.value })} className="sf-input">
+      <Modal
+        open={showDept && panel === 'departments'}
+        onClose={() => { setShowDept(false); setEditingDeptId(null) }}
+        title={editingDeptId ? 'Edit department' : 'Create department'}
+        subtitle="Only Owner, Manager, Team, Accounts, and HR are allowed"
+        footer={
+          <>
+            <button type="button" onClick={() => { setShowDept(false); setEditingDeptId(null) }} className="sf-btn sf-btn-ghost">Cancel</button>
+            <button type="submit" form="team-dept-form" disabled={saving} className="sf-btn sf-btn-primary">{saving ? 'Saving...' : (editingDeptId ? 'Save Department' : 'Create Department')}</button>
+          </>
+        }
+      >
+        <form id="team-dept-form" onSubmit={saveDepartment}>
+          <div style={{ display: 'grid', gap: 12 }}>
+            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Department
+              <select required value={deptForm.name} onChange={e => setDeptForm({ ...deptForm, name: e.target.value })} className="sf-input" style={{ marginTop: 6 }}>
                 <option value="">Select department</option>
                 {['Owner', 'Manager', 'Team', 'Accounts', 'HR'].map(n => <option key={n} value={n}>{n}</option>)}
               </select>
-              <input placeholder="Description (optional)" value={deptForm.description} onChange={e => setDeptForm({ ...deptForm, description: e.target.value })} className="sf-input" />
-              <select value={deptForm.manager_id} onChange={e => setDeptForm({ ...deptForm, manager_id: e.target.value })} className="sf-input">
+            </label>
+            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Description
+              <input placeholder="Optional" value={deptForm.description} onChange={e => setDeptForm({ ...deptForm, description: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
+            </label>
+            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Manager
+              <select value={deptForm.manager_id} onChange={e => setDeptForm({ ...deptForm, manager_id: e.target.value })} className="sf-input" style={{ marginTop: 6 }}>
                 <option value="">Assign manager (optional)</option>
                 {sortedManagers.map((m: any) => <option key={m.id} value={m.id}>{m.name} ({m.role})</option>)}
               </select>
-            </div>
-            <p style={{ color: 'var(--sf-muted)', fontSize: 12, marginTop: 10 }}>
-              Only Owner, Manager, Team, Accounts, and HR departments are allowed.
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
-              <button type="button" onClick={() => { setShowDept(false); setEditingDeptId(null) }} className="sf-btn sf-btn-ghost">Cancel</button>
-              <button type="submit" disabled={saving} className="sf-btn sf-btn-primary">{saving ? 'Saving...' : (editingDeptId ? 'Save Department' : 'Create Department')}</button>
-            </div>
-          </form>
-        </Section>
-      )}
+            </label>
+          </div>
+        </form>
+      </Modal>
 
-      {editingUser && panel === 'members' && (
-        <Section title={`Edit ${editingUser.name}`} style={{ flexShrink: 0, marginBottom: 16 }}>
-          <form onSubmit={saveUser}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 10 }}>
-              <input required placeholder="Full name" value={userForm.name} onChange={e => setUserForm({ ...userForm, name: e.target.value })} className="sf-input" />
-              {role === 'owner' && (
-                <>
-                  <input disabled value={userForm.email} className="sf-input" style={{ opacity: 0.7 }} />
-                  <select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value })} className="sf-input">
+      <Modal
+        open={!!editingUser && panel === 'members'}
+        onClose={() => setEditingUser(null)}
+        title={editingUser ? `Edit ${editingUser.name}` : 'Edit user'}
+        subtitle="Update role, department, and reporting line"
+        footer={
+          <>
+            <button type="button" onClick={() => setEditingUser(null)} className="sf-btn sf-btn-ghost">Cancel</button>
+            <button type="submit" form="team-edit-user-form" disabled={saving} className="sf-btn sf-btn-primary">{saving ? 'Saving...' : 'Save Changes'}</button>
+          </>
+        }
+      >
+        <form id="team-edit-user-form" onSubmit={saveUser}>
+          <div style={{ display: 'grid', gap: 12 }}>
+            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Full name
+              <input required placeholder="Full name" value={userForm.name} onChange={e => setUserForm({ ...userForm, name: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
+            </label>
+            {role === 'owner' && (
+              <>
+                <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Email
+                  <input disabled value={userForm.email} className="sf-input" style={{ marginTop: 6, opacity: 0.7 }} />
+                </label>
+                <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Role
+                  <select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value })} className="sf-input" style={{ marginTop: 6 }}>
                     {CORE_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                   </select>
-                  <select value={userForm.manager_id} onChange={e => setUserForm({ ...userForm, manager_id: e.target.value })} className="sf-input">
+                </label>
+                <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Manager
+                  <select value={userForm.manager_id} onChange={e => setUserForm({ ...userForm, manager_id: e.target.value })} className="sf-input" style={{ marginTop: 6 }}>
                     <option value="">No manager</option>
                     {sortedManagers.map((m: any) => <option key={m.id} value={m.id}>{m.name} ({m.role})</option>)}
                   </select>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--sf-text-secondary)', fontSize: 13 }}>
-                    <input type="checkbox" checked={userForm.is_active} onChange={e => setUserForm({ ...userForm, is_active: e.target.checked })} />
-                    Active account
-                  </label>
-                </>
-              )}
-              {sortedDepartments.length > 0 ? (
-                <select value={userForm.department_id} onChange={e => pickDepartmentForUser(e.target.value)} className="sf-input">
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--sf-text-secondary)', fontSize: 13 }}>
+                  <input type="checkbox" checked={userForm.is_active} onChange={e => setUserForm({ ...userForm, is_active: e.target.checked })} />
+                  Active account
+                </label>
+              </>
+            )}
+            {sortedDepartments.length > 0 ? (
+              <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Department
+                <select value={userForm.department_id} onChange={e => pickDepartmentForUser(e.target.value)} className="sf-input" style={{ marginTop: 6 }}>
                   <option value="">Select department</option>
                   {sortedDepartments.map((d: any) => <option key={d.id} value={d.id}>{d.name}{d.manager ? ` · ${d.manager.name}` : ''}</option>)}
                 </select>
-              ) : (
-                <input placeholder="Department" value={userForm.department} onChange={e => setUserForm({ ...userForm, department: e.target.value })} className="sf-input" />
-              )}
-              <input placeholder="Designation / responsibility" value={userForm.designation} onChange={e => setUserForm({ ...userForm, designation: e.target.value })} className="sf-input" />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
-              <button type="button" onClick={() => setEditingUser(null)} className="sf-btn sf-btn-ghost">Cancel</button>
-              <button type="submit" disabled={saving} className="sf-btn sf-btn-primary">{saving ? 'Saving...' : 'Save Changes'}</button>
-            </div>
-          </form>
-        </Section>
-      )}
+              </label>
+            ) : (
+              <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Department
+                <input placeholder="Department" value={userForm.department} onChange={e => setUserForm({ ...userForm, department: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
+              </label>
+            )}
+            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Designation
+              <input placeholder="Designation / responsibility" value={userForm.designation} onChange={e => setUserForm({ ...userForm, designation: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
+            </label>
+          </div>
+        </form>
+      </Modal>
 
-      {showAdd && panel === 'members' && (
-        <Section title="Onboard new user" style={{ flexShrink: 0, marginBottom: 16 }}>
-          <form onSubmit={addUser}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 10 }}>
-              <input required placeholder="Full name" value={userForm.name} onChange={e => setUserForm({ ...userForm, name: e.target.value })} className="sf-input" />
-              <input required type="email" placeholder="Email" value={userForm.email} onChange={e => setUserForm({ ...userForm, email: e.target.value })} className="sf-input" />
-              <select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value })} className="sf-input">
+      <Modal
+        open={showAdd && panel === 'members'}
+        onClose={() => setShowAdd(false)}
+        title="Onboard new user"
+        subtitle={role === 'manager' ? 'New hires will report to you automatically' : 'Create a login for Owner, Manager, Team, HR, or Accounts'}
+        footer={
+          <>
+            <button type="button" onClick={() => setShowAdd(false)} className="sf-btn sf-btn-ghost">Cancel</button>
+            <button type="submit" form="team-create-user-form" disabled={saving} className="sf-btn sf-btn-primary">{saving ? 'Creating...' : 'Create User'}</button>
+          </>
+        }
+      >
+        <form id="team-create-user-form" onSubmit={addUser}>
+          <div style={{ display: 'grid', gap: 12 }}>
+            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Full name
+              <input required placeholder="Full name" value={userForm.name} onChange={e => setUserForm({ ...userForm, name: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
+            </label>
+            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Email
+              <input required type="email" placeholder="Email" value={userForm.email} onChange={e => setUserForm({ ...userForm, email: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
+            </label>
+            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Role
+              <select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value })} className="sf-input" style={{ marginTop: 6 }}>
                 {(assignableRoles.length ? assignableRoles : ['team']).map(r => <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>)}
               </select>
-              {sortedDepartments.length > 0 ? (
-                <select value={userForm.department_id} onChange={e => pickDepartmentForUser(e.target.value)} className="sf-input">
+            </label>
+            {sortedDepartments.length > 0 ? (
+              <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Department
+                <select value={userForm.department_id} onChange={e => pickDepartmentForUser(e.target.value)} className="sf-input" style={{ marginTop: 6 }}>
                   <option value="">Select department</option>
                   {sortedDepartments.map((d: any) => <option key={d.id} value={d.id}>{d.name}{d.manager ? ` · ${d.manager.name}` : ''}</option>)}
                 </select>
-              ) : (
-                <input placeholder="Department" value={userForm.department} onChange={e => setUserForm({ ...userForm, department: e.target.value })} className="sf-input" />
-              )}
-              <input placeholder="Designation / responsibility" value={userForm.designation} onChange={e => setUserForm({ ...userForm, designation: e.target.value })} className="sf-input" />
-              <input type="password" placeholder="Password (blank = auto generate)" value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} className="sf-input" />
-              {role === 'owner' && (
-                <select value={userForm.manager_id} onChange={e => setUserForm({ ...userForm, manager_id: e.target.value })} className="sf-input">
+              </label>
+            ) : (
+              <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Department
+                <input placeholder="Department" value={userForm.department} onChange={e => setUserForm({ ...userForm, department: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
+              </label>
+            )}
+            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Designation
+              <input placeholder="Designation / responsibility" value={userForm.designation} onChange={e => setUserForm({ ...userForm, designation: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
+            </label>
+            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Password
+              <input type="password" placeholder="Blank = auto generate" value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
+            </label>
+            {role === 'owner' && (
+              <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Manager
+                <select value={userForm.manager_id} onChange={e => setUserForm({ ...userForm, manager_id: e.target.value })} className="sf-input" style={{ marginTop: 6 }}>
                   <option value="">No manager (optional)</option>
                   {sortedManagers.map((m: any) => <option key={m.id} value={m.id}>{m.name} ({m.role})</option>)}
                 </select>
-              )}
-            </div>
-            {role === 'manager' && (
-              <p style={{ color: 'var(--sf-muted)', fontSize: 12, marginTop: 10 }}>New hires will report to you automatically.</p>
+              </label>
             )}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
-              <button type="button" onClick={() => setShowAdd(false)} className="sf-btn sf-btn-ghost">Cancel</button>
-              <button type="submit" disabled={saving} className="sf-btn sf-btn-primary">{saving ? 'Creating...' : 'Create User'}</button>
-            </div>
-          </form>
-        </Section>
-      )}
+          </div>
+        </form>
+      </Modal>
 
       {panel === 'departments' && canViewDepartments && (
         <>
@@ -466,7 +566,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
         </>
       )}
 
-      {panel === 'members' && (
+          {panel === 'members' && (
         <>
           <StatGrid>
             <StatCard label="Members" value={team.filter(u => u.is_active).length} accent="var(--sf-accent)" />
@@ -475,56 +575,16 @@ export default function TeamClient({ session }: { session: SessionUser }) {
             <StatCard label="Delayed" value={tasks.filter(t => t.due_date && t.due_date < today && t.status !== 'Completed').length} accent="#EF4444" />
           </StatGrid>
 
-          {viewingUser && (() => {
-            const perf = memberPerf(viewingUser.id)
-            return (
-              <Section title={`${viewingUser.name}'s tasks`} subtitle={`${perf.allocated} allocated · ${perf.delayed} delayed · ${perf.onTimePct}% on-time`} style={{ marginTop: 16, flexShrink: 0 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 10, marginBottom: 14 }}>
-                  {[['Allocated', perf.allocated, '#3B82F6'], ['Completed', perf.completed, '#10B981'], ['Delayed', perf.delayed, '#EF4444'], ['On-time', `${perf.onTimePct}%`, '#FBBF24']].map(([l, v, c]) => (
-                    <div key={String(l)} style={{ background: 'var(--sf-surface-2)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
-                      <div style={{ color: String(c), fontWeight: 700, fontSize: 16 }}>{v}</div>
-                      <div style={{ color: 'var(--sf-muted)', fontSize: 10 }}>{l}</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-                  <button type="button" onClick={() => setViewingUser(null)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11 }}>Close</button>
-                </div>
-                {perf.all.length === 0 ? (
-                  <div style={{ color: 'var(--sf-muted)', fontSize: 13, padding: 12 }}>No tasks assigned.</div>
-                ) : (
-                  <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-                    {perf.all.map((t: any) => {
-                      const late = t.due_date && t.due_date < today && t.status !== 'Completed'
-                      return (
-                        <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--sf-border)' }}>
-                          <div>
-                            <div style={{ color: 'var(--sf-text)', fontSize: 13, fontWeight: 600 }}>{t.title}</div>
-                            <div style={{ color: 'var(--sf-muted)', fontSize: 11 }}>{t.brand?.name || 'No brand'} · {t.type || 'Task'} · Due {t.due_date || '—'}</div>
-                          </div>
-                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                            {late && <span style={{ color: '#EF4444', fontSize: 10, fontWeight: 700 }}>Delayed</span>}
-                            <span style={{ color: 'var(--sf-muted)', fontSize: 11 }}>{t.status}</span>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </Section>
-            )
-          })()}
-
-          <Section title="All members" subtitle="Click a member to see all assigned tasks & performance" flex={1} style={{ marginTop: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(258px,1fr))', gap: 14 }}>
+          <Section title="All members" subtitle="Click a member for their task summary popup" style={{ marginTop: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(270px,1fr))', gap: 14 }}>
               {team.map((u: any) => {
                 const l = load(u.id)
                 const perf = memberPerf(u.id)
                 const all = perf.all
                 const active = all.filter(t => !['Completed', 'On Hold'].includes(t.status))
                 const done = perf.completed
-                const rate = all.length > 0 ? Math.round(done / all.length * 100) : 0
                 const memberOnline = isOnline(u.id)
+                const topTasks = active.slice(0, 3)
                 return (
                   <div
                     key={u.id}
@@ -536,13 +596,13 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                         <div style={{ width: 42, height: 42, borderRadius: 10, background: ROLE_COLORS[u.role] || 'var(--sf-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sf-text)', fontWeight: 700, fontSize: 13 }}>{u.avatar || u.name?.slice(0, 2)}</div>
                         <div style={{ position: 'absolute', bottom: -2, right: -2, width: 11, height: 11, borderRadius: '50%', background: memberOnline ? '#10B981' : 'var(--sf-muted-2)', border: '2px solid var(--sf-surface)' }} />
                       </div>
-                      <div>
+                      <div style={{ minWidth: 0 }}>
                         <div style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 13 }}>{u.name}</div>
                         <div style={{ color: 'var(--sf-muted)', fontSize: 11 }}>{u.designation || u.department || ROLE_LABELS[u.role]}</div>
                         {u.manager_id && <div style={{ color: 'var(--sf-muted-2)', fontSize: 10, marginTop: 2 }}>Reports to {managerName(u.manager_id) || '—'}</div>}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ background: l.color + '20', color: l.color, fontSize: 10, padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>{l.label}</span>
                       <span style={{ color: u.is_active ? 'var(--sf-muted)' : '#EF4444', fontSize: 11 }}>{u.is_active ? `${active.length} active` : 'Inactive'}</span>
                     </div>
@@ -554,6 +614,31 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                         </div>
                       ))}
                     </div>
+                    {(perf.critical > 0 || perf.high > 0) && (
+                      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+                        {perf.critical > 0 && <span style={{ ...badgeFromPriority('Critical'), fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5 }}>{perf.critical} Critical</span>}
+                        {perf.high > 0 && <span style={{ ...badgeFromPriority('High'), fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5 }}>{perf.high} High</span>}
+                      </div>
+                    )}
+                    {topTasks.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 4 }}>
+                        {topTasks.map((t: any) => {
+                          const c = priorityStyle(t.priority)
+                          const late = t.due_date && t.due_date < today && t.status !== 'Completed'
+                          return (
+                            <div key={t.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 8px', background: 'var(--sf-surface-2)', borderRadius: 8, borderLeft: `3px solid ${late ? '#EF4444' : c.bar}` }}>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ color: 'var(--sf-text)', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</div>
+                              </div>
+                              <PriorityBadge priority={t.priority} />
+                            </div>
+                          )
+                        })}
+                        {active.length > 3 && (
+                          <div style={{ color: 'var(--sf-muted)', fontSize: 10 }}>+{active.length - 3} more · open summary</div>
+                        )}
+                      </div>
+                    )}
                     <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
                       {canEditUser(u) && <button type="button" onClick={() => startEditUser(u)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px' }}>Edit</button>}
                       {canReset && u.id !== session.id && <button type="button" onClick={() => resetPassword(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px' }}>Reset Password</button>}
@@ -564,8 +649,96 @@ export default function TeamClient({ session }: { session: SessionUser }) {
               })}
             </div>
           </Section>
+
+          {(() => {
+            const perf = viewingUser ? memberPerf(viewingUser.id) : null
+            const memberIsOnline = viewingUser ? isOnline(viewingUser.id) : false
+            return (
+              <Modal
+                open={!!viewingUser}
+                onClose={() => setViewingUser(null)}
+                title={viewingUser?.name || 'Member'}
+                subtitle={viewingUser ? `${viewingUser.designation || ROLE_LABELS[viewingUser.role]} · ${memberIsOnline ? 'Online' : 'Offline'}` : undefined}
+                width={640}
+                footer={
+                  <>
+                    {viewingUser && canEditUser(viewingUser) && (
+                      <button
+                        type="button"
+                        className="sf-btn sf-btn-ghost"
+                        onClick={() => { const u = viewingUser; setViewingUser(null); startEditUser(u) }}
+                      >
+                        Edit member
+                      </button>
+                    )}
+                    <button type="button" className="sf-btn sf-btn-primary" onClick={() => setViewingUser(null)}>Close</button>
+                  </>
+                }
+              >
+                {perf && (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(90px,1fr))', gap: 8, marginBottom: 14 }}>
+                      {[
+                        ['Allocated', perf.allocated, '#3B82F6'],
+                        ['Completed', perf.completed, '#10B981'],
+                        ['Delayed', perf.delayed, '#EF4444'],
+                        ['Critical', perf.critical, '#F87171'],
+                        ['High', perf.high, '#FB923C'],
+                        ['On-time', `${perf.onTimePct}%`, '#FBBF24'],
+                      ].map(([label, value, color]) => (
+                        <div key={String(label)} style={{ background: 'var(--sf-surface-2)', borderRadius: 8, padding: '8px 6px', textAlign: 'center' }}>
+                          <div style={{ color: String(color), fontWeight: 700, fontSize: 15 }}>{value}</div>
+                          <div style={{ color: 'var(--sf-muted)', fontSize: 10 }}>{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {perf.all.length === 0 ? (
+                      <div style={{ color: 'var(--sf-muted)', fontSize: 13, padding: 16, textAlign: 'center' }}>No tasks assigned to this member.</div>
+                    ) : (
+                      perf.all.map((t: any) => {
+                        const late = t.due_date && t.due_date < today && t.status !== 'Completed'
+                        const c = priorityStyle(t.priority)
+                        return (
+                          <div
+                            key={t.id}
+                            style={{
+                              display: 'flex',
+                              gap: 12,
+                              padding: '12px 10px',
+                              borderBottom: '1px solid var(--sf-border)',
+                              borderLeft: `3px solid ${late ? '#EF4444' : c.bar}`,
+                              marginBottom: 2,
+                              background: late ? 'rgba(239,68,68,0.06)' : 'transparent',
+                              borderRadius: 6,
+                            }}
+                          >
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ color: 'var(--sf-text)', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{t.title}</div>
+                              <div style={{ color: 'var(--sf-muted)', fontSize: 11 }}>
+                                {t.brand?.name || 'No brand'} · {t.type || 'Task'} · Due {t.due_date || '—'}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                              <PriorityBadge priority={t.priority} />
+                              {late && <span style={{ color: '#EF4444', fontSize: 10, fontWeight: 700 }}>Delayed</span>}
+                              <span style={{ color: 'var(--sf-muted)', fontSize: 11 }}>{t.status}</span>
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </>
+                )}
+              </Modal>
+            )
+          })()}
         </>
       )}
     </PageShell>
   )
+}
+
+function badgeFromPriority(priority: string) {
+  const c = priorityStyle(priority)
+  return { background: c.bg, color: c.text }
 }

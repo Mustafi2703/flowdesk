@@ -159,7 +159,7 @@ def test_seed_users_respects_existing_owner_id(db, monkeypatch):
 def test_seed_users_fresh_database(db, monkeypatch):
     from app.core.config import settings
     from app.models.profile import Profile
-    from app.scripts.seed import DEV, MANAGER, TEAM, USERS, _seed_users
+    from app.scripts.seed import MANAGER, TEAM, USERS, _seed_users
     from sqlalchemy import select
 
     monkeypatch.setattr(settings, "seed_password", "DemoPass123!")
@@ -167,14 +167,14 @@ def test_seed_users_fresh_database(db, monkeypatch):
     db.commit()
 
     profiles = {p.email: p for p in db.scalars(select(Profile)).all()}
-    assert len(profiles) == len(USERS) == 6
+    assert len(profiles) == len(USERS) == 5
     owner = profiles["owner@scrumfolks.com"]
     assert profiles["manager@scrumfolks.com"].manager_id == owner.id
     assert profiles["manager@scrumfolks.com"].id == MANAGER
     assert profiles["team@scrumfolks.com"].manager_id == MANAGER
-    assert profiles["dev@scrumfolks.com"].manager_id == MANAGER
     assert profiles["team@scrumfolks.com"].id == TEAM
-    assert profiles["dev@scrumfolks.com"].id == DEV
+    assert "dev@scrumfolks.com" not in profiles
+    assert profiles["accountant@scrumfolks.com"].department == "Accounts"
 
 
 def test_seed_reactivates_inactive_demo_account(db, monkeypatch):

@@ -78,7 +78,7 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const flagged     = tasks.filter(t => ['Struggling','Needs Attention'].includes(t.status))
   const underReview = tasks.filter(t => t.status === 'Under Review' || t.requires_review)
   const pendingLeav = leaves.filter(l => l.status === 'Pending')
-  const isTeam      = ['team','developer'].includes(session.role)
+  const isTeam      = session.role === 'team'
   const isAdmin     = ['owner','manager'].includes(session.role)
 
   const myCompleted = myTasks.filter(t => t.status === 'Completed')

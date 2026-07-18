@@ -22,6 +22,10 @@ export default function PerformanceClient({ session }: { session: SessionUser })
     ]).then(([u,t,a,l]) => { setUsers(Array.isArray(u)?u:[]); setTasks(Array.isArray(t)?t:[]); setAttendance(Array.isArray(a)?a:[]); setLeaves(Array.isArray(l)?l:[]); setLoading(false) })
   }, [])
 
+  useEffect(() => {
+    if (session.role === 'team') setSel(session.id)
+  }, [session.role, session.id])
+
   function metrics(uid:string) {
     const ut = tasks.filter(t => t.assigned_to?.includes(uid))
     const total = ut.length
@@ -40,16 +44,19 @@ export default function PerformanceClient({ session }: { session: SessionUser })
     return { total, done, ip, overdue, strug, ontime, rate, days, avg, taken, perf }
   }
 
-  const teamU = users.filter(u => ['team','developer'].includes(u.role))
-  const tm = teamU.map(u => ({user:u, ...metrics(u.id)}))
-  const sm = sel!=='all' ? metrics(sel) : null
-  const su = users.find(u => u.id===sel)
+  const teamU = users.filter(u => u.role === 'team')
+  const isSelfOnly = session.role === 'team'
+  const tm = (isSelfOnly ? teamU.filter(u => u.id === session.id) : teamU).map(u => ({user:u, ...metrics(u.id)}))
+  const effectiveSel = isSelfOnly ? session.id : sel
+  const sm = effectiveSel!=='all' ? metrics(effectiveSel) : null
+  const su = users.find(u => u.id===effectiveSel)
 
   if (loading) return <div style={{color:'var(--sf-muted)',padding:40,textAlign:'center'}}>Loading…</div>
 
   return (
     <PageShell>
-      <PageHeader title="Performance" subtitle="Team metrics and individual drill-down" />
+      <PageHeader title="Performance" subtitle={isSelfOnly ? 'Your allocated, delayed, and on-time metrics' : 'Team metrics and individual drill-down'} />
+      {!isSelfOnly && (
       <Section title="Filters" style={{ flexShrink: 0 }}>
         <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'center' }}>
         <select value={sel} onChange={e=>setSel(e.target.value)} style={{padding:'8px 12px',background:'var(--sf-surface-2)',border:'1px solid var(--sf-border)',borderRadius:9,color:'var(--sf-text)',fontSize:13,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
@@ -61,7 +68,8 @@ export default function PerformanceClient({ session }: { session: SessionUser })
         </div>
         </div>
       </Section>
-      {sel!=='all' && sm && su && (
+      )}
+      {effectiveSel!=='all' && sm && su && (
         <Section title={su.name} subtitle={`${su.designation} · ${su.department}`} flex={1}>
           <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:14}}>
             {[['Assigned',sm.total,'#3B82F6'],['Completed',sm.done,'#10B981'],['In Progress',sm.ip,'var(--sf-accent)'],['Overdue',sm.overdue,'#EF4444']].map(([l,v,c]) => (

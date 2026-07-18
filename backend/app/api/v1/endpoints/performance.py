@@ -20,9 +20,13 @@ from app.schemas.performance import PerformanceCard, TeamPerformanceOverview
 router = APIRouter(prefix="/performance", tags=["performance"])
 
 
-def _require_access(user: Profile) -> None:
-    if Role(user.role) not in {Role.OWNER, Role.MANAGER, Role.HR}:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Performance restricted")
+def _require_access(user: Profile, *, target_user_id: uuid.UUID | None = None) -> None:
+    role = Role(user.role)
+    if role in {Role.OWNER, Role.MANAGER, Role.HR}:
+        return
+    if role is Role.TEAM and (target_user_id is None or target_user_id == user.id):
+        return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Performance restricted")
 
 
 def _tier(completion_rate: float) -> str:
@@ -74,8 +78,11 @@ def performance_overview(
     db: Session = Depends(get_db),
     user: Profile = Depends(get_current_user),
 ) -> TeamPerformanceOverview:
-    _require_access(user)
-    profiles_stmt = select(Profile).where(Profile.is_active.is_(True))
+    role = Role(user.role)
+    if role is Role.TEAM:
+        user_id = user.id
+    _require_access(user, target_user_id=user_id)
+    profiles_stmt = select(Profile).where(Profile.is_active.is_(True), Profile.role == Role.TEAM.value)
     if user_id:
         profiles_stmt = profiles_stmt.where(Profile.id == user_id)
     profiles = db.scalars(profiles_stmt.order_by(Profile.name)).all()

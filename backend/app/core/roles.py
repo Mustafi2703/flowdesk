@@ -62,7 +62,7 @@ def can_view_team(role: Role) -> bool:
 
 
 def can_view_performance(role: Role) -> bool:
-    return role in HR_AND_ABOVE
+    return role in {Role.OWNER, Role.MANAGER, Role.HR, Role.TEAM}
 
 
 def can_post_announcement(role: Role) -> bool:

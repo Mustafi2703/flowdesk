@@ -10,16 +10,27 @@ def test_owner_can_create_department_with_manager(client, users):
         "/api/v1/team/departments",
         headers=users.auth_headers(owner),
         json={
-            "name": "Design",
-            "description": "Creative team",
+            "name": "Team",
+            "description": "Execution team",
             "manager_id": str(manager.id),
         },
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()
-    assert body["name"] == "Design"
+    assert body["name"] == "Team"
     assert body["manager_id"] == str(manager.id)
     assert body["manager"]["name"] == manager.name
+
+
+def test_cannot_create_developer_department(client, users):
+    owner = users.create("owner")
+    resp = client.post(
+        "/api/v1/team/departments",
+        headers=users.auth_headers(owner),
+        json={"name": "Technology"},
+    )
+    assert resp.status_code == 400
+    assert "Owner, Manager, Team, Accounts, HR" in resp.json()["error"]
 
 
 def test_only_owner_can_create_department(client, users):
@@ -27,7 +38,7 @@ def test_only_owner_can_create_department(client, users):
     resp = client.post(
         "/api/v1/team/departments",
         headers=users.auth_headers(manager),
-        json={"name": "Ops", "manager_id": str(manager.id)},
+        json={"name": "Team", "manager_id": str(manager.id)},
     )
     assert resp.status_code == 403
 
@@ -63,18 +74,19 @@ def test_manager_sees_only_own_departments(client, users):
     client.post(
         "/api/v1/team/departments",
         headers=users.auth_headers(owner),
-        json={"name": "Dept A", "manager_id": str(mgr_a.id)},
+        json={"name": "Owner", "manager_id": str(mgr_a.id)},
     )
+    # Owner + Manager departments - mgr_a only sees ones they manage
     client.post(
         "/api/v1/team/departments",
         headers=users.auth_headers(owner),
-        json={"name": "Dept B", "manager_id": str(mgr_b.id)},
+        json={"name": "Manager", "manager_id": str(mgr_b.id)},
     )
     listed = client.get(
         "/api/v1/team/departments", headers=users.auth_headers(mgr_a)
     ).json()
     assert len(listed) == 1
-    assert listed[0]["name"] == "Dept A"
+    assert listed[0]["name"] == "Owner"
 
 
 def test_duplicate_department_name_rejected(client, users):
@@ -82,11 +94,11 @@ def test_duplicate_department_name_rejected(client, users):
     client.post(
         "/api/v1/team/departments",
         headers=users.auth_headers(owner),
-        json={"name": "Finance"},
+        json={"name": "Accounts"},
     )
     resp = client.post(
         "/api/v1/team/departments",
         headers=users.auth_headers(owner),
-        json={"name": "finance"},
+        json={"name": "accounts"},
     )
     assert resp.status_code == 409

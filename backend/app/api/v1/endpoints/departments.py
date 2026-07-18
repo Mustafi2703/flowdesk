@@ -19,6 +19,18 @@ from app.schemas.department import DepartmentCreate, DepartmentOut, DepartmentUp
 router = APIRouter(prefix="/departments", tags=["departments"])
 
 _MANAGEMENT_ROLES = frozenset({Role.OWNER, Role.MANAGER})
+_CORE_DEPARTMENTS = frozenset({"owner", "manager", "team", "accounts", "hr"})
+
+
+def _require_core_department_name(name: str) -> str:
+    cleaned = name.strip()
+    if cleaned.lower() not in _CORE_DEPARTMENTS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Department must be one of: Owner, Manager, Team, Accounts, HR",
+        )
+    # Canonical casing
+    return next(n for n in ("Owner", "Manager", "Team", "Accounts", "HR") if n.lower() == cleaned.lower())
 
 
 def _require_department_view(user: Profile) -> None:
@@ -93,7 +105,7 @@ def create_department(
 ) -> dict[str, Any]:
     if Role(user.role) is not Role.OWNER:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owner can create departments")
-    name = payload.name.strip()
+    name = _require_core_department_name(payload.name)
     if db.scalar(select(Department).where(func.lower(Department.name) == name.lower())):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Department name already exists")
     manager_id = _validate_manager(db, payload.manager_id)
@@ -124,7 +136,7 @@ def update_department(
     incoming = payload.model_dump(exclude_unset=True)
     old_name = dept.name
     if "name" in incoming and incoming["name"]:
-        new_name = incoming["name"].strip()
+        new_name = _require_core_department_name(incoming["name"])
         clash = db.scalar(
             select(Department).where(
                 func.lower(Department.name) == new_name.lower(),

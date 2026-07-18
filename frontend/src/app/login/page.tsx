@@ -14,8 +14,7 @@ const DEMOS = [
   { role: 'manager', label: 'Manager' },
   { role: 'team', label: 'Team Member' },
   { role: 'hr', label: 'HR' },
-  { role: 'accountant', label: 'Accountant' },
-  { role: 'developer', label: 'Developer' },
+  { role: 'accountant', label: 'Accounts' },
 ]
 
 export default function LoginPage() {

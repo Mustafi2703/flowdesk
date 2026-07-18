@@ -31,7 +31,6 @@ _DEMO_ROLE_EMAILS: dict[str, str] = {
     "team": "team@scrumfolks.com",
     "hr": "hr@scrumfolks.com",
     "accountant": "accountant@scrumfolks.com",
-    "developer": "dev@scrumfolks.com",
 }
 
 

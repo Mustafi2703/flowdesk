@@ -179,7 +179,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
     <PageShell>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexShrink:0 }}>
         <PageHeader
-          title={['team','developer'].includes(session.role) ? 'My Tasks' : 'Tasks'}
+          title={session.role === 'team' ? 'My Tasks' : 'Tasks'}
           subtitle={`${filtered.length} items`}
         />
         {canCreate && (
@@ -439,8 +439,8 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
   const [deleting, setDeleting] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
 
-  // Assignable people: Team (+ legacy developer accounts). Managers/HR are not assignees.
-  const teamUsers = users.filter((u:any) => ['team', 'developer'].includes(u.role) && u.is_active !== false)
+  // Assignable people: Team department only (Developer is not a department).
+  const teamUsers = users.filter((u:any) => u.role === 'team' && u.is_active !== false)
   const needsBrandName = !brandId && !isEdit
 
   function addSubTask() {

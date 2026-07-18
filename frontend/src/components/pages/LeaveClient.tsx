@@ -6,7 +6,7 @@ import { PageHeader, PageShell, Section, StatCard, StatGrid } from '@/components
 
 const sInp = { width:'100%',padding:'9px 12px',background:'var(--sf-surface-2)',border:'1px solid #2A2A45',borderRadius:8,color:'var(--sf-text)',fontSize:13,outline:'none',fontFamily:"'DM Sans',sans-serif" }
 
-const STAFF_ROLES = ['team','developer','manager','hr','accountant']
+const STAFF_ROLES = ['team','manager','hr','accountant']
 
 export default function LeaveClient({ session }: { session: SessionUser }) {
   const [leaves, setLeaves] = useState<any[]>([])
@@ -40,7 +40,7 @@ export default function LeaveClient({ session }: { session: SessionUser }) {
 
   if (loading) return <div style={{color:'var(--sf-muted)',padding:40,textAlign:'center'}}>Loading…</div>
 
-  const displayed = ['team','developer','accountant'].includes(session.role) ? myLeaves : leaves
+  const displayed = ['team','accountant'].includes(session.role) ? myLeaves : leaves
   const total = balance?.total ?? 21
   const taken = balance?.taken ?? myLeaves.filter(l => l.status === 'Approved').reduce((s, l) => s + l.days, 0)
   const remaining = balance?.remaining ?? Math.max(0, total - taken)

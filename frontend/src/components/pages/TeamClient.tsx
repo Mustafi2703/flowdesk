@@ -87,7 +87,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   const canEditUser = (u: any) => {
     if (u.id === session.id) return false
     if (role === 'owner') return true
-    if (role === 'manager') return ['team', 'developer'].includes(u.role) && String(u.manager_id || '') === String(session.id)
+    if (role === 'manager') return u.role === 'team' && String(u.manager_id || '') === String(session.id)
     return false
   }
 
@@ -323,7 +323,10 @@ export default function TeamClient({ session }: { session: SessionUser }) {
         <Section title={editingDeptId ? 'Edit department' : 'Create department'} style={{ flexShrink: 0, marginBottom: 16 }}>
           <form onSubmit={saveDepartment}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 10 }}>
-              <input required placeholder="Department name" value={deptForm.name} onChange={e => setDeptForm({ ...deptForm, name: e.target.value })} className="sf-input" />
+              <select required value={deptForm.name} onChange={e => setDeptForm({ ...deptForm, name: e.target.value })} className="sf-input">
+                <option value="">Select department</option>
+                {['Owner', 'Manager', 'Team', 'Accounts', 'HR'].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
               <input placeholder="Description (optional)" value={deptForm.description} onChange={e => setDeptForm({ ...deptForm, description: e.target.value })} className="sf-input" />
               <select value={deptForm.manager_id} onChange={e => setDeptForm({ ...deptForm, manager_id: e.target.value })} className="sf-input">
                 <option value="">Assign manager (optional)</option>
@@ -331,7 +334,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
               </select>
             </div>
             <p style={{ color: 'var(--sf-muted)', fontSize: 12, marginTop: 10 }}>
-              New hires assigned to this department will default to the department manager.
+              Only Owner, Manager, Team, Accounts, and HR departments are allowed.
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
               <button type="button" onClick={() => { setShowDept(false); setEditingDeptId(null) }} className="sf-btn sf-btn-ghost">Cancel</button>
@@ -351,7 +354,6 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                   <input disabled value={userForm.email} className="sf-input" style={{ opacity: 0.7 }} />
                   <select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value })} className="sf-input">
                     {CORE_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                    {userForm.role === 'developer' && <option value="developer">{ROLE_LABELS.developer} (legacy)</option>}
                   </select>
                   <select value={userForm.manager_id} onChange={e => setUserForm({ ...userForm, manager_id: e.target.value })} className="sf-input">
                     <option value="">No manager</option>

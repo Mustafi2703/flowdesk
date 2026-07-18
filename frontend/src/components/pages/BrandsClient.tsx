@@ -179,7 +179,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
   const canSetPrice = canSetTaskPrice(session.role)
   const canSeeBilling = ['owner', 'manager', 'accountant'].includes(session.role)
   const statusSelectStyle = { padding: '4px 8px', background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 6, color: 'var(--sf-text)', fontSize: 11, fontFamily: 'inherit' }
-  const assignable = users.filter((u: any) => ['team', 'developer', 'manager'].includes(u.role) && u.is_active !== false)
+  const assignable = users.filter((u: any) => ['team', 'manager'].includes(u.role) && u.is_active !== false)
 
   useEffect(() => {
     setMemberIds((brand.assigned_members || []).map(String))

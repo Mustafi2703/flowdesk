@@ -41,7 +41,6 @@ MANAGER = _u("11111111-0000-0000-0000-000000000002")
 TEAM = _u("11111111-0000-0000-0000-000000000003")
 HR = _u("11111111-0000-0000-0000-000000000004")
 ACCOUNTANT = _u("11111111-0000-0000-0000-000000000007")
-DEV = _u("11111111-0000-0000-0000-000000000008")
 
 # One account per requirements-doc role for quick demo login.
 # Names are role labels — real hires are onboarded via Team by Owner/Manager.
@@ -51,8 +50,6 @@ USERS = [
     (TEAM, "Demo Team Member", "team@scrumfolks.com",       "team",       "Team",        "Team Member",   "TM", MANAGER),
     (HR, "Demo HR Manager",  "hr@scrumfolks.com",         "hr",         "HR",          "HR Manager",    "HR", OWNER),
     (ACCOUNTANT, "Demo Accountant", "accountant@scrumfolks.com", "accountant", "Accounts", "Accountant",  "AC", OWNER),
-    # Legacy demo account — treated as Team department (Developer is not a separate department).
-    (DEV, "Demo Developer",  "dev@scrumfolks.com",        "developer",  "Team",        "Team Member",   "DV", MANAGER),
 ]
 
 
@@ -75,7 +72,7 @@ BRANDS = [
         ["Q3 lead generation campaign", "New project launch content"],
         ["13,500+ leads pipeline", "350+ deal closures"],
         "Lead gen, hoardings, social media, event management",
-        [TEAM, DEV],
+        [TEAM],
     ),
     (
         _u("22222222-0000-0000-0000-000000000003"),
@@ -85,7 +82,7 @@ BRANDS = [
         ["Product launch campaign", "Website revamp"],
         ["Market leadership in Gujarat smart home"],
         "Digital marketing, product photography, B2B content, lead gen",
-        [TEAM, DEV],
+        [TEAM],
     ),
     (
         _u("22222222-0000-0000-0000-000000000004"),
@@ -105,7 +102,7 @@ BRANDS = [
         ["GESIA Connect portal launch", "Member newsletter"],
         ["Digital-first member engagement"],
         "Web portal, event content, social media, member communications",
-        [TEAM, DEV],
+        [TEAM],
     ),
 ]
 
@@ -218,9 +215,7 @@ def _seed_users(db) -> None:
 
 
 def _seed_departments(db, id_map: dict[uuid.UUID, uuid.UUID]) -> None:
-    """Create default departments linked to demo managers (idempotent)."""
-    if db.scalars(select(Department).limit(1)).first():
-        return
+    """Ensure the five core departments exist (idempotent sync)."""
     defaults = [
         ("Owner", OWNER, "Executive ownership and strategy"),
         ("Manager", MANAGER, "Delivery and people management"),
@@ -229,16 +224,40 @@ def _seed_departments(db, id_map: dict[uuid.UUID, uuid.UUID]) -> None:
         ("HR", OWNER, "People operations and leave"),
     ]
     owner_profile_id = id_map.get(OWNER)
+    allowed = {name.lower() for name, *_ in defaults}
+    by_name = {d.name.lower(): d for d in db.scalars(select(Department)).all()}
+
     for name, manager_seed, description in defaults:
         manager_profile_id = id_map.get(manager_seed)
-        db.add(
-            Department(
+        existing = by_name.get(name.lower())
+        if existing:
+            existing.name = name
+            existing.description = description
+            existing.manager_id = manager_profile_id or existing.manager_id
+        else:
+            dept = Department(
                 name=name,
                 description=description,
                 manager_id=manager_profile_id,
                 created_by=owner_profile_id,
             )
-        )
+            db.add(dept)
+            by_name[name.lower()] = dept
+
+    # Remove non-canonical departments (e.g. Technology / Design leftovers).
+    for dept in list(db.scalars(select(Department)).all()):
+        if dept.name.lower() not in allowed:
+            db.delete(dept)
+    db.flush()
+
+
+def _retire_developer_role(db) -> None:
+    """Developer is not a department/role in the product — map to Team."""
+    for profile in db.scalars(select(Profile).where(Profile.role == "developer")).all():
+        profile.role = "team"
+        profile.department = "Team"
+        if not profile.designation or "develop" in profile.designation.lower():
+            profile.designation = "Team Member"
     db.flush()
 
 
@@ -258,7 +277,9 @@ def seed_users_only() -> None:
         raise SystemExit(1)
     with db_session() as db:
         _seed_users(db)
-        _seed_departments(db, _build_id_map(db))
+        id_map = _build_id_map(db)
+        _seed_departments(db, id_map)
+        _retire_developer_role(db)
     print("[seed] demo users ready (no sample data)")  # noqa: T201
 
 
@@ -269,7 +290,9 @@ def seed() -> None:
 
     with db_session() as db:
         _seed_users(db)
-        _seed_departments(db, _build_id_map(db))
+        id_map = _build_id_map(db)
+        _seed_departments(db, id_map)
+        _retire_developer_role(db)
 
         existing_brands = set(db.scalars(select(Brand.id)).all())
         for bid, name, logo, desc, ctype, prio, short, long, resp, members in BRANDS:

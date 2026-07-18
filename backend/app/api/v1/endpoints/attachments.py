@@ -1,14 +1,15 @@
-"""File attachments for tasks and brands."""
+"""File attachments for tasks and brands — disk + DB-backed for deploy durability."""
 
 from __future__ import annotations
 
+import os
 import re
 import uuid
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -23,7 +24,7 @@ from app.utils.queues import DASHBOARD_CACHE
 
 router = APIRouter(prefix="/attachments", tags=["attachments"])
 
-UPLOAD_ROOT = Path(__file__).resolve().parents[4] / "uploads"
+UPLOAD_ROOT = Path(os.environ.get("UPLOAD_ROOT", str(Path(__file__).resolve().parents[4] / "uploads")))
 MAX_BYTES = 15 * 1024 * 1024  # 15 MB
 ALLOWED_ENTITY = {"task", "brand"}
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
@@ -46,7 +47,7 @@ def _serialize(row: FileAttachment) -> dict[str, Any]:
         "mime_type": row.mime_type,
         "uploaded_by": str(row.uploaded_by) if row.uploaded_by else None,
         "created_at": row.created_at.isoformat() if row.created_at else None,
-        "url": f"/api/v1/attachments/{row.id}/download",
+        "url": f"/api/attachments/{row.id}",
     }
 
 
@@ -73,7 +74,52 @@ def _can_access_entity(db: Session, entity_type: str, entity_id: uuid.UUID, user
 
 
 def _can_upload(user: Profile) -> bool:
-    return Role(user.role) in {Role.OWNER, Role.MANAGER, Role.TEAM, Role.DEVELOPER, Role.ACCOUNTANT, Role.HR}
+    return Role(user.role) in {
+        Role.OWNER,
+        Role.MANAGER,
+        Role.TEAM,
+        Role.DEVELOPER,
+        Role.ACCOUNTANT,
+        Role.HR,
+    }
+
+
+def store_attachment(
+    *,
+    db: Session,
+    entity_type: str,
+    entity_id: uuid.UUID,
+    filename: str,
+    raw: bytes,
+    mime_type: str | None,
+    user: Profile,
+) -> FileAttachment:
+    safe = _SAFE_NAME.sub("_", filename).strip("._") or "file"
+    stored_name = f"{uuid.uuid4().hex}_{safe}"
+    dest_dir = _ensure_upload_dir(entity_type, entity_id)
+    dest = dest_dir / stored_name
+    try:
+        dest.write_bytes(raw)
+        rel_path = str(dest.relative_to(UPLOAD_ROOT))
+    except OSError:
+        # Disk may be ephemeral/read-only — DB bytes are the durable copy.
+        rel_path = f"{entity_type}/{entity_id}/{stored_name}"
+
+    row = FileAttachment(
+        entity_type=entity_type,
+        entity_id=entity_id,
+        file_name=filename,
+        file_path=rel_path,
+        file_data=raw,
+        file_size=len(raw),
+        mime_type=mime_type,
+        uploaded_by=user.id,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    DASHBOARD_CACHE.invalidate()
+    return row
 
 
 @router.get("")
@@ -118,26 +164,15 @@ async def upload_attachment(
     if len(raw) > MAX_BYTES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File too large (max 15MB)")
 
-    safe = _SAFE_NAME.sub("_", file.filename).strip("._") or "file"
-    stored_name = f"{uuid.uuid4().hex}_{safe}"
-    dest_dir = _ensure_upload_dir(entity_type, entity_id)
-    dest = dest_dir / stored_name
-    dest.write_bytes(raw)
-
-    rel_path = str(dest.relative_to(UPLOAD_ROOT))
-    row = FileAttachment(
+    row = store_attachment(
+        db=db,
         entity_type=entity_type,
         entity_id=entity_id,
-        file_name=file.filename,
-        file_path=rel_path,
-        file_size=len(raw),
+        filename=file.filename,
+        raw=raw,
         mime_type=file.content_type,
-        uploaded_by=user.id,
+        user=user,
     )
-    db.add(row)
-    db.commit()
-    db.refresh(row)
-    DASHBOARD_CACHE.invalidate()
     return _serialize(row)
 
 
@@ -146,14 +181,21 @@ def download_attachment(
     attachment_id: uuid.UUID,
     db: Session = Depends(get_db),
     user: Profile = Depends(get_current_user),
-) -> FileResponse:
+):
     row = db.get(FileAttachment, attachment_id)
     if not row or not _can_access_entity(db, row.entity_type, row.entity_id, user):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
     path = UPLOAD_ROOT / row.file_path
-    if not path.exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File missing on disk")
-    return FileResponse(path, filename=row.file_name, media_type=row.mime_type or "application/octet-stream")
+    media = row.mime_type or "application/octet-stream"
+    if path.exists():
+        return FileResponse(path, filename=row.file_name, media_type=media)
+    if row.file_data:
+        return Response(
+            content=bytes(row.file_data),
+            media_type=media,
+            headers={"Content-Disposition": f'inline; filename="{row.file_name}"'},
+        )
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File missing on disk")
 
 
 @router.delete("/{attachment_id}")
@@ -170,6 +212,10 @@ def delete_attachment(
     path = UPLOAD_ROOT / row.file_path
     if path.exists():
         path.unlink()
+    # Clear brand logo if this attachment was the logo
+    brands = db.scalars(select(Brand).where(Brand.logo_url.contains(str(row.id)))).all()
+    for brand in brands:
+        brand.logo_url = None
     db.delete(row)
     db.commit()
     DASHBOARD_CACHE.invalidate()

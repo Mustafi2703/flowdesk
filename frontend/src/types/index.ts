@@ -28,8 +28,10 @@ export interface Task {
 }
 
 export interface Brand {
-  id: string; name: string; logo: string | null; description: string | null
+  id: string; name: string; logo: string | null; logo_url?: string | null
+  description: string | null
   client_type: string | null; priority: string | null
+  workflow_stage?: string | null
   short_term_goals: string[]; long_term_goals: string[]
   journey: string[]
   responsibilities: string | null; assigned_members: string[]
@@ -105,7 +107,7 @@ export const NAV_ITEMS = [
   { id: 'calendar',      label: 'Calendar',      icon: 'calendar' as NavIcon, roles: ['owner','manager','team','hr','accountant'] },
   { id: 'tasks',         label: 'Tasks',         icon: 'tasks' as NavIcon, roles: ['owner','manager','team'] },
   { id: 'updates',       label: 'Updates',       icon: 'inbox' as NavIcon, roles: ['owner','manager','team','hr','accountant'] },
-  { id: 'devboard',      label: 'Projects',      icon: 'code' as NavIcon, roles: ['owner','manager','team'] },
+  { id: 'devboard',      label: 'Workflow',      icon: 'code' as NavIcon, roles: ['owner','manager','team'] },
   { id: 'brands',        label: 'Brands',        icon: 'brands' as NavIcon, roles: ['owner','manager','hr','accountant','team'] },
   { id: 'team',          label: 'Team',          icon: 'team' as NavIcon, roles: ['owner','manager','hr'] },
   { id: 'performance',   label: 'Performance',   icon: 'performance' as NavIcon, roles: ['owner','manager','hr','team'] },

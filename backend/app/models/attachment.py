@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, text
+from sqlalchemy import DateTime, Integer, LargeBinary, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,6 +19,7 @@ class FileAttachment(UUIDPKMixin, TimestampsMixin, Base):
     entity_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    file_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     mime_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
     auto_delete_days: Mapped[int | None] = mapped_column(Integer, nullable=True)

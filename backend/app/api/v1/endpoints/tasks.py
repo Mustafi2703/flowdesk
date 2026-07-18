@@ -262,6 +262,18 @@ def update_task(
     update = payload.model_dump(exclude_unset=True, mode="json")
     if update.get("is_billable") is False:
         update["billable_amount"] = None
+    # Coerce UUID fields the same way create does (mode=json yields strings).
+    for key in ("assigned_to", "assigned_managers", "brand_id"):
+        if key not in update:
+            continue
+        if update[key] is None:
+            continue
+        if key == "brand_id":
+            update[key] = uuid.UUID(str(update[key]))
+        else:
+            update[key] = [uuid.UUID(str(v)) for v in update[key]]
+
+    previous_assignees = {str(uid) for uid in (task.assigned_to or [])}
     for key, value in update.items():
         setattr(task, key, value)
     task.timeline = [
@@ -275,6 +287,20 @@ def update_task(
     ]
     db.commit()
     db.refresh(task)
+    # Notify newly assigned people when managers re-assign on edit.
+    if "assigned_to" in update:
+        new_assignees = {str(uid) for uid in (task.assigned_to or [])} - previous_assignees
+        for assignee_id in new_assignees:
+            db.add(
+                Notification(
+                    user_id=uuid.UUID(assignee_id),
+                    message=f'Task "{task.title}" assigned to you',
+                    type="task",
+                    link=f"/tasks/{task.id}",
+                )
+            )
+        if new_assignees:
+            db.commit()
     if task.status in {"Struggling", "Needs Attention"}:
         for manager_id in task.assigned_managers or []:
             db.add(

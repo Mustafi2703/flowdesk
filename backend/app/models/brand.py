@@ -16,12 +16,16 @@ class Brand(UUIDPKMixin, TimestampsMixin, Base):
 
     name: Mapped[str] = mapped_column(String(160), nullable=False, unique=True)
     logo: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    logo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     client_type: Mapped[str] = mapped_column(
         String(20), nullable=False, server_default=text("'Retainer'")
     )
     priority: Mapped[str] = mapped_column(
         String(4), nullable=False, server_default=text("'P3'")
+    )
+    workflow_stage: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default=text("'assigned'")
     )
     short_term_goals: Mapped[list[str]] = mapped_column(
         ARRAY(String), nullable=False, server_default=text("ARRAY[]::varchar[]")

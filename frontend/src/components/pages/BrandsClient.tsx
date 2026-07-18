@@ -7,6 +7,36 @@ import { PageHeader, PageShell, PageTabs, PageToolbar, Section } from '@/compone
 import { TaskFormModal, TaskProgressModal } from '@/components/pages/TasksClient'
 import { TASK_STATUSES, canManageTasks, canSetTaskPrice, isClockedInToday, isTaskAssignee } from '@/lib/tasks'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
+import { PeoplePicker } from '@/components/app/PeoplePicker'
+
+const WORKFLOW_STAGES = [
+  { id: 'assigned', label: 'Assigned' },
+  { id: 'design', label: 'Design' },
+  { id: 'content', label: 'Content' },
+  { id: 'editing', label: 'Editing' },
+  { id: 'approval', label: 'Approval' },
+  { id: 'delivered', label: 'Delivered' },
+]
+
+function BrandLogoMark({ brand, size = 40 }: { brand: any; size?: number }) {
+  const initials = brand.logo || brand.name?.slice(0, 2) || '?'
+  if (brand.logo_url) {
+    return (
+      <img
+        src={brand.logo_url}
+        alt={brand.name}
+        width={size}
+        height={size}
+        style={{ width: size, height: size, borderRadius: size > 48 ? 12 : 8, objectFit: 'cover', flexShrink: 0, background: 'var(--sf-surface-2)' }}
+      />
+    )
+  }
+  return (
+    <div style={{ width: size, height: size, background: 'linear-gradient(135deg,#E8630A,#FF9A4A)', borderRadius: size > 48 ? 12 : 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sf-text)', fontWeight: 800, fontSize: size > 48 ? 18 : 12, flexShrink: 0 }}>
+      {initials}
+    </div>
+  )
+}
 
 const sameId = (a: string | null | undefined, b: string | null | undefined) => String(a || '') === String(b || '')
 
@@ -127,11 +157,11 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                   className={`sf-brand-chip${active ? ' sf-brand-chip-active' : ''}`}
                   onClick={() => selectBrand(b)}
                 >
-                  <span className="sf-brand-chip-logo">{b.logo || b.name?.slice(0, 2)}</span>
+                  <BrandLogoMark brand={b} size={32} />
                   <span>
                     <span style={{ display: 'block', lineHeight: 1.2 }}>{b.name}</span>
                     <span style={{ display: 'block', fontSize: 10, color: 'var(--sf-muted)', fontWeight: 400, marginTop: 2 }}>
-                      {bt.length} tasks
+                      {bt.length} tasks · {WORKFLOW_STAGES.find(s => s.id === (b.workflow_stage || 'assigned'))?.label || 'Assigned'}
                     </span>
                   </span>
                 </button>
@@ -174,6 +204,21 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
   const [createAsProject, setCreateAsProject] = useState(false)
   const [memberIds, setMemberIds] = useState<string[]>(() => (brand.assigned_members || []).map(String))
   const [savingMembers, setSavingMembers] = useState(false)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [logoError, setLogoError] = useState('')
+  const [editingIdentity, setEditingIdentity] = useState(false)
+  const [identityDraft, setIdentityDraft] = useState({
+    logo: brand.logo || '',
+    description: brand.description || '',
+    short_term_goals: (brand.short_term_goals || []).join('\n'),
+    long_term_goals: (brand.long_term_goals || []).join('\n'),
+    journey: (brand.journey || []).join('\n'),
+    responsibilities: brand.responsibilities || '',
+    workflow_stage: brand.workflow_stage || 'assigned',
+    priority: brand.priority || 'P3',
+    client_type: brand.client_type || 'Retainer',
+  })
+  const [savingIdentity, setSavingIdentity] = useState(false)
   const today = new Date().toISOString().split('T')[0]
   const clockedIn = isClockedInToday(attendance || [], session.id, today)
   const canSetPrice = canSetTaskPrice(session.role)
@@ -183,7 +228,19 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
 
   useEffect(() => {
     setMemberIds((brand.assigned_members || []).map(String))
-  }, [brand.id, brand.assigned_members])
+    setIdentityDraft({
+      logo: brand.logo || '',
+      description: brand.description || '',
+      short_term_goals: (brand.short_term_goals || []).join('\n'),
+      long_term_goals: (brand.long_term_goals || []).join('\n'),
+      journey: (brand.journey || []).join('\n'),
+      responsibilities: brand.responsibilities || '',
+      workflow_stage: brand.workflow_stage || 'assigned',
+      priority: brand.priority || 'P3',
+      client_type: brand.client_type || 'Retainer',
+    })
+    setLogoError('')
+  }, [brand.id, brand.assigned_members, brand.logo, brand.logo_url, brand.description, brand.workflow_stage, brand.priority, brand.client_type, brand.short_term_goals, brand.long_term_goals, brand.journey, brand.responsibilities])
 
   async function saveMembers() {
     setSavingMembers(true)
@@ -198,6 +255,52 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
       alert(data.error || data.detail || 'Could not update brand team')
       return
     }
+    onRefresh()
+  }
+
+  async function uploadLogo(e: any) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingLogo(true)
+    setLogoError('')
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch(`/api/brands/${brand.id}/logo`, { method: 'POST', body: form })
+    const data = await res.json().catch(() => ({}))
+    setUploadingLogo(false)
+    e.target.value = ''
+    if (!res.ok) {
+      setLogoError(data.error || data.detail || 'Logo upload failed')
+      return
+    }
+    onRefresh()
+  }
+
+  async function saveIdentity() {
+    setSavingIdentity(true)
+    const lines = (s: string) => s.split('\n').map((x: string) => x.trim()).filter(Boolean)
+    const res = await fetch(`/api/brands/${brand.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        logo: (identityDraft.logo || brand.name.slice(0, 2)).toUpperCase().slice(0, 8),
+        description: identityDraft.description || null,
+        short_term_goals: lines(identityDraft.short_term_goals),
+        long_term_goals: lines(identityDraft.long_term_goals),
+        journey: lines(identityDraft.journey),
+        responsibilities: identityDraft.responsibilities || null,
+        workflow_stage: identityDraft.workflow_stage,
+        priority: identityDraft.priority,
+        client_type: identityDraft.client_type,
+      }),
+    })
+    setSavingIdentity(false)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || data.detail || 'Could not save brand')
+      return
+    }
+    setEditingIdentity(false)
     onRefresh()
   }
 
@@ -276,16 +379,26 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
     <div>
       <div style={{ background: 'linear-gradient(135deg,var(--sf-surface),var(--sf-surface-2))', border: '1px solid var(--sf-border)', borderRadius: 16, padding: '20px 24px', marginBottom: 20 }}>
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-          <div style={{ width: 56, height: 56, background: 'linear-gradient(135deg,#E8630A,#FF9A4A)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sf-text)', fontWeight: 800, fontSize: 18, flexShrink: 0 }}>
-            {brand.logo || brand.name?.slice(0, 2)}
-          </div>
+          <BrandLogoMark brand={brand} size={56} />
           <div style={{ flex: 1, minWidth: 200 }}>
             <h1 style={{ color: 'var(--sf-text)', fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, fontWeight: 700, marginBottom: 6 }}>{brand.name}</h1>
             <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
               <span style={{ background: '#3B82F620', color: '#3B82F6', fontSize: 11, padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>{brand.client_type}</span>
               <span style={{ background: '#8B5CF620', color: '#8B5CF6', fontSize: 11, padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>{brand.priority}</span>
+              <span style={{ background: '#20B2AA20', color: '#20B2AA', fontSize: 11, padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
+                {WORKFLOW_STAGES.find(s => s.id === (brand.workflow_stage || 'assigned'))?.label || 'Assigned'}
+              </span>
             </div>
             <p style={{ color: 'var(--sf-text-secondary)', fontSize: 13, lineHeight: 1.6, margin: 0 }}>{brand.description}</p>
+            {canEdit && (
+              <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <label className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 10px', cursor: uploadingLogo ? 'wait' : 'pointer' }}>
+                  {uploadingLogo ? 'Uploading logo…' : brand.logo_url ? 'Replace logo' : 'Upload logo'}
+                  <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden disabled={uploadingLogo} onChange={uploadLogo} />
+                </label>
+                {logoError && <span style={{ color: '#F87171', fontSize: 11 }}>{logoError}</span>}
+              </div>
+            )}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(70px, 1fr))', gap: 8, flexShrink: 0 }}>
             {[['Total', tasks.length, '#3B82F6'], ['Projects', projects.length, '#06B6D4'], ['Done', done, '#10B981'], ['Flagged', fl.length, '#EF4444']].map(([l, v, c]) => (
@@ -338,19 +451,12 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
             <div style={{ color: 'var(--sf-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Assigned team</div>
             {canEdit ? (
               <>
-                <select
-                  multiple
-                  value={memberIds}
-                  onChange={e => setMemberIds(Array.from(e.target.selectedOptions).map(o => o.value))}
-                  style={{ width: '100%', minHeight: 120, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)', fontSize: 12, fontFamily: 'inherit' }}
-                >
-                  {assignable.map((u: any) => (
-                    <option key={u.id} value={u.id}>{u.name} · {u.role}{u.department ? ` · ${u.department}` : ''}</option>
-                  ))}
-                </select>
-                <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 6 }}>
-                  Hold Cmd/Ctrl to multi-select · {memberIds.length} allocated
-                </div>
+                <PeoplePicker
+                  users={assignable}
+                  selectedIds={memberIds}
+                  onChange={setMemberIds}
+                  emptyLabel="No Team or Manager users to allocate."
+                />
                 <button
                   type="button"
                   onClick={saveMembers}
@@ -493,15 +599,81 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
       {tab === 'identity' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <div style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, padding: 18 }}>
-            <div style={{ color: 'var(--sf-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Brand info</div>
-            {[['Name', brand.name], ['Client Type', brand.client_type], ['Priority', brand.priority], ['Team', `${brand.assigned_members?.length || 0} members`], ['Logo', brand.logo || '—']].map(([l, v]) => (
-              <div key={String(l)} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid var(--sf-border)' }}>
-                <span style={{ color: 'var(--sf-muted)', fontSize: 12 }}>{l}</span>
-                <span style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600 }}>{v}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ color: 'var(--sf-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Brand info</div>
+              {canEdit && (
+                <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => setEditingIdentity(v => !v)}>
+                  {editingIdentity ? 'Cancel' : 'Edit'}
+                </button>
+              )}
+            </div>
+            {!editingIdentity ? (
+              <>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 14 }}>
+                  <BrandLogoMark brand={brand} size={64} />
+                  <div>
+                    <div style={{ color: 'var(--sf-text)', fontWeight: 700 }}>{brand.name}</div>
+                    <div style={{ color: 'var(--sf-muted)', fontSize: 12 }}>
+                      {brand.logo_url ? 'Image logo set' : `Initials: ${brand.logo || '—'}`}
+                    </div>
+                  </div>
+                </div>
+                {[['Client Type', brand.client_type], ['Priority', brand.priority], ['Workflow stage', WORKFLOW_STAGES.find(s => s.id === (brand.workflow_stage || 'assigned'))?.label], ['Team', `${brand.assigned_members?.length || 0} members`]].map(([l, v]) => (
+                  <div key={String(l)} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid var(--sf-border)' }}>
+                    <span style={{ color: 'var(--sf-muted)', fontSize: 12 }}>{l}</span>
+                    <span style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600 }}>{v}</span>
+                  </div>
+                ))}
+                {canEdit && (
+                  <label className="sf-btn sf-btn-primary" style={{ marginTop: 14, fontSize: 12, display: 'inline-block', cursor: uploadingLogo ? 'wait' : 'pointer' }}>
+                    {uploadingLogo ? 'Uploading…' : 'Upload logo image'}
+                    <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden disabled={uploadingLogo} onChange={uploadLogo} />
+                  </label>
+                )}
+                {logoError && <div style={{ color: '#F87171', fontSize: 12, marginTop: 8 }}>{logoError}</div>}
+              </>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Initials fallback
+                  <input value={identityDraft.logo} onChange={e => setIdentityDraft(d => ({ ...d, logo: e.target.value.slice(0, 8) }))} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)' }} />
+                </label>
+                <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Client type
+                  <select value={identityDraft.client_type} onChange={e => setIdentityDraft(d => ({ ...d, client_type: e.target.value }))} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)' }}>
+                    {['Retainer', 'Project', 'One-off'].map(x => <option key={x} value={x}>{x}</option>)}
+                  </select>
+                </label>
+                <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Priority
+                  <select value={identityDraft.priority} onChange={e => setIdentityDraft(d => ({ ...d, priority: e.target.value }))} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)' }}>
+                    {['P1', 'P2', 'P3', 'P4'].map(x => <option key={x} value={x}>{x}</option>)}
+                  </select>
+                </label>
+                <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Workflow stage
+                  <select value={identityDraft.workflow_stage} onChange={e => setIdentityDraft(d => ({ ...d, workflow_stage: e.target.value }))} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)' }}>
+                    {WORKFLOW_STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                  </select>
+                </label>
+                <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Description
+                  <textarea value={identityDraft.description} onChange={e => setIdentityDraft(d => ({ ...d, description: e.target.value }))} rows={3} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)', resize: 'vertical' }} />
+                </label>
+                <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Short-term goals (one per line)
+                  <textarea value={identityDraft.short_term_goals} onChange={e => setIdentityDraft(d => ({ ...d, short_term_goals: e.target.value }))} rows={3} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)', resize: 'vertical' }} />
+                </label>
+                <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Long-term goals (one per line)
+                  <textarea value={identityDraft.long_term_goals} onChange={e => setIdentityDraft(d => ({ ...d, long_term_goals: e.target.value }))} rows={3} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)', resize: 'vertical' }} />
+                </label>
+                <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Journey milestones (one per line)
+                  <textarea value={identityDraft.journey} onChange={e => setIdentityDraft(d => ({ ...d, journey: e.target.value }))} rows={3} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)', resize: 'vertical' }} />
+                </label>
+                <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Responsibilities
+                  <textarea value={identityDraft.responsibilities} onChange={e => setIdentityDraft(d => ({ ...d, responsibilities: e.target.value }))} rows={2} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)', resize: 'vertical' }} />
+                </label>
+                <button type="button" className="sf-btn sf-btn-primary" disabled={savingIdentity} onClick={saveIdentity} style={{ fontSize: 12 }}>
+                  {savingIdentity ? 'Saving…' : 'Save brand details'}
+                </button>
               </div>
-            ))}
+            )}
           </div>
-          <FileAttachmentsPanel entityType="brand" entityId={brand.id} canUpload={canEdit} title="Brand files & assets" />
+          <FileAttachmentsPanel entityType="brand" entityId={brand.id} canUpload={canEdit} title="Brand files & documents" />
         </div>
       )}
 
@@ -606,9 +778,9 @@ function CreateBrand({ onClose, onSaved }: any) {
           <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Quick Furnish" style={sInp} />
         </div>
         <div style={{ marginBottom: 12 }}>
-          <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Logo initials</label>
+          <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Logo initials (fallback)</label>
           <input value={logo} onChange={e => setLogo(e.target.value.slice(0, 8))} placeholder="e.g. QF (max 8)" style={sInp} />
-          <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 4 }}>Upload logo files after create under Identity → Brand files.</div>
+          <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 4 }}>After create, open Identity → Upload logo image (PNG/JPG/SVG).</div>
         </div>
         <div style={{ marginBottom: 12 }}>
           <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Description</label>

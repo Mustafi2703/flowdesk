@@ -7,6 +7,7 @@ import { PageHeader, PageShell, Section } from '@/components/app/Section'
 import { TASK_STATUSES, canManageTasks, canSetTaskPrice, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { TaskThreadBox } from '@/components/app/TaskThreadBox'
+import { PeoplePicker } from '@/components/app/PeoplePicker'
 
 const STATUSES = TASK_STATUSES
 const PRIORITIES = ['Critical','High','Medium','Low']
@@ -244,6 +245,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                 <tr>
                   <th>Task</th>
                   <th>Brand</th>
+                  <th>Assignees</th>
                   <th>Type</th>
                   <th>Status</th>
                   <th>Priority</th>
@@ -256,6 +258,10 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                 {filtered.map(task => {
                   const dl = task.due_date ? Math.ceil((new Date(task.due_date).getTime()-Date.now())/86400000) : null
                   const late = dl !== null && dl < 0 && task.status !== 'Completed'
+                  const assigneeLabel = (task.assigned_to || [])
+                    .map((id: string) => users.find((u: any) => sameUserId(u.id, id))?.name)
+                    .filter(Boolean)
+                    .join(', ') || '—'
                   return (
                     <tr key={task.id}>
                       <td
@@ -273,6 +279,9 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                         )}
                       </td>
                       <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default' }}>{task.brand?.name || '—'}</td>
+                      <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default', color: 'var(--sf-text-secondary)', fontSize: 12, maxWidth: 160 }}>
+                        {assigneeLabel}
+                      </td>
                       <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default' }}>{task.type || '—'}</td>
                       <td onClick={e => e.stopPropagation()}>
                         {canUpdateStatus(task) ? (
@@ -528,10 +537,19 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
     const effectiveMode = needsBrandName ? 'project' : taskMode
     const body: any = {
       title, description:desc, brand_id:resolvedBrandId, assigned_to:assignedTo,
-      assigned_managers:[session.id], type, task_mode:effectiveMode, priority, status, due_date:dueDate,
+      type, task_mode:effectiveMode, priority, status, due_date:dueDate,
       requires_review:requiresReview, is_billable:isBillable,
       recurring_config: recurring ? { enabled:true, frequency:recurFreq, next_due:dueDate } : null,
       sub_tasks: cleanedSubTasks,
+    }
+    // Preserve existing managers on edit; on create set current user as manager.
+    if (isEdit) {
+      body.assigned_managers = Array.from(new Set([
+        ...(task?.assigned_managers || []),
+        session.id,
+      ].map(String)))
+    } else {
+      body.assigned_managers = [session.id]
     }
     if (canSetPrice && isBillable && billableAmount.trim()) {
       body.billable_amount = parseFloat(billableAmount)
@@ -665,24 +683,12 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
 
         <div style={{ marginBottom:12 }}>
           <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:7, display:'block' }}>Assign To</label>
-          <select
-            multiple
-            value={assignedTo}
-            onChange={e => {
-              const opts = Array.from(e.target.selectedOptions).map(o => o.value)
-              setAssignedTo(opts)
-            }}
-            style={{ ...sSel, minHeight: 96 }}
-          >
-            {teamUsers.length === 0 && <option value="" disabled>No team members available</option>}
-            {teamUsers.map((u:any) => (
-              <option key={u.id} value={u.id}>{u.name}{u.department ? ` · ${u.department}` : ''}</option>
-            ))}
-          </select>
-          <div style={{ color:'var(--sf-muted)', fontSize:11, marginTop:4 }}>
-            Hold Cmd/Ctrl to select multiple · {assignedTo.length} selected
-            {assignedTo.length > 0 && `: ${assignedTo.map(id => teamUsers.find((u:any)=>u.id===id)?.name || id).join(', ')}`}
-          </div>
+          <PeoplePicker
+            users={teamUsers}
+            selectedIds={assignedTo}
+            onChange={setAssignedTo}
+            emptyLabel="No Team members found. Owner/Manager: add people under Team first."
+          />
         </div>
 
         {taskMode === 'project' && (
@@ -716,19 +722,11 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
                   </div>
                   <div style={{ marginBottom: 6 }}>
                     <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:600, marginBottom:4, display:'block' }}>Assign sub-task</label>
-                    <select
-                      multiple
-                      value={st.assigned_to || []}
-                      onChange={(e) => {
-                        const opts = Array.from(e.target.selectedOptions).map(o => o.value)
-                        updateSubTask(idx, { assigned_to: opts })
-                      }}
-                      style={{ ...sSel, minHeight: 72 }}
-                    >
-                      {teamUsers.map((u:any) => (
-                        <option key={u.id} value={u.id}>{u.name}</option>
-                      ))}
-                    </select>
+                    <PeoplePicker
+                      users={teamUsers}
+                      selectedIds={st.assigned_to || []}
+                      onChange={(ids) => updateSubTask(idx, { assigned_to: ids })}
+                    />
                   </div>
                 </div>
               ))}

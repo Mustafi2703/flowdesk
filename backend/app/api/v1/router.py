@@ -7,6 +7,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     ai,
     announcements,
+    attachments,
     attendance,
     auth,
     billing,
@@ -19,6 +20,7 @@ from app.api.v1.endpoints import (
     performance,
     tasks,
     team,
+    updates,
     users,
 )
 
@@ -38,5 +40,7 @@ api_router.include_router(announcements.router)
 api_router.include_router(billing.router)
 api_router.include_router(notifications.router)
 api_router.include_router(performance.router)
+api_router.include_router(attachments.router)
+api_router.include_router(updates.router)
 api_router.include_router(ai.router)
 api_router.include_router(cron.router)

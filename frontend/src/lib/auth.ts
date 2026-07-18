@@ -44,7 +44,7 @@ export function clearSessionCookie(res: NextResponse) {
 export const canManage       = (r: string) => ['owner','manager'].includes(r)
 export const canViewBilling  = (r: string) => ['owner','manager','accountant'].includes(r)
 export const canEditBilling  = (r: string) => ['owner','accountant'].includes(r)
-export const canSetTaskPrice = (r: string) => ['owner','manager','accountant'].includes(r)
+export const canSetTaskPrice = (r: string) => ['owner','accountant'].includes(r)
 export const canApproveLeave = (r: string) => ['owner','hr'].includes(r)
 export const canViewAll      = (r: string) => ['owner','manager','hr'].includes(r)
 export const canAccessTasks  = (r: string) => ['owner','manager','team'].includes(r)

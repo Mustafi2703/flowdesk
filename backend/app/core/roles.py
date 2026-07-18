@@ -25,7 +25,8 @@ MANAGEMENT: frozenset[Role] = frozenset({Role.OWNER, Role.MANAGER})
 HR_AND_ABOVE: frozenset[Role] = frozenset({Role.OWNER, Role.MANAGER, Role.HR})
 BILLING_VIEW: frozenset[Role] = frozenset({Role.OWNER, Role.MANAGER, Role.ACCOUNTANT})
 BILLING_EDIT: frozenset[Role] = frozenset({Role.OWNER, Role.ACCOUNTANT})
-BILLING_PRICE: frozenset[Role] = frozenset({Role.OWNER, Role.MANAGER, Role.ACCOUNTANT})
+# Price is Owner (admin) + Accountant only — managers may mark billable/regular but not set price.
+BILLING_PRICE: frozenset[Role] = frozenset({Role.OWNER, Role.ACCOUNTANT})
 
 
 def can_manage(role: Role) -> bool:

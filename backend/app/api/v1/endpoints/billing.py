@@ -50,10 +50,11 @@ def summary(db: Session = Depends(get_db), user: Profile = Depends(get_current_u
     billed = sum((Decimal(task.billable_amount or 0) for task in billed_tasks), Decimal("0"))
 
     if role is Role.MANAGER:
+        # Managers see billable counts / unpriced flags, not rupee totals.
         return BillingSummary(
-            total_billable=total,
-            pending=total - billed,
-            billed=billed,
+            total_billable=Decimal("0"),
+            pending=Decimal("0"),
+            billed=Decimal("0"),
             unpriced=unpriced,
             pending_count=len(pending_tasks),
             billed_count=len(billed_tasks),

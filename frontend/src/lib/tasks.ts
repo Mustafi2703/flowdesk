@@ -27,7 +27,7 @@ export function canManageTasks(role: string) {
 }
 
 export function canSetTaskPrice(role: string) {
-  return ['owner', 'manager', 'accountant'].includes(role)
+  return ['owner', 'accountant'].includes(role)
 }
 
 export function canMarkTaskBilled(role: string) {

@@ -41,9 +41,43 @@ def _serialize(log: AttendanceLog) -> dict[str, Any]:
 @router.get("")
 def list_attendance(
     user_id: uuid.UUID | None = Query(default=None),
+    report: bool = Query(default=False),
+    days: int = Query(default=14, ge=1, le=90),
     db: Session = Depends(get_db),
     user: Profile = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
+    # Admin report: all team members' attendance (not personal logs).
+    if report:
+        if Role(user.role) not in {Role.OWNER, Role.MANAGER, Role.HR}:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Attendance report restricted")
+        since = (_now_ist().date() - timedelta(days=days - 1))
+        rows = db.scalars(
+            select(AttendanceLog)
+            .where(AttendanceLog.date >= since)
+            .order_by(AttendanceLog.date.desc(), AttendanceLog.user_id)
+        ).all()
+        profiles = {
+            p.id: p
+            for p in db.scalars(select(Profile).where(Profile.is_active.is_(True))).all()
+        }
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            payload = _serialize(row)
+            profile = profiles.get(row.user_id)
+            payload["user"] = (
+                {
+                    "id": str(profile.id),
+                    "name": profile.name,
+                    "role": profile.role,
+                    "department": profile.department,
+                    "avatar": profile.avatar,
+                }
+                if profile
+                else None
+            )
+            out.append(payload)
+        return out
+
     target_user_id = user_id or user.id
     if target_user_id != user.id and Role(user.role) not in {Role.OWNER, Role.MANAGER, Role.HR}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot view other attendance")

@@ -72,6 +72,9 @@ def _serialize(task: Task, brand_map: dict[uuid.UUID, Brand] | None = None, *, r
         payload["billable_amount"] = None
         payload["has_price"] = False
         payload["billed_at"] = None
+    # Managers see billable flag + priced status, but never the amount.
+    elif role is Role.MANAGER:
+        payload["billable_amount"] = None
     return payload
 
 
@@ -106,7 +109,7 @@ def _validate_sub_task_patch(old_subs: list[dict], new_subs: list[dict], user: P
 
 
 def _can_set_price(role: Role) -> bool:
-    return role in {Role.OWNER, Role.MANAGER, Role.ACCOUNTANT}
+    return role in {Role.OWNER, Role.ACCOUNTANT}
 
 
 def _is_clocked_in_today(db: Session, user: Profile) -> bool:

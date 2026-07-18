@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 
-def test_owner_can_onboard_any_role(client, users):
+def test_owner_can_onboard_core_roles(client, users):
     owner = users.create("owner")
-    for role in ["manager", "team", "hr", "accountant", "developer"]:
+    for role in ["manager", "team", "hr", "accountant"]:
         resp = client.post(
             "/api/v1/team",
             headers=users.auth_headers(owner),
@@ -16,9 +16,16 @@ def test_owner_can_onboard_any_role(client, users):
         assert body["user"]["role"] == role
         # auto-generated temp password is returned exactly once
         assert body["temporary_password"]
+    # Developer is not a creatable department/role anymore
+    blocked = client.post(
+        "/api/v1/team",
+        headers=users.auth_headers(owner),
+        json={"name": "New developer", "email": "new-developer@scrumfolks.io", "role": "developer"},
+    )
+    assert blocked.status_code == 403
 
 
-def test_manager_can_onboard_team_and_developer_only(client, users):
+def test_manager_can_onboard_team_only(client, users):
     manager = users.create("manager")
     ok = client.post(
         "/api/v1/team",
@@ -27,7 +34,7 @@ def test_manager_can_onboard_team_and_developer_only(client, users):
     )
     assert ok.status_code == 201
 
-    for forbidden in ["owner", "manager", "hr", "accountant"]:
+    for forbidden in ["owner", "manager", "hr", "accountant", "developer"]:
         resp = client.post(
             "/api/v1/team",
             headers=users.auth_headers(manager),
@@ -155,8 +162,10 @@ def test_assignable_roles_endpoint(client, users):
     manager_roles = client.get(
         "/api/v1/team/assignable-roles", headers=users.auth_headers(manager)
     ).json()["roles"]
-    assert set(manager_roles) == {"team", "developer"}
+    assert set(manager_roles) == {"team"}
     assert "owner" in owner_roles
+    assert "developer" not in owner_roles
+    assert "developer" not in manager_roles
 
 
 def test_workload_calculation(client, users):
@@ -204,7 +213,7 @@ def test_manager_onboard_sets_self_as_manager(client, users):
     resp = client.post(
         "/api/v1/team",
         headers=users.auth_headers(manager),
-        json={"name": "Junior", "email": "junior2@scrumfolks.io", "role": "developer"},
+        json={"name": "Junior", "email": "junior2@scrumfolks.io", "role": "team"},
     )
     assert resp.status_code == 201
     assert resp.json()["user"]["manager_id"] == str(manager.id)

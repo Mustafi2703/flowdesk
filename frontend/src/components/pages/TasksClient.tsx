@@ -5,11 +5,19 @@ import { SessionUser, TaskStatus } from '@/types'
 import { Icon } from '@/components/app/Icons'
 import { PageHeader, PageShell, Section } from '@/components/app/Section'
 import { TASK_STATUSES, canManageTasks, canSetTaskPrice, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
+import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
+import { TaskThreadBox } from '@/components/app/TaskThreadBox'
 
 const STATUSES = TASK_STATUSES
 const PRIORITIES = ['Critical','High','Medium','Low']
 const TYPES = ['Design','Content','Development','Strategy','Operations','Other']
 const PRIORITY_RANK: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 }
+const PRIORITY_COLORS: Record<string, { bg: string; text: string }> = {
+  Critical: { bg: 'rgba(239,68,68,0.2)', text: '#F87171' },
+  High: { bg: 'rgba(249,115,22,0.2)', text: '#FB923C' },
+  Medium: { bg: 'rgba(234,179,8,0.2)', text: '#EAB308' },
+  Low: { bg: 'rgba(100,116,139,0.25)', text: '#94A3B8' },
+}
 type SortKey = 'due_date' | 'priority' | 'status' | 'title' | 'brand'
 
 function statusClass(status: string) {
@@ -28,6 +36,16 @@ function statusClass(status: string) {
 
 function priorityLabel(p: string) {
   return p || 'Low'
+}
+
+function PriorityBadge({ priority }: { priority?: string | null }) {
+  const p = priority || 'Low'
+  const c = PRIORITY_COLORS[p] || PRIORITY_COLORS.Low
+  return (
+    <span style={{ background: c.bg, color: c.text, fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 5, whiteSpace: 'nowrap' }}>
+      {p}
+    </span>
+  )
 }
 
 const inputSt = { width:'100%', padding:'9px 12px', background:'var(--sf-surface-2)', border:'1px solid var(--sf-border)', borderRadius:8, color:'var(--sf-text)', fontSize:13, outline:'none', fontFamily:"'DM Sans',sans-serif" }
@@ -269,7 +287,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                           <span className={statusClass(task.status)}>{task.status}</span>
                         )}
                       </td>
-                      <td>{priorityLabel(task.priority)}</td>
+                      <td><PriorityBadge priority={task.priority} /></td>
                       <td style={{ color: late ? 'var(--sf-danger)' : 'var(--sf-text-secondary)' }}>
                         {task.due_date
                           ? late
@@ -329,7 +347,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                       <div style={{ color:'var(--sf-text)', fontSize:12, fontWeight:600, marginBottom:4 }}>{task.title}</div>
                       <div style={{ color:'var(--sf-muted)', fontSize:10, marginBottom:6 }}>{task.brand?.name||'—'}</div>
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 8 }}>
-                        <span style={{ color:'var(--sf-muted)', fontSize:10 }}>{priorityLabel(task.priority)}</span>
+                        <span style={{ marginLeft: 6 }}><PriorityBadge priority={task.priority} /></span>
                         {task.due_date && <span style={{ color:'var(--sf-muted)', fontSize:10 }}>{Math.ceil((new Date(task.due_date).getTime()-Date.now())/86400000)}d</span>}
                       </div>
                     </div>
@@ -404,6 +422,7 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
   const [title, setTitle] = useState(task?.title || '')
   const [desc, setDesc] = useState(task?.description || '')
   const [brandId, setBrandId] = useState(task?.brand_id || initialBrandId || brands[0]?.id || '')
+  const [newBrandName, setNewBrandName] = useState('')
   const [assignedTo, setAssignedTo] = useState<string[]>(task?.assigned_to || [])
   const [type, setType] = useState(task?.type || (forceProjectMode ? 'Development' : 'Design'))
   const [priority, setPriority] = useState(task?.priority || 'Medium')
@@ -420,7 +439,9 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
   const [deleting, setDeleting] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
 
-  const teamUsers = users.filter((u:any) => ['team','developer'].includes(u.role))
+  // Assignable people: Team (+ legacy developer accounts). Managers/HR are not assignees.
+  const teamUsers = users.filter((u:any) => ['team', 'developer'].includes(u.role) && u.is_active !== false)
+  const needsBrandName = !brandId && !isEdit
 
   function addSubTask() {
     setSubTasks((prev) => [...prev, { id: newSubTaskId(), title: '', assigned_to: [], status: 'Not Started', due_date: '' }])
@@ -463,8 +484,39 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
 
   async function save() {
     if (!title||!dueDate) return
+    if (needsBrandName && !newBrandName.trim()) {
+      alert('Enter a name for the new project/brand (No brand selected).')
+      return
+    }
     setSaving(true)
-    const cleanedSubTasks = taskMode === 'project'
+    let resolvedBrandId = brandId || null
+    if (needsBrandName && newBrandName.trim()) {
+      const brandRes = await fetch('/api/brands', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newBrandName.trim(),
+          logo: newBrandName.trim().slice(0, 2).toUpperCase(),
+          description: `Created from task: ${title}`,
+          client_type: 'Project-Based',
+          priority: 'P2',
+          short_term_goals: [],
+          long_term_goals: [],
+          journey: [],
+          assigned_members: [],
+        }),
+      })
+      const brandData = await brandRes.json().catch(() => ({}))
+      if (!brandRes.ok) {
+        alert(brandData.error || brandData.detail || 'Could not create project/brand')
+        setSaving(false)
+        return
+      }
+      resolvedBrandId = brandData.id
+      // Auto-switch to project mode when creating under a new named project.
+      if (taskMode === 'standard') setTaskMode('project')
+    }
+    const cleanedSubTasks = (needsBrandName || taskMode === 'project')
       ? subTasks.filter((st) => st.title.trim()).map((st) => ({
           id: st.id,
           title: st.title.trim(),
@@ -473,9 +525,10 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
           due_date: st.due_date || null,
         }))
       : []
+    const effectiveMode = needsBrandName ? 'project' : taskMode
     const body: any = {
-      title, description:desc, brand_id:brandId||null, assigned_to:assignedTo,
-      assigned_managers:[session.id], type, task_mode:taskMode, priority, status, due_date:dueDate,
+      title, description:desc, brand_id:resolvedBrandId, assigned_to:assignedTo,
+      assigned_managers:[session.id], type, task_mode:effectiveMode, priority, status, due_date:dueDate,
       requires_review:requiresReview, is_billable:isBillable,
       recurring_config: recurring ? { enabled:true, frequency:recurFreq, next_due:dueDate } : null,
       sub_tasks: cleanedSubTasks,
@@ -575,10 +628,22 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
           <div>
             <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:5, display:'block' }}>Brand</label>
-            <select value={brandId} onChange={e => setBrandId(e.target.value)} style={sSel}>
+            <select value={brandId} onChange={e => { setBrandId(e.target.value); if (e.target.value) setNewBrandName('') }} style={sSel}>
               <option value="">No brand</option>
               {brands.map((b:any) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
+            {needsBrandName && (
+              <div style={{ marginTop: 8 }}>
+                <label style={{ color:'#F59E0B', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:5, display:'block' }}>New project / brand name *</label>
+                <input
+                  value={newBrandName}
+                  onChange={e => setNewBrandName(e.target.value)}
+                  placeholder="e.g. Internal Q3 Campaign"
+                  style={sInp}
+                />
+                <div style={{ color:'var(--sf-muted)', fontSize:11, marginTop:4 }}>Creates a project brand and opens this as a project task.</div>
+              </div>
+            )}
           </div>
           <div>
             <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:5, display:'block' }}>Type</label>
@@ -588,8 +653,8 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
           </div>
           <div>
             <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:5, display:'block' }}>Priority</label>
-            <select value={priority} onChange={e => setPriority(e.target.value)} style={sSel}>
-              {PRIORITIES.map(p => <option key={p}>{p}</option>)}
+            <select value={priority} onChange={e => setPriority(e.target.value)} style={{ ...sSel, borderColor: (PRIORITY_COLORS[priority]||PRIORITY_COLORS.Medium).text, color: (PRIORITY_COLORS[priority]||PRIORITY_COLORS.Medium).text }}>
+              {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
           <div>
@@ -600,13 +665,23 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
 
         <div style={{ marginBottom:12 }}>
           <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:7, display:'block' }}>Assign To</label>
-          <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+          <select
+            multiple
+            value={assignedTo}
+            onChange={e => {
+              const opts = Array.from(e.target.selectedOptions).map(o => o.value)
+              setAssignedTo(opts)
+            }}
+            style={{ ...sSel, minHeight: 96 }}
+          >
+            {teamUsers.length === 0 && <option value="" disabled>No team members available</option>}
             {teamUsers.map((u:any) => (
-              <button key={u.id} onClick={() => setAssignedTo(p => p.includes(u.id)?p.filter(x=>x!==u.id):[...p,u.id])}
-                style={{ padding:'5px 10px', background:assignedTo.includes(u.id)?'rgba(16,185,129,0.15)':'var(--sf-surface-2)', border:`1px solid ${assignedTo.includes(u.id)?'#10B981':'var(--sf-border-strong)'}`, borderRadius:7, color:assignedTo.includes(u.id)?'#10B981':'var(--sf-muted)', cursor:'pointer', fontSize:12, fontFamily:"'DM Sans',sans-serif" }}>
-                {u.name}
-              </button>
+              <option key={u.id} value={u.id}>{u.name}{u.department ? ` · ${u.department}` : ''}</option>
             ))}
+          </select>
+          <div style={{ color:'var(--sf-muted)', fontSize:11, marginTop:4 }}>
+            Hold Cmd/Ctrl to select multiple · {assignedTo.length} selected
+            {assignedTo.length > 0 && `: ${assignedTo.map(id => teamUsers.find((u:any)=>u.id===id)?.name || id).join(', ')}`}
           </div>
         </div>
 
@@ -639,17 +714,21 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
                     </select>
                     <input type="date" value={st.due_date || ''} onChange={(e) => updateSubTask(idx, { due_date: e.target.value })} style={sInp} />
                   </div>
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
-                    {teamUsers.map((u:any) => (
-                      <button
-                        key={u.id}
-                        type="button"
-                        onClick={() => toggleSubAssignee(idx, u.id)}
-                        style={{ padding:'4px 8px', background:(st.assigned_to||[]).includes(u.id)?'rgba(6,182,212,0.15)':'var(--sf-bg)', border:`1px solid ${(st.assigned_to||[]).includes(u.id)?'#06B6D4':'var(--sf-border)'}`, borderRadius:6, color:(st.assigned_to||[]).includes(u.id)?'#06B6D4':'var(--sf-muted)', cursor:'pointer', fontSize:11 }}
-                      >
-                        {u.name}
-                      </button>
-                    ))}
+                  <div style={{ marginBottom: 6 }}>
+                    <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:600, marginBottom:4, display:'block' }}>Assign sub-task</label>
+                    <select
+                      multiple
+                      value={st.assigned_to || []}
+                      onChange={(e) => {
+                        const opts = Array.from(e.target.selectedOptions).map(o => o.value)
+                        updateSubTask(idx, { assigned_to: opts })
+                      }}
+                      style={{ ...sSel, minHeight: 72 }}
+                    >
+                      {teamUsers.map((u:any) => (
+                        <option key={u.id} value={u.id}>{u.name}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               ))}
@@ -687,11 +766,28 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
               />
             </div>
           )}
+          {!canSetPrice && canSeeBilling && isBillable && (
+            <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 4 }}>
+              Marked billable — price is set by Admin / Accounts only.
+            </div>
+          )}
         </div>
+
+        {isEdit && task?.id && (
+          <div style={{ marginBottom: 16 }}>
+            <FileAttachmentsPanel entityType="task" entityId={task.id} title="Task files & review uploads" />
+          </div>
+        )}
+
+        {isEdit && task?.id && (
+          <div style={{ marginBottom: 16 }}>
+            <TaskThreadBox taskId={task.id} sessionId={session.id} />
+          </div>
+        )}
 
         <div style={{ display:'flex', gap:8, justifyContent:'space-between', flexWrap:'wrap' }}>
           <div style={{ display:'flex', gap:8 }}>
-            <button onClick={save} disabled={!title||!dueDate||saving||deleting} style={{ padding:'10px 20px', background: forceProjectMode ? '#06B6D4' : 'var(--sf-accent)', border:'none', borderRadius:9, color:'var(--sf-text)', fontWeight:700, fontSize:13, cursor:(!title||!dueDate||saving)?'not-allowed':'pointer', opacity:(!title||!dueDate)?0.5:1, fontFamily:"'DM Sans',sans-serif" }}>
+            <button onClick={save} disabled={!title||!dueDate||saving||deleting||(needsBrandName&&!newBrandName.trim())} style={{ padding:'10px 20px', background: forceProjectMode ? '#06B6D4' : 'var(--sf-accent)', border:'none', borderRadius:9, color:'var(--sf-text)', fontWeight:700, fontSize:13, cursor:(!title||!dueDate||saving||(needsBrandName&&!newBrandName.trim()))?'not-allowed':'pointer', opacity:(!title||!dueDate||(needsBrandName&&!newBrandName.trim()))?0.5:1, fontFamily:"'DM Sans',sans-serif" }}>
               {saving ? (isEdit ? 'Saving…' : 'Creating…') : (isEdit ? 'Save Changes' : (forceProjectMode ? 'Create Project' : 'Create Task'))}
             </button>
             <button onClick={onClose} style={{ padding:'10px 20px', background:'var(--sf-surface-2)', border:'1px solid #2A2A45', borderRadius:9, color:'#A0A0C0', fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
@@ -797,6 +893,12 @@ export function TaskProgressModal({ session, task, onClose, onSaved }: any) {
             ))}
           </div>
         )}
+        <div style={{ marginBottom: 16 }}>
+          <FileAttachmentsPanel entityType="task" entityId={task.id} title="Files for review" />
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <TaskThreadBox taskId={task.id} sessionId={session.id} compact />
+        </div>
         <div style={{ display:'flex', gap:8 }}>
           <button onClick={save} disabled={saving} className="sf-btn sf-btn-primary">{saving ? 'Saving…' : 'Save progress'}</button>
           <button onClick={onClose} className="sf-btn sf-btn-ghost">Cancel</button>

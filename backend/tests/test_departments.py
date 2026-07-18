@@ -38,21 +38,21 @@ def test_onboard_with_department_assigns_manager(client, users):
     dept = client.post(
         "/api/v1/team/departments",
         headers=users.auth_headers(owner),
-        json={"name": "Technology", "manager_id": str(manager.id)},
+        json={"name": "Team", "manager_id": str(manager.id)},
     ).json()
     resp = client.post(
         "/api/v1/team",
         headers=users.auth_headers(owner),
         json={
-            "name": "New Dev",
-            "email": "newdev@scrumfolks.io",
-            "role": "developer",
+            "name": "New Member",
+            "email": "newmember@scrumfolks.io",
+            "role": "team",
             "department_id": dept["id"],
         },
     )
     assert resp.status_code == 201, resp.text
     user = resp.json()["user"]
-    assert user["department"] == "Technology"
+    assert user["department"] == "Team"
     assert user["manager_id"] == str(manager.id)
 
 

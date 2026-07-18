@@ -30,6 +30,7 @@ def _serialize(brand: Brand) -> dict[str, Any]:
         "priority": brand.priority,
         "short_term_goals": list(brand.short_term_goals or []),
         "long_term_goals": list(brand.long_term_goals or []),
+        "journey": list(brand.journey or []),
         "responsibilities": brand.responsibilities,
         "assigned_members": [str(uid) for uid in (brand.assigned_members or [])],
         "created_by": str(brand.created_by) if brand.created_by else None,

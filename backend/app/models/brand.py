@@ -29,6 +29,9 @@ class Brand(UUIDPKMixin, TimestampsMixin, Base):
     long_term_goals: Mapped[list[str]] = mapped_column(
         ARRAY(String), nullable=False, server_default=text("ARRAY[]::varchar[]")
     )
+    journey: Mapped[list[str]] = mapped_column(
+        ARRAY(String), nullable=False, server_default=text("ARRAY[]::varchar[]")
+    )
     responsibilities: Mapped[str | None] = mapped_column(Text, nullable=True)
     assigned_members: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(UUID(as_uuid=True)),

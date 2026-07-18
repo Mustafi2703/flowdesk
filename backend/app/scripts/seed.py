@@ -46,12 +46,13 @@ DEV = _u("11111111-0000-0000-0000-000000000008")
 # One account per requirements-doc role for quick demo login.
 # Names are role labels — real hires are onboarded via Team by Owner/Manager.
 USERS = [
-    (OWNER, "Demo Owner",      "owner@scrumfolks.com",      "owner",      "Leadership",  "Director",      "OW", None),
-    (MANAGER, "Demo Manager",  "manager@scrumfolks.com",    "manager",    "Operations",  "Manager",       "MG", OWNER),
-    (TEAM, "Demo Team Member", "team@scrumfolks.com",       "team",       "Design",      "Team Member",   "TM", MANAGER),
+    (OWNER, "Demo Owner",      "owner@scrumfolks.com",      "owner",      "Owner",       "Director",      "OW", None),
+    (MANAGER, "Demo Manager",  "manager@scrumfolks.com",    "manager",    "Manager",     "Manager",       "MG", OWNER),
+    (TEAM, "Demo Team Member", "team@scrumfolks.com",       "team",       "Team",        "Team Member",   "TM", MANAGER),
     (HR, "Demo HR Manager",  "hr@scrumfolks.com",         "hr",         "HR",          "HR Manager",    "HR", OWNER),
-    (ACCOUNTANT, "Demo Accountant", "accountant@scrumfolks.com", "accountant", "Finance", "Accountant",  "AC", OWNER),
-    (DEV, "Demo Developer",  "dev@scrumfolks.com",        "developer",  "Technology",  "Developer",     "DV", MANAGER),
+    (ACCOUNTANT, "Demo Accountant", "accountant@scrumfolks.com", "accountant", "Accounts", "Accountant",  "AC", OWNER),
+    # Legacy demo account — treated as Team department (Developer is not a separate department).
+    (DEV, "Demo Developer",  "dev@scrumfolks.com",        "developer",  "Team",        "Team Member",   "DV", MANAGER),
 ]
 
 
@@ -221,12 +222,11 @@ def _seed_departments(db, id_map: dict[uuid.UUID, uuid.UUID]) -> None:
     if db.scalars(select(Department).limit(1)).first():
         return
     defaults = [
-        ("Leadership", OWNER, "Executive leadership and strategy"),
-        ("Operations", MANAGER, "Operations and client delivery"),
-        ("Design", MANAGER, "Design and creative production"),
+        ("Owner", OWNER, "Executive ownership and strategy"),
+        ("Manager", MANAGER, "Delivery and people management"),
+        ("Team", MANAGER, "Execution and production"),
+        ("Accounts", OWNER, "Billing and finance"),
         ("HR", OWNER, "People operations and leave"),
-        ("Finance", OWNER, "Billing and finance"),
-        ("Technology", MANAGER, "Development and technical delivery"),
     ]
     owner_profile_id = id_map.get(OWNER)
     for name, manager_seed, description in defaults:

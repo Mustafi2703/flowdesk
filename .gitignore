@@ -46,3 +46,4 @@ frontend/.next/
 
 # typescript
 *.tsbuildinfo
+backend/uploads/

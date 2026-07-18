@@ -15,7 +15,7 @@ export default function BillingClient({ session }: { session: SessionUser }) {
   const [forbidden, setForbidden] = useState(false)
   const [error, setError] = useState('')
 
-  const canSetPrice = ['owner', 'manager', 'accountant'].includes(session.role)
+  const canSetPrice = ['owner', 'accountant'].includes(session.role)
   const canMarkBilled = ['owner', 'accountant'].includes(session.role)
 
   function taskUnpriced(task: any) {
@@ -114,9 +114,19 @@ export default function BillingClient({ session }: { session: SessionUser }) {
 
       <StatGrid>
         <>
-          <StatCard label="Total billable" value={fmt(Number(summary?.total_billable ?? 0))} accent="#EC4899" />
-          <StatCard label="Pending" value={fmt(Number(summary?.pending ?? 0))} accent="#F59E0B" />
-          <StatCard label="Billed" value={fmt(Number(summary?.billed ?? 0))} accent="#10B981" />
+          {canSetPrice ? (
+            <>
+              <StatCard label="Total billable" value={fmt(Number(summary?.total_billable ?? 0))} accent="#EC4899" />
+              <StatCard label="Pending" value={fmt(Number(summary?.pending ?? 0))} accent="#F59E0B" />
+              <StatCard label="Billed" value={fmt(Number(summary?.billed ?? 0))} accent="#10B981" />
+            </>
+          ) : (
+            <>
+              <StatCard label="Billable tasks" value={summary?.total_count ?? tasks.length} accent="#EC4899" />
+              <StatCard label="Pending" value={summary?.pending_count ?? unbilled.length} accent="#F59E0B" />
+              <StatCard label="Billed" value={summary?.billed_count ?? billed.length} accent="#10B981" />
+            </>
+          )}
           <StatCard label="Unpriced" value={summary?.unpriced ?? unpriced.length} accent="#EF4444" />
         </>
       </StatGrid>
@@ -178,10 +188,16 @@ export default function BillingClient({ session }: { session: SessionUser }) {
                 <div style={{ color: '#A0A0C0', fontSize: 12 }}>{task.brand?.name || '—'}</div>
                 <span style={{ background: STATUS_BG[task.status] || '#F3F4F6', color: STATUS_TEXT[task.status] || '#374151', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, display: 'inline-block' }}>{task.status}</span>
                 <div>
-                  {task.billable_amount ? (
-                    <span style={{ color: '#EC4899', fontWeight: 700, fontSize: 14 }}>{fmt(task.billable_amount)}</span>
+                  {canSetPrice ? (
+                    task.billable_amount ? (
+                      <span style={{ color: '#EC4899', fontWeight: 700, fontSize: 14 }}>{fmt(task.billable_amount)}</span>
+                    ) : (
+                      <span style={{ color: '#EF4444', fontSize: 11, fontStyle: 'italic' }}>Not set</span>
+                    )
                   ) : (
-                    <span style={{ color: '#EF4444', fontSize: 11, fontStyle: 'italic' }}>Not set</span>
+                    <span style={{ color: task.has_price ? '#10B981' : '#EF4444', fontSize: 11, fontWeight: 600 }}>
+                      {task.has_price ? 'Priced' : 'Awaiting price'}
+                    </span>
                   )}
                 </div>
                 {canMarkBilled && (

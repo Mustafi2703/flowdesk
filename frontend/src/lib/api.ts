@@ -42,10 +42,17 @@ export async function proxy(req: NextRequest, opts: ProxyOptions): Promise<NextR
   }
 
   const method = (opts.method || req.method || 'GET').toUpperCase()
+  const incomingContentType = req.headers.get('content-type') || 'application/json'
+  const isMultipart = incomingContentType.includes('multipart/form-data')
   const headers: Record<string, string> = {
-    'content-type': req.headers.get('content-type') || 'application/json',
-    'accept': 'application/json',
+    'accept': isMultipart ? '*/*' : 'application/json',
     ...(opts.extraHeaders || {}),
+  }
+  // Let fetch set multipart boundary — do not force application/json.
+  if (!isMultipart) {
+    headers['content-type'] = incomingContentType
+  } else {
+    headers['content-type'] = incomingContentType
   }
 
   const token = req.cookies.get(COOKIE)?.value
@@ -56,17 +63,39 @@ export async function proxy(req: NextRequest, opts: ProxyOptions): Promise<NextR
 
   let body: BodyInit | undefined
   if (opts.forwardBody !== false && method !== 'GET' && method !== 'HEAD') {
-    const raw = await req.text()
-    if (raw) body = raw
+    if (isMultipart) {
+      body = await req.arrayBuffer()
+    } else {
+      const raw = await req.text()
+      if (raw) body = raw
+    }
   }
 
   const upstream = await fetch(url.toString(), { method, headers, body, cache: 'no-store' })
-  const text = await upstream.text()
-  const res = new NextResponse(text || null, {
+  const contentType = upstream.headers.get('content-type') || 'application/json'
+  // Binary downloads (attachments) need arrayBuffer, not text.
+  if (contentType.includes('application/json') || contentType.startsWith('text/')) {
+    const text = await upstream.text()
+    const res = new NextResponse(text || null, {
+      status: upstream.status,
+      headers: { 'content-type': contentType },
+    })
+    upstream.headers.forEach((value, key) => {
+      if (key.toLowerCase() === 'set-cookie') res.headers.append('set-cookie', value)
+    })
+    return res
+  }
+
+  const buf = await upstream.arrayBuffer()
+  const res = new NextResponse(buf, {
     status: upstream.status,
-    headers: { 'content-type': upstream.headers.get('content-type') || 'application/json' },
+    headers: {
+      'content-type': contentType,
+      ...(upstream.headers.get('content-disposition')
+        ? { 'content-disposition': upstream.headers.get('content-disposition')! }
+        : {}),
+    },
   })
-  // Mirror any Set-Cookie headers so login/logout work transparently.
   upstream.headers.forEach((value, key) => {
     if (key.toLowerCase() === 'set-cookie') res.headers.append('set-cookie', value)
   })

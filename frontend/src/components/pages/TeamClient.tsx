@@ -24,11 +24,13 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   const [showDept, setShowDept] = useState(false)
   const [editingDeptId, setEditingDeptId] = useState<string | null>(null)
   const [editingUser, setEditingUser] = useState<any | null>(null)
+  const [viewingUser, setViewingUser] = useState<any | null>(null)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [deptError, setDeptError] = useState('')
   const [userForm, setUserForm] = useState({ name: '', email: '', role: 'team', department: '', department_id: '', designation: '', password: '', manager_id: '', is_active: true })
   const [deptForm, setDeptForm] = useState({ name: '', description: '', manager_id: '' })
+  const CORE_ROLES = ['owner', 'manager', 'team', 'hr', 'accountant']
   const today = new Date().toISOString().split('T')[0]
   const canOnboard = ['owner', 'manager'].includes(role)
   const canManageDepartments = role === 'owner'
@@ -248,6 +250,20 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     return { label: 'Fully Loaded', color: '#EF4444' }
   }
 
+  function memberPerf(uid: string) {
+    const all = tasks.filter(t => t.assigned_to?.includes(uid))
+    const allocated = all.length
+    const completed = all.filter(t => t.status === 'Completed')
+    const delayed = all.filter(t => t.due_date && t.due_date < today && t.status !== 'Completed')
+    const onTimeCount = completed.filter(t => {
+      if (!t.due_date) return true
+      const doneDay = (t.updated_at || '').slice(0, 10)
+      return !doneDay || doneDay <= t.due_date
+    }).length
+    const onTimePct = completed.length ? Math.round((onTimeCount / completed.length) * 100) : 0
+    return { allocated, completed: completed.length, delayed: delayed.length, onTimePct, all }
+  }
+
   const isOnline = (uid: string) => attendance.some(a => a.user_id === uid && a.date === today && !a.logout_time)
 
   if (loading) {
@@ -334,7 +350,8 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                 <>
                   <input disabled value={userForm.email} className="sf-input" style={{ opacity: 0.7 }} />
                   <select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value })} className="sf-input">
-                    {Object.keys(ROLE_LABELS).map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                    {CORE_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                    {userForm.role === 'developer' && <option value="developer">{ROLE_LABELS.developer} (legacy)</option>}
                   </select>
                   <select value={userForm.manager_id} onChange={e => setUserForm({ ...userForm, manager_id: e.target.value })} className="sf-input">
                     <option value="">No manager</option>
@@ -452,20 +469,66 @@ export default function TeamClient({ session }: { session: SessionUser }) {
           <StatGrid>
             <StatCard label="Members" value={team.filter(u => u.is_active).length} accent="var(--sf-accent)" />
             <StatCard label="Online" value={online} accent="#10B981" />
-            <StatCard label="Departments" value={sortedDepartments.length} accent="#8B5CF6" />
-            <StatCard label="Flagged tasks" value={tasks.filter(t => ['Struggling', 'Needs Attention'].includes(t.status)).length} accent="#F59E0B" />
+            <StatCard label="Allocated tasks" value={tasks.filter(t => (t.assigned_to || []).length > 0).length} accent="#3B82F6" />
+            <StatCard label="Delayed" value={tasks.filter(t => t.due_date && t.due_date < today && t.status !== 'Completed').length} accent="#EF4444" />
           </StatGrid>
-          <Section title="All members" subtitle="Workload and status per person" flex={1} style={{ marginTop: 16 }}>
+
+          {viewingUser && (() => {
+            const perf = memberPerf(viewingUser.id)
+            return (
+              <Section title={`${viewingUser.name}'s tasks`} subtitle={`${perf.allocated} allocated · ${perf.delayed} delayed · ${perf.onTimePct}% on-time`} style={{ marginTop: 16, flexShrink: 0 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 10, marginBottom: 14 }}>
+                  {[['Allocated', perf.allocated, '#3B82F6'], ['Completed', perf.completed, '#10B981'], ['Delayed', perf.delayed, '#EF4444'], ['On-time', `${perf.onTimePct}%`, '#FBBF24']].map(([l, v, c]) => (
+                    <div key={String(l)} style={{ background: 'var(--sf-surface-2)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
+                      <div style={{ color: String(c), fontWeight: 700, fontSize: 16 }}>{v}</div>
+                      <div style={{ color: 'var(--sf-muted)', fontSize: 10 }}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                  <button type="button" onClick={() => setViewingUser(null)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11 }}>Close</button>
+                </div>
+                {perf.all.length === 0 ? (
+                  <div style={{ color: 'var(--sf-muted)', fontSize: 13, padding: 12 }}>No tasks assigned.</div>
+                ) : (
+                  <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                    {perf.all.map((t: any) => {
+                      const late = t.due_date && t.due_date < today && t.status !== 'Completed'
+                      return (
+                        <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--sf-border)' }}>
+                          <div>
+                            <div style={{ color: 'var(--sf-text)', fontSize: 13, fontWeight: 600 }}>{t.title}</div>
+                            <div style={{ color: 'var(--sf-muted)', fontSize: 11 }}>{t.brand?.name || 'No brand'} · {t.type || 'Task'} · Due {t.due_date || '—'}</div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            {late && <span style={{ color: '#EF4444', fontSize: 10, fontWeight: 700 }}>Delayed</span>}
+                            <span style={{ color: 'var(--sf-muted)', fontSize: 11 }}>{t.status}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </Section>
+            )
+          })()}
+
+          <Section title="All members" subtitle="Click a member to see all assigned tasks & performance" flex={1} style={{ marginTop: 16 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(258px,1fr))', gap: 14 }}>
               {team.map((u: any) => {
                 const l = load(u.id)
-                const all = tasks.filter(t => t.assigned_to?.includes(u.id))
+                const perf = memberPerf(u.id)
+                const all = perf.all
                 const active = all.filter(t => !['Completed', 'On Hold'].includes(t.status))
-                const done = all.filter(t => t.status === 'Completed').length
+                const done = perf.completed
                 const rate = all.length > 0 ? Math.round(done / all.length * 100) : 0
                 const memberOnline = isOnline(u.id)
                 return (
-                  <div key={u.id} style={{ background: 'var(--sf-surface)', border: `1px solid ${u.is_active ? 'var(--sf-border)' : '#3A2430'}`, borderRadius: 14, padding: 18, opacity: u.is_active ? 1 : 0.65 }}>
+                  <div
+                    key={u.id}
+                    onClick={() => setViewingUser(u)}
+                    style={{ background: 'var(--sf-surface)', border: `1px solid ${viewingUser?.id === u.id ? 'var(--sf-accent)' : (u.is_active ? 'var(--sf-border)' : '#3A2430')}`, borderRadius: 14, padding: 18, opacity: u.is_active ? 1 : 0.65, cursor: 'pointer' }}
+                  >
                     <div style={{ display: 'flex', gap: 11, marginBottom: 12, alignItems: 'center' }}>
                       <div style={{ position: 'relative' }}>
                         <div style={{ width: 42, height: 42, borderRadius: 10, background: ROLE_COLORS[u.role] || 'var(--sf-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sf-text)', fontWeight: 700, fontSize: 13 }}>{u.avatar || u.name?.slice(0, 2)}</div>
@@ -481,15 +544,15 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                       <span style={{ background: l.color + '20', color: l.color, fontSize: 10, padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>{l.label}</span>
                       <span style={{ color: u.is_active ? 'var(--sf-muted)' : '#EF4444', fontSize: 11 }}>{u.is_active ? `${active.length} active` : 'Inactive'}</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 7, marginBottom: 10 }}>
-                      {[['Total', all.length, 'var(--sf-text)'], ['Done', done, '#10B981'], ['Rate', `${rate}%`, '#FBBF24']].map(([lbl, v, c]) => (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6, marginBottom: 10 }}>
+                      {[['Alloc', perf.allocated, 'var(--sf-text)'], ['Done', done, '#10B981'], ['Late', perf.delayed, '#EF4444'], ['On-time', `${perf.onTimePct}%`, '#FBBF24']].map(([lbl, v, c]) => (
                         <div key={String(lbl)} style={{ background: 'var(--sf-surface-2)', borderRadius: 7, padding: '7px', textAlign: 'center' }}>
-                          <div style={{ color: String(c), fontWeight: 700, fontSize: 13 }}>{v}</div>
-                          <div style={{ color: 'var(--sf-muted)', fontSize: 10 }}>{lbl}</div>
+                          <div style={{ color: String(c), fontWeight: 700, fontSize: 12 }}>{v}</div>
+                          <div style={{ color: 'var(--sf-muted)', fontSize: 9 }}>{lbl}</div>
                         </div>
                       ))}
                     </div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
                       {canEditUser(u) && <button type="button" onClick={() => startEditUser(u)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px' }}>Edit</button>}
                       {canReset && u.id !== session.id && <button type="button" onClick={() => resetPassword(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px' }}>Reset Password</button>}
                       {role === 'owner' && u.id !== session.id && u.is_active && <button type="button" onClick={() => deactivateUser(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px', color: 'var(--sf-danger)' }}>Deactivate</button>}

@@ -4,10 +4,12 @@ Role rules (mirrors the requirements doc):
 
 - Owner can create, edit, deactivate, and reset password for ANY user
   (including other owners, managers, HR, accountant).
-- Manager can create users with role `team` or `developer` only
+- Manager can create users with role `team` only
   (the day-to-day onboarding path). They cannot create privileged accounts.
-- HR can reset passwords for non-privileged users (team/developer) and
+- HR can reset passwords for non-privileged users (team) and
   toggle is_active. HR cannot create new accounts.
+- Departments / roles in use: Owner, Manager, Team, Accounts (accountant), HR.
+  Developer is legacy-only and not assignable for new users.
 - Other roles cannot mutate the user directory at all.
 """
 
@@ -40,8 +42,10 @@ router.include_router(team_departments.router)
 
 
 # ── Role-allowlists for who-can-create-whom ─────────────────────────────────
-_MANAGER_ASSIGNABLE: frozenset[Role] = frozenset({Role.TEAM, Role.DEVELOPER})
-_OWNER_ASSIGNABLE: frozenset[Role] = frozenset(Role)
+_MANAGER_ASSIGNABLE: frozenset[Role] = frozenset({Role.TEAM})
+_OWNER_ASSIGNABLE: frozenset[Role] = frozenset(
+    {Role.OWNER, Role.MANAGER, Role.TEAM, Role.HR, Role.ACCOUNTANT}
+)
 
 
 _MANAGEMENT_ROLES: frozenset[Role] = frozenset({Role.OWNER, Role.MANAGER})

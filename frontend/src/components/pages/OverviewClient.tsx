@@ -15,33 +15,90 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const [tasks, setTasks] = useState<any[]>([])
   const [announcements, setAnnouncements] = useState<any[]>([])
   const [leaves, setLeaves] = useState<any[]>([])
+  const [updates, setUpdates] = useState<any[]>([])
+  const [todayLog, setTodayLog] = useState<any>(null)
   const [clocked, setClocked] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [nowTick, setNowTick] = useState(Date.now())
   const today = new Date().toISOString().split('T')[0]
+
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 60000)
+    return () => clearInterval(t)
+  }, [])
 
   useEffect(() => {
     Promise.all([
       fetch('/api/tasks').then(r => r.json()),
       fetch('/api/announcements').then(r => r.json()),
       fetch('/api/leave').then(r => r.json()),
-    ]).then(([t, a, l]) => {
+      fetch('/api/updates').then(r => r.json()).catch(() => []),
+      fetch('/api/attendance').then(r => r.json()).catch(() => []),
+    ]).then(([t, a, l, u, att]) => {
       setTasks(Array.isArray(t) ? t : [])
       setAnnouncements(Array.isArray(a) ? a : [])
       setLeaves(Array.isArray(l) ? l : [])
+      setUpdates(Array.isArray(u) ? u : [])
+      const logs = Array.isArray(att) ? att : []
+      const todays = logs.find((x: any) => x.date === today)
+      setTodayLog(todays || null)
+      setClocked(Boolean(todays?.login_time && !todays?.logout_time))
       setLoading(false)
     })
   }, [])
 
-  const clockIn  = () => fetch('/api/attendance/clockin',  { method:'POST' }).then(() => setClocked(true))
-  const clockOut = () => fetch('/api/attendance/clockout', { method:'POST' }).then(() => setClocked(false))
+  const clockIn  = () => fetch('/api/attendance/clockin',  { method:'POST' }).then(async (r) => {
+    const log = await r.json().catch(() => null)
+    if (log?.login_time) { setTodayLog(log); setClocked(true) }
+    else setClocked(true)
+  })
+  const clockOut = () => fetch('/api/attendance/clockout', { method:'POST' }).then(async (r) => {
+    const log = await r.json().catch(() => null)
+    if (log) setTodayLog(log)
+    setClocked(false)
+  })
+
+  function liveHoursToday(log: any) {
+    if (!log?.login_time) return 0
+    if (log.logout_time && log.hours_worked != null) return Number(log.hours_worked) || 0
+    const [hh, mm] = String(log.login_time).split(':').map(Number)
+    if (Number.isNaN(hh)) return 0
+    const start = new Date()
+    start.setHours(hh, mm || 0, 0, 0)
+    return Math.max(0, (nowTick - start.getTime()) / 3600000)
+  }
+
+  const todayInTime = todayLog?.login_time || null
+  const hoursTodayVal = liveHoursToday(todayLog)
+  const hoursTodayLabel = todayInTime ? `${hoursTodayVal.toFixed(1)}h` : '0h'
 
   const myTasks     = tasks.filter(t => t.assigned_to?.includes(session.id))
   const overdue     = tasks.filter(t => t.due_date && t.due_date < today && t.status !== 'Completed')
+  const dueToday    = tasks.filter(t => t.due_date === today && t.status !== 'Completed')
   const flagged     = tasks.filter(t => ['Struggling','Needs Attention'].includes(t.status))
+  const underReview = tasks.filter(t => t.status === 'Under Review' || t.requires_review)
   const pendingLeav = leaves.filter(l => l.status === 'Pending')
   const isTeam      = ['team','developer'].includes(session.role)
   const isAdmin     = ['owner','manager'].includes(session.role)
-  const taskList    = (isTeam ? myTasks : tasks).slice(0, 20)
+
+  const myCompleted = myTasks.filter(t => t.status === 'Completed')
+  const myDelayed = myTasks.filter(t => t.due_date && t.due_date < today && t.status !== 'Completed')
+  const myOnTime = myCompleted.filter(t => {
+    if (!t.due_date) return true
+    return (t.updated_at || '').slice(0, 10) <= t.due_date
+  }).length
+  const myOnTimePct = myCompleted.length ? Math.round((myOnTime / myCompleted.length) * 100) : 0
+
+  const important = (isTeam ? myTasks : tasks)
+    .filter(t => t.status !== 'Completed')
+    .sort((a, b) => {
+      const rank = { Critical: 0, High: 1, Medium: 2, Low: 3 }
+      const pa = rank[a.priority] ?? 4
+      const pb = rank[b.priority] ?? 4
+      if (pa !== pb) return pa - pb
+      return (a.due_date || '9999').localeCompare(b.due_date || '9999')
+    })
+    .slice(0, 12)
 
   const hour = new Date().getHours()
   const greet = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
@@ -59,8 +116,20 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
       {isTeam && (
         <Section title="Attendance" subtitle={clocked ? 'You are clocked in' : 'Not clocked in today'} flush>
           <div style={{ padding:'1rem 1.125rem', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
-            <div style={{ color: clocked ? 'var(--sf-success)' : 'var(--sf-muted)', fontSize:13, fontWeight:600 }}>
-              {clocked ? 'Active work session' : 'Ready to start your day?'}
+            <div>
+              <div style={{ color: clocked ? 'var(--sf-success)' : 'var(--sf-muted)', fontSize:13, fontWeight:600, marginBottom: 6 }}>
+                {clocked ? 'Active work session' : 'Ready to start your day?'}
+              </div>
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>In time</div>
+                  <div style={{ color: 'var(--sf-text)', fontSize: 16, fontWeight: 700 }}>{todayInTime || '—'}</div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Hours today</div>
+                  <div style={{ color: '#10B981', fontSize: 16, fontWeight: 700 }}>{hoursTodayLabel}</div>
+                </div>
+              </div>
             </div>
             <button onClick={clocked?clockOut:clockIn} className="sf-btn sf-btn-primary" style={{ padding:'0.625rem 1.25rem' }}>
               {clocked ? 'Clock out' : 'Clock in'}
@@ -73,16 +142,20 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
         {isAdmin && <>
           <StatCard label="Total Tasks" value={tasks.length} sub={`${tasks.filter(t=>t.status==='Completed').length} completed`} accent="#3B82F6" />
           <StatCard label="Overdue" value={overdue.length} accent="#EF4444" />
-          <StatCard label="Flagged" value={flagged.length} accent="#F59E0B" />
+          <StatCard label="Due today" value={dueToday.length} accent="#F59E0B" />
+          <StatCard label="Under review" value={underReview.length} accent="#8B5CF6" />
+          <StatCard label="Flagged" value={flagged.length} accent="#EF4444" />
           <StatCard label="Leave Pending" value={pendingLeav.length} accent="#8B5CF6" />
         </>}
         {isTeam && <>
-          <StatCard label="My Tasks" value={myTasks.length} sub={`${myTasks.filter(t=>t.status==='Completed').length} completed`} accent="#E8630A" />
-          <StatCard label="Due Today" value={myTasks.filter(t=>t.due_date===today).length} accent="#EF4444" />
+          <StatCard label="Allocated" value={myTasks.length} sub={`${myCompleted.length} completed`} accent="#E8630A" />
+          <StatCard label="Delayed" value={myDelayed.length} accent="#EF4444" />
+          <StatCard label="On-time %" value={`${myOnTimePct}%`} accent="#10B981" />
           <StatCard label="In Progress" value={myTasks.filter(t=>t.status==='In Progress').length} accent="#3B82F6" />
         </>}
         {session.role === 'hr' && <>
           <StatCard label="Leave Pending" value={pendingLeav.length} accent="#8B5CF6" />
+          <StatCard label="Overdue tasks" value={overdue.length} accent="#EF4444" />
         </>}
         {session.role === 'accountant' && <>
           <StatCard label="Billable Tasks" value={tasks.filter(t=>t.is_billable).length} accent="#EC4899" />
@@ -97,17 +170,17 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
 
       <div className="sf-page-grid-2" style={{ flex: 1 }}>
         <Section
-          title={isTeam ? 'My tasks' : 'Recent tasks'}
-          subtitle={`${taskList.length} shown`}
+          title="Important tasks"
+          subtitle={`${important.length} priority items`}
           flex={1}
           action={<button type="button" className="sf-link-btn" onClick={() => router.push('/tasks')}>View all</button>}
           flush
         >
-          {taskList.length === 0 ? (
-            <EmptyState icon="tasks" title="No tasks yet. Create your first task to get started." />
+          {important.length === 0 ? (
+            <EmptyState icon="tasks" title="No open tasks." />
           ) : (
             <div style={{ display:'flex', flexDirection:'column' }}>
-              {taskList.map((t:any) => {
+              {important.map((t:any) => {
                 const dl = t.due_date ? Math.ceil((new Date(t.due_date).getTime()-Date.now())/86400000) : null
                 const late = dl!==null && dl<0 && t.status!=='Completed'
                 return (
@@ -118,7 +191,11 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
                   >
                     <div style={{ minWidth:0 }}>
                       <div style={{ color:'var(--sf-text)', fontWeight:600, fontSize:13, marginBottom:2 }}>{t.title}</div>
-                      <div style={{ color:'var(--sf-muted)', fontSize:11 }}>{t.brand?.name||'No brand'} · {t.type||'Task'}</div>
+                      <div style={{ color:'var(--sf-muted)', fontSize:11 }}>
+                        {t.brand?.name||'No brand'} · {t.type||'Task'} · {t.priority || 'Medium'}
+                        {t.requires_review ? ' · Review' : ''}
+                        {(t.assigned_to||[]).length ? ` · ${t.assigned_to.length} assignee(s)` : ''}
+                      </div>
                     </div>
                     <div style={{ display:'flex', gap:8, alignItems:'center', flexShrink:0 }}>
                       <Chip status={t.status} />
@@ -133,13 +210,27 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
 
         <div style={{ display:'flex', flexDirection:'column', gap:'1rem', minHeight:0 }}>
           <Section
-            title="Announcements"
+            title="Recent updates"
             flex={1}
+            action={<button type="button" className="sf-link-btn" onClick={() => router.push('/updates')}>Open Updates</button>}
+          >
+            {updates.length === 0 ? (
+              <p style={{ color:'var(--sf-muted)', fontSize:13 }}>No comments yet.</p>
+            ) : updates.slice(0,6).map((u:any) => (
+              <div key={u.id} onClick={() => router.push('/updates')} style={{ background:'var(--sf-surface-2)', border:'1px solid var(--sf-border)', borderRadius:8, padding:'0.75rem 0.875rem', marginBottom:8, cursor:'pointer' }}>
+                <div style={{ color:'var(--sf-text)', fontWeight:600, fontSize:12, marginBottom:2 }}>{u.sender?.name || 'Someone'} on {u.task_title}</div>
+                <div style={{ color:'var(--sf-muted)', fontSize:12, lineHeight:1.4 }}>{u.message}</div>
+              </div>
+            ))}
+          </Section>
+
+          <Section
+            title="Announcements"
             action={<button type="button" className="sf-link-btn" onClick={() => router.push('/announcements')}>View all</button>}
           >
             {announcements.length === 0 ? (
               <p style={{ color:'var(--sf-muted)', fontSize:13 }}>No announcements yet.</p>
-            ) : announcements.slice(0,8).map((a:any) => (
+            ) : announcements.slice(0,5).map((a:any) => (
               <div key={a.id} style={{ background:'var(--sf-surface-2)', border:'1px solid var(--sf-border)', borderLeft:`3px solid ${a.priority==='Urgent'?'var(--sf-danger)':a.priority==='Important'?'var(--sf-warning)':'var(--sf-muted-2)'}`, borderRadius:8, padding:'0.75rem 0.875rem', marginBottom:8 }}>
                 <div style={{ color:'var(--sf-text)', fontWeight:600, fontSize:12, marginBottom:2 }}>{a.title}</div>
                 <div style={{ color:'var(--sf-muted-2)', fontSize:10 }}>{new Date(a.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</div>

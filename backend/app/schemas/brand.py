@@ -16,6 +16,7 @@ class BrandCreate(BaseModel):
     priority: str = "P3"
     short_term_goals: list[str] = Field(default_factory=list)
     long_term_goals: list[str] = Field(default_factory=list)
+    journey: list[str] = Field(default_factory=list)
     responsibilities: str | None = None
     assigned_members: list[uuid.UUID] = Field(default_factory=list)
 
@@ -28,6 +29,7 @@ class BrandUpdate(BaseModel):
     priority: str | None = None
     short_term_goals: list[str] | None = None
     long_term_goals: list[str] | None = None
+    journey: list[str] | None = None
     responsibilities: str | None = None
     assigned_members: list[uuid.UUID] | None = None
 
@@ -43,6 +45,7 @@ class BrandOut(BaseModel):
     priority: str
     short_term_goals: list[str]
     long_term_goals: list[str]
+    journey: list[str]
     responsibilities: str | None
     assigned_members: list[uuid.UUID]
     created_by: uuid.UUID | None

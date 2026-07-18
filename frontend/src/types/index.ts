@@ -31,6 +31,7 @@ export interface Brand {
   id: string; name: string; logo: string | null; description: string | null
   client_type: string | null; priority: string | null
   short_term_goals: string[]; long_term_goals: string[]
+  journey: string[]
   responsibilities: string | null; assigned_members: string[]
   created_at: string; updated_at: string
 }
@@ -97,12 +98,14 @@ export type NavIcon =
   | 'leave'
   | 'announcements'
   | 'billing'
+  | 'inbox'
 
 export const NAV_ITEMS = [
   { id: 'overview',      label: 'Dashboard',     icon: 'dashboard' as NavIcon, roles: ['owner','manager','team','hr','accountant','developer'] },
   { id: 'calendar',      label: 'Calendar',      icon: 'calendar' as NavIcon, roles: ['owner','manager','team','hr','accountant','developer'] },
   { id: 'tasks',         label: 'Tasks',         icon: 'tasks' as NavIcon, roles: ['owner','manager','team'] },
-  { id: 'devboard',      label: 'Dev Board',     icon: 'code' as NavIcon, roles: ['owner','developer','manager'] },
+  { id: 'updates',       label: 'Updates',       icon: 'inbox' as NavIcon, roles: ['owner','manager','team','hr','accountant','developer'] },
+  { id: 'devboard',      label: 'Projects',      icon: 'code' as NavIcon, roles: ['owner','developer','manager'] },
   { id: 'brands',        label: 'Brands',        icon: 'brands' as NavIcon, roles: ['owner','manager','hr','accountant','team'] },
   { id: 'team',          label: 'Team',          icon: 'team' as NavIcon, roles: ['owner','manager','hr'] },
   { id: 'performance',   label: 'Performance',   icon: 'performance' as NavIcon, roles: ['owner','manager','hr'] },

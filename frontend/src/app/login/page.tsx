@@ -145,7 +145,7 @@ export default function LoginPage() {
             {showDemo && (
               <>
               <p style={{ color: 'var(--sf-muted)', fontSize: 12, margin: '8px 0 10px', lineHeight: 1.45 }}>
-                One account per role (Owner, Manager, Team, HR, Accountant, Developer). Add real staff via Team after signing in as Owner or Manager.
+                One account per role (Owner, Manager, Team, HR, Accounts). Add real staff via Team after signing in as Owner or Manager.
               </p>
               <div className="login-demo-grid">
                 {DEMOS.map(d => (

@@ -27,7 +27,7 @@ export default function PerformanceClient({ session }: { session: SessionUser })
   }, [session.role, session.id])
 
   function metrics(uid:string) {
-    const ut = tasks.filter(t => t.assigned_to?.includes(uid))
+    const ut = tasks.filter(t => (t.assigned_to || []).some((id: string) => String(id) === String(uid)))
     const total = ut.length
     const done = ut.filter(t=>t.status==='Completed').length
     const ip = ut.filter(t=>t.status==='In Progress').length
@@ -36,10 +36,10 @@ export default function PerformanceClient({ session }: { session: SessionUser })
     const strug = ut.filter(t => ['Struggling','Needs Attention'].includes(t.status)).length
     const ontime = total>0 ? Math.max(0, Math.round((done/Math.max(total,1))*100 - (overdue/Math.max(total,1))*30)) : 0
     const rate = total>0 ? Math.round(done/total*100) : 0
-    const ua = attendance.filter(a => a.user_id===uid && a.hours_worked>0)
+    const ua = attendance.filter(a => String(a.user_id)===String(uid) && a.hours_worked>0)
     const days = ua.length
     const avg = days>0 ? (ua.reduce((s,a) => s+(a.hours_worked||0), 0)/days).toFixed(1) : '0'
-    const taken = leaves.filter(l => l.user_id===uid && l.status==='Approved').reduce((s,l) => s+l.days, 0)
+    const taken = leaves.filter(l => String(l.user_id)===String(uid) && l.status==='Approved').reduce((s,l) => s+l.days, 0)
     const perf = rate>=80?{label:'Excellent',color:'#10B981'}:rate>=60?{label:'Good',color:'#3B82F6'}:rate>=40?{label:'Average',color:'#FBBF24'}:{label:'Needs Support',color:'#EF4444'}
     return { total, done, ip, overdue, strug, ontime, rate, days, avg, taken, perf }
   }

@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user
-from app.api.v1.endpoints.tasks import _can_view
+from app.api.v1.endpoints.tasks import _brand_map, _can_view
 from app.core.roles import Role
 from app.db.session import get_db
 from app.models.profile import Profile
@@ -26,7 +26,6 @@ def list_updates(
     user: Profile = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     """Return recent task chat messages the current user can see."""
-    role = Role(user.role)
     chats = db.scalars(select(TaskChat).order_by(TaskChat.created_at.desc()).limit(limit * 3)).all()
     if not chats:
         return []
@@ -36,6 +35,7 @@ def list_updates(
         task.id: task
         for task in db.scalars(select(Task).where(Task.id.in_(task_ids))).all()
     }
+    brands = _brand_map(db, [task.brand_id for task in tasks.values() if task.brand_id])
     sender_ids = {chat.sender_id for chat in chats}
     senders = {
         sender.id: sender
@@ -45,7 +45,8 @@ def list_updates(
     out: list[dict[str, Any]] = []
     for chat in chats:
         task = tasks.get(chat.task_id)
-        if not task or not _can_view(task, user):
+        brand = brands.get(task.brand_id) if task and task.brand_id else None
+        if not task or not _can_view(task, user, brand):
             continue
         sender = senders.get(chat.sender_id)
         out.append(
@@ -81,8 +82,10 @@ def list_task_thread(
     user: Profile = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     """Convenience alias used by the Updates UI thread panel."""
+    from app.api.v1.endpoints.tasks import _can_view_db
+
     task = db.get(Task, task_id)
-    if not task or not _can_view(task, user):
+    if not task or not _can_view_db(db, task, user):
         return []
     chats = db.scalars(
         select(TaskChat).where(TaskChat.task_id == task_id).order_by(TaskChat.created_at)

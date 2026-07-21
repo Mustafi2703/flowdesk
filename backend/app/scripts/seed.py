@@ -25,11 +25,13 @@ from app.core.config import settings
 from app.core.security import hash_password
 from app.db.session import db_session
 from app.models.announcement import Announcement
+from app.models.attachment import FileAttachment
 from app.models.brand import Brand
 from app.models.department import Department
 from app.models.leave import LeaveRequest
 from app.models.profile import Profile
-from app.models.task import Task
+from app.models.task import Task, TaskChat
+from app.models.notification import Notification
 
 
 def _u(s: str) -> uuid.UUID:
@@ -117,6 +119,7 @@ def _task(title, desc, brand_idx, assignee_idxs, status_, priority, days_offset,
         "assigned_to": [USERS[i][0] for i in assignee_idxs],
         "assigned_managers": [USERS[1][0]],
         "created_by": USERS[0][0],
+        "assigned_by": USERS[0][0],
         "type": type_,
         "task_mode": mode,
         "priority": priority,
@@ -139,15 +142,15 @@ def _all_tasks():
         _task("Edit 3 Reels — Minotti India", "Edit 3 shoot reels. Upbeat BGM. Subtitles required.", 3, [2], "Struggling", "Medium", -3, "Content"),
         _task("15 Stories — Minotti India", "Design 15 Instagram stories. Luxury tone.", 3, [2], "Not Started", "Medium", 4, "Design", billable=True),
         _task("Ayodhya Q3 Lead Gen Brief", "Plan Q3 lead generation campaign.", 1, [1, 2], "In Progress", "Critical", 0, "Strategy"),
-        _task("SmartiQo Website Revamp", "Rebuild marketing site with new IA.", 2, [5], "In Progress", "High", 12, "Development", mode="project", sub_tasks=[
-            {"id": str(uuid.uuid4()), "title": "Wireframes", "assigned_to": [str(USERS[5][0])], "status": "Completed", "due_date": (date.today() - timedelta(days=2)).isoformat()},
-            {"id": str(uuid.uuid4()), "title": "API integration", "assigned_to": [str(USERS[5][0])], "status": "In Progress", "due_date": (date.today() + timedelta(days=6)).isoformat()},
-            {"id": str(uuid.uuid4()), "title": "QA + launch", "assigned_to": [str(USERS[5][0])], "status": "Not Started", "due_date": (date.today() + timedelta(days=11)).isoformat()},
+        _task("SmartiQo Website Revamp", "Rebuild marketing site with new IA.", 2, [2], "In Progress", "High", 12, "Development", mode="project", sub_tasks=[
+            {"id": str(uuid.uuid4()), "title": "Wireframes", "assigned_to": [str(USERS[2][0])], "status": "Completed", "due_date": (date.today() - timedelta(days=2)).isoformat()},
+            {"id": str(uuid.uuid4()), "title": "API integration", "assigned_to": [str(USERS[2][0])], "status": "In Progress", "due_date": (date.today() + timedelta(days=6)).isoformat()},
+            {"id": str(uuid.uuid4()), "title": "QA + launch", "assigned_to": [str(USERS[2][0])], "status": "Not Started", "due_date": (date.today() + timedelta(days=11)).isoformat()},
         ]),
         _task("GESIA Member Newsletter", "Write May newsletter draft.", 4, [2], "Needs Attention", "Medium", -1, "Content"),
         _task("Dinamoo Catalogue v2", "Update product catalogue PDF.", 0, [2], "Completed", "Medium", -5, "Design", billable=True),
         _task("Ayodhya New Launch Hoardings", "10 hoarding designs for new launch.", 1, [2], "Revision Needed", "High", 2, "Design"),
-        _task("SmartiQo Performance Marketing", "Run May google ads campaign.", 2, [5], "In Progress", "High", 5, "Strategy", billable=True),
+        _task("SmartiQo Performance Marketing", "Run May google ads campaign.", 2, [2], "In Progress", "High", 5, "Strategy", billable=True),
     ]
 
 
@@ -280,6 +283,8 @@ def seed_users_only() -> None:
         id_map = _build_id_map(db)
         _seed_departments(db, id_map)
         _retire_developer_role(db)
+    with db_session() as db:
+        _ensure_demo_documents(db)
     print("[seed] demo users ready (no sample data)")  # noqa: T201
 
 
@@ -310,10 +315,16 @@ def seed() -> None:
                     long_term_goals=long,
                     responsibilities=resp,
                     assigned_members=members,
+                    assigned_managers=[MANAGER],
                     created_by=USERS[0][0],
                 )
             )
         db.flush()
+
+        # Ensure existing brands have a manager allocated for demos
+        for brand in db.scalars(select(Brand)).all():
+            if not (brand.assigned_managers or []):
+                brand.assigned_managers = [MANAGER]
 
         if not db.scalars(select(Task.id).limit(1)).first():
             for task_data in _all_tasks():
@@ -344,6 +355,237 @@ def seed() -> None:
                         status="Pending",
                     )
                 )
+
+        _ensure_demo_documents(db)
+
+
+def _svg_logo(name: str) -> bytes:
+    safe = (name or "Brand")[:18].replace("<", "").replace(">", "")
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="240" height="120">'
+        f'<rect width="240" height="120" rx="16" fill="#1A1A2E"/>'
+        f'<text x="120" y="68" text-anchor="middle" fill="#E8630A" '
+        f'font-family="Arial,sans-serif" font-size="22" font-weight="700">{safe}</text>'
+        f"</svg>"
+    ).encode("utf-8")
+
+
+def _add_doc(
+    db,
+    *,
+    entity_type: str,
+    entity_id: uuid.UUID,
+    file_name: str,
+    raw: bytes,
+    mime: str,
+    uploaded_by: uuid.UUID,
+    review_status: str = "approved",
+) -> None:
+    exists = db.scalar(
+        select(FileAttachment.id).where(
+            FileAttachment.entity_type == entity_type,
+            FileAttachment.entity_id == entity_id,
+            FileAttachment.file_name == file_name,
+        )
+    )
+    if exists:
+        return
+    db.add(
+        FileAttachment(
+            entity_type=entity_type,
+            entity_id=entity_id,
+            file_name=file_name,
+            file_path=f"{entity_type}/{entity_id}/seed_{file_name}",
+            file_data=raw,
+            file_size=len(raw),
+            mime_type=mime,
+            uploaded_by=uploaded_by,
+            review_status=review_status,
+        )
+    )
+
+
+def _ensure_demo_documents(db) -> None:
+    """Attach sample brand + task documents so demos show viewer/upload flows."""
+    owner = db.scalar(select(Profile).where(Profile.email == "owner@scrumfolks.com"))
+    manager = db.scalar(select(Profile).where(Profile.email == "manager@scrumfolks.com"))
+    team = db.scalar(select(Profile).where(Profile.email == "team@scrumfolks.com"))
+    uploader = owner or manager
+    if not uploader:
+        print("[seed] skip demo docs — no owner/manager user")  # noqa: T201
+        return
+
+    brands = list(db.scalars(select(Brand).order_by(Brand.name).limit(5)).all())
+    if not brands:
+        # Bootstrap a couple of brands so demos always have document surfaces
+        for bid, name, logo, desc, ctype, prio, short, long, resp, members in BRANDS[:2]:
+            member_ids = []
+            if team:
+                member_ids = [team.id]
+            elif members:
+                member_ids = list(members)
+            db.add(
+                Brand(
+                    id=bid,
+                    name=name,
+                    logo=logo,
+                    description=desc,
+                    client_type=ctype,
+                    priority=prio,
+                    short_term_goals=short,
+                    long_term_goals=long,
+                    responsibilities=resp,
+                    assigned_members=member_ids,
+                    assigned_managers=[manager.id] if manager else [],
+                    created_by=uploader.id,
+                    fonts="Space Grotesk / DM Sans",
+                    brand_colors="#E8630A · #1A1A2E",
+                    brand_voice="Clear, confident, agency-ready.",
+                )
+            )
+        db.flush()
+        brands = list(db.scalars(select(Brand).order_by(Brand.name).limit(5)).all())
+        print(f"[seed] created {len(brands)} demo brand(s) for document showcase")  # noqa: T201
+
+    tasks = list(
+        db.scalars(
+            select(Task)
+            .where(Task.status != "Completed")
+            .order_by(Task.created_at.desc())
+            .limit(8)
+        ).all()
+    )
+    if not tasks and brands:
+        sample = brands[0]
+        assignees = [team.id] if team else []
+        t = Task(
+            title=f"{sample.name} — Kickoff deliverables",
+            description="Demo task for Updates chat + document viewer. Upload files from the channel.",
+            brand_id=sample.id,
+            assigned_to=assignees,
+            assigned_managers=[manager.id] if manager else [],
+            created_by=uploader.id,
+            assigned_by=uploader.id,
+            type="Strategy",
+            task_mode="standard",
+            priority="High",
+            status="In Progress",
+            start_date=date.today() - timedelta(days=1),
+            due_date=date.today() + timedelta(days=7),
+            requires_review=True,
+        )
+        db.add(t)
+        db.flush()
+        tasks = [t]
+        print("[seed] created demo task for Updates")  # noqa: T201
+
+    for brand in brands:
+        guidelines = (
+            f"# {brand.name} — Brand Guidelines (Demo)\n\n"
+            f"Client type: {brand.client_type or 'Retainer'}\n"
+            f"Priority: {brand.priority or 'P2'}\n\n"
+            "## Voice\n"
+            f"{brand.brand_voice or 'Clear, confident, and on-brand for Scrumfolks delivery.'}\n\n"
+            "## Colors\n"
+            f"{brand.brand_colors or '#E8630A · #1A1A2E · #F8F8F8'}\n\n"
+            "## Fonts\n"
+            f"{brand.fonts or 'Space Grotesk / DM Sans'}\n\n"
+            "Open this file in the in-app Document Viewer to verify preview.\n"
+        ).encode("utf-8")
+        _add_doc(
+            db,
+            entity_type="brand",
+            entity_id=brand.id,
+            file_name=f"{brand.name} Brand Guidelines.txt",
+            raw=guidelines,
+            mime="text/plain",
+            uploaded_by=uploader.id,
+            review_status="approved",
+        )
+        _add_doc(
+            db,
+            entity_type="brand",
+            entity_id=brand.id,
+            file_name=f"{brand.name} Logo Mark.svg",
+            raw=_svg_logo(brand.logo or brand.name),
+            mime="image/svg+xml",
+            uploaded_by=uploader.id,
+            review_status="approved",
+        )
+        _add_doc(
+            db,
+            entity_type="brand",
+            entity_id=brand.id,
+            file_name=f"{brand.name} Brief — Pending Review.txt",
+            raw=(
+                f"Demo upload awaiting Review for {brand.name}.\n"
+                "Owner/Manager: open Review tab → Approve or Reject.\n"
+            ).encode("utf-8"),
+            mime="text/plain",
+            uploaded_by=uploader.id,
+            review_status="pending",
+        )
+
+    for task in tasks:
+        _add_doc(
+            db,
+            entity_type="task",
+            entity_id=task.id,
+            file_name=f"Task brief — {task.title[:40]}.txt",
+            raw=(
+                f"Task: {task.title}\n"
+                f"Status: {task.status}\n"
+                f"Priority: {task.priority}\n\n"
+                "Demo document for Updates channel viewer.\n"
+                "Upload more files from Updates → Task documents.\n"
+            ).encode("utf-8"),
+            mime="text/plain",
+            uploaded_by=uploader.id,
+            review_status="approved",
+        )
+        # Seed one chat so Updates isn't empty
+        has_chat = db.scalar(select(TaskChat.id).where(TaskChat.task_id == task.id).limit(1))
+        if not has_chat and manager:
+            db.add(
+                TaskChat(
+                    task_id=task.id,
+                    sender_id=manager.id,
+                    message=f"Demo kickoff note for “{task.title}”. Upload docs here and use View to open the document viewer.",
+                    type="text",
+                )
+            )
+
+    # Notify team that demo docs are ready (once)
+    if team:
+        note = "Demo brand & task documents are ready — open Brands / Updates to view them"
+        exists = db.scalar(
+            select(Notification.id).where(
+                Notification.user_id == team.id,
+                Notification.message == note,
+            )
+        )
+        if not exists:
+            db.add(
+                Notification(
+                    user_id=team.id,
+                    message=note,
+                    type="system",
+                    link="/brands",
+                )
+            )
+
+    print(f"[seed] demo documents ensured for {len(brands)} brand(s), {len(tasks)} task(s)")  # noqa: T201
+
+
+def ensure_demo_documents() -> None:
+    """Idempotent: attach sample docs to existing brands/tasks (safe on Railway)."""
+    with db_session() as db:
+        _seed_users(db)
+        id_map = _build_id_map(db)
+        _seed_departments(db, id_map)
+        _retire_developer_role(db)
+        _ensure_demo_documents(db)
+    print("[seed] ensure_demo_documents complete")  # noqa: T201
 
 
 if __name__ == "__main__":

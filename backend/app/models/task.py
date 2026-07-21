@@ -50,6 +50,13 @@ class Task(UUIDPKMixin, TimestampsMixin, Base):
         ForeignKey("profiles.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Who last assigned people to this task (may differ from creator).
+    assigned_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("profiles.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     type: Mapped[str | None] = mapped_column(String(40), nullable=True)
     task_mode: Mapped[str] = mapped_column(
@@ -90,6 +97,17 @@ class Task(UUIDPKMixin, TimestampsMixin, Base):
 
     flagged: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("false"), index=True
+    )
+
+    # Owner/Manager can close Updates thread when work is done (saves chat storage).
+    updates_closed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false"), index=True
+    )
+    updates_closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updates_closed_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("profiles.id", ondelete="SET NULL"),
+        nullable=True,
     )
 
     chats: Mapped[list["TaskChat"]] = relationship(

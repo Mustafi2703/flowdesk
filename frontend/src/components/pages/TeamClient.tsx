@@ -463,7 +463,10 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                     users={sortedManagers}
                     selectedIds={userForm.manager_ids || []}
                     onChange={(ids) => setUserForm({ ...userForm, manager_ids: ids, manager_id: ids[0] || '' })}
+                    variant="dropdown"
+                    placeholder="Select managers…"
                     emptyLabel="No managers available"
+                    groupByRole={false}
                   />
                 </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--sf-text-secondary)', fontSize: 13 }}>
@@ -541,7 +544,10 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                   users={sortedManagers}
                   selectedIds={userForm.manager_ids || []}
                   onChange={(ids) => setUserForm({ ...userForm, manager_ids: ids, manager_id: ids[0] || '' })}
+                  variant="dropdown"
+                  placeholder="Select managers…"
                   emptyLabel="No managers available"
+                  groupByRole={false}
                 />
               </div>
             )}

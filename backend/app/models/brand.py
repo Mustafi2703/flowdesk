@@ -44,7 +44,14 @@ class Brand(UUIDPKMixin, TimestampsMixin, Base):
     photography_style: Mapped[str | None] = mapped_column(Text, nullable=True)
     brand_voice: Mapped[str | None] = mapped_column(Text, nullable=True)
     responsibilities: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Team members allocated to this brand (docs + Updates access).
     assigned_members: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(UUID(as_uuid=True)),
+        nullable=False,
+        server_default=text("ARRAY[]::uuid[]"),
+    )
+    # Managers responsible for this brand (Owner assigns; they can allocate team).
+    assigned_managers: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(UUID(as_uuid=True)),
         nullable=False,
         server_default=text("ARRAY[]::uuid[]"),

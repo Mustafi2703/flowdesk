@@ -1,4 +1,4 @@
-"""Brands management — returns flat objects with assigned member info."""
+"""Brands management — role-wise managers + team, RBAC per TMS spec."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from app.api.v1.endpoints.attachments import MAX_BYTES, store_attachment
 from app.core.roles import Role
 from app.db.session import get_db
 from app.models.brand import Brand
+from app.models.notification import Notification
 from app.models.profile import Profile
 from app.schemas.brand import WORKFLOW_STAGES, BrandCreate, BrandUpdate
 from app.utils.queues import DASHBOARD_CACHE
@@ -28,6 +29,22 @@ _LOGO_MIME = {
     "image/gif",
     "image/svg+xml",
 }
+
+
+def _id_set(ids: list | None) -> set[str]:
+    return {str(uid) for uid in (ids or [])}
+
+
+def _is_team_member(brand: Brand, user: Profile) -> bool:
+    return str(user.id) in _id_set(brand.assigned_members)
+
+
+def _is_brand_manager(brand: Brand, user: Profile) -> bool:
+    return str(user.id) in _id_set(getattr(brand, "assigned_managers", None))
+
+
+def _is_allocated(brand: Brand, user: Profile) -> bool:
+    return _is_team_member(brand, user) or _is_brand_manager(brand, user)
 
 
 def _serialize(brand: Brand) -> dict[str, Any]:
@@ -50,6 +67,7 @@ def _serialize(brand: Brand) -> dict[str, Any]:
         "brand_voice": brand.brand_voice,
         "responsibilities": brand.responsibilities,
         "assigned_members": [str(uid) for uid in (brand.assigned_members or [])],
+        "assigned_managers": [str(uid) for uid in (getattr(brand, "assigned_managers", None) or [])],
         "created_by": str(brand.created_by) if brand.created_by else None,
         "created_at": brand.created_at.isoformat(),
         "updated_at": brand.updated_at.isoformat(),
@@ -57,9 +75,48 @@ def _serialize(brand: Brand) -> dict[str, Any]:
 
 
 def _can_view(brand: Brand, user: Profile) -> bool:
+    # Spec: Owner/Manager/HR view brands; Accountant read-only list; Team only if allocated.
     if Role(user.role) in {Role.OWNER, Role.MANAGER, Role.HR, Role.ACCOUNTANT}:
         return True
-    return user.id in (brand.assigned_members or [])
+    return _is_allocated(brand, user)
+
+
+def _can_edit_brand(user: Profile) -> bool:
+    return Role(user.role) in {Role.OWNER, Role.MANAGER}
+
+
+def _can_assign_managers(user: Profile) -> bool:
+    return Role(user.role) is Role.OWNER
+
+
+def _can_assign_team(brand: Brand, user: Profile) -> bool:
+    role = Role(user.role)
+    if role is Role.OWNER:
+        return True
+    if role is Role.MANAGER:
+        # Assigned brand managers (or any manager with Brand CRUD) can allocate team.
+        return True
+    return False
+
+
+def _coerce_uuid_list(values: list | None) -> list[uuid.UUID]:
+    return [uuid.UUID(str(v)) for v in (values or [])]
+
+
+def _validate_role_ids(db: Session, ids: list[uuid.UUID], allowed_roles: set[str], label: str) -> None:
+    if not ids:
+        return
+    rows = db.scalars(select(Profile).where(Profile.id.in_(ids))).all()
+    found = {p.id for p in rows}
+    missing = [str(i) for i in ids if i not in found]
+    if missing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown {label}: {', '.join(missing)}")
+    bad = [p.name for p in rows if p.role not in allowed_roles]
+    if bad:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{label} must be role(s) {sorted(allowed_roles)}; invalid: {', '.join(bad)}",
+        )
 
 
 @router.get("")
@@ -74,17 +131,36 @@ def create_brand(
     db: Session = Depends(get_db),
     user: Profile = Depends(get_current_user),
 ) -> dict[str, Any]:
-    if Role(user.role) not in {Role.OWNER, Role.MANAGER}:
+    if not _can_edit_brand(user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owner/manager can create brands")
     data = payload.model_dump()
     stage = (data.get("workflow_stage") or "assigned").lower()
     if stage not in WORKFLOW_STAGES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid workflow_stage")
     data["workflow_stage"] = stage
+    managers = _coerce_uuid_list(data.get("assigned_managers"))
+    members = _coerce_uuid_list(data.get("assigned_members"))
+    if Role(user.role) is not Role.OWNER:
+        # Managers creating brands may set team; brand managers set by Owner later.
+        managers = []
+    _validate_role_ids(db, managers, {"manager"}, "assigned_managers")
+    _validate_role_ids(db, members, {"team"}, "assigned_members")
+    data["assigned_managers"] = managers
+    data["assigned_members"] = members
     brand = Brand(**data, created_by=user.id)
     db.add(brand)
     db.commit()
     db.refresh(brand)
+    for mid in _id_set(managers) | _id_set(members):
+        db.add(
+            Notification(
+                user_id=uuid.UUID(mid),
+                message=f'You were assigned to brand "{brand.name}"',
+                type="brand",
+                link="/brands",
+            )
+        )
+    db.commit()
     DASHBOARD_CACHE.invalidate()
     return _serialize(brand)
 
@@ -108,21 +184,62 @@ def update_brand(
     db: Session = Depends(get_db),
     user: Profile = Depends(get_current_user),
 ) -> dict[str, Any]:
-    if Role(user.role) not in {Role.OWNER, Role.MANAGER}:
+    if not _can_edit_brand(user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owner/manager can edit brands")
     brand = db.get(Brand, brand_id)
     if not brand:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found")
+
+    previous_members = _id_set(brand.assigned_members)
+    previous_managers = _id_set(getattr(brand, "assigned_managers", None))
     update = payload.model_dump(exclude_unset=True)
+
+    if "assigned_managers" in update:
+        if not _can_assign_managers(user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only Owner can assign brand managers",
+            )
+        managers = _coerce_uuid_list(update.get("assigned_managers"))
+        _validate_role_ids(db, managers, {"manager"}, "assigned_managers")
+        update["assigned_managers"] = managers
+
+    if "assigned_members" in update:
+        if not _can_assign_team(brand, user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only Owner or Manager can assign brand team members",
+            )
+        members = _coerce_uuid_list(update.get("assigned_members"))
+        _validate_role_ids(db, members, {"team"}, "assigned_members")
+        update["assigned_members"] = members
+
     if "workflow_stage" in update and update["workflow_stage"] is not None:
         stage = str(update["workflow_stage"]).lower()
         if stage not in WORKFLOW_STAGES:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid workflow_stage")
         update["workflow_stage"] = stage
+
     for key, value in update.items():
         setattr(brand, key, value)
     db.commit()
     db.refresh(brand)
+
+    newly = (_id_set(brand.assigned_members) - previous_members) | (
+        _id_set(getattr(brand, "assigned_managers", None)) - previous_managers
+    )
+    for mid in newly:
+        db.add(
+            Notification(
+                user_id=uuid.UUID(mid),
+                message=f'You were assigned to brand "{brand.name}" — brand docs and Updates are available',
+                type="brand",
+                link="/brands",
+            )
+        )
+    if newly:
+        db.commit()
+
     DASHBOARD_CACHE.invalidate()
     return _serialize(brand)
 
@@ -134,7 +251,7 @@ async def upload_brand_logo(
     db: Session = Depends(get_db),
     user: Profile = Depends(get_current_user),
 ) -> dict[str, Any]:
-    if Role(user.role) not in {Role.OWNER, Role.MANAGER}:
+    if not _can_edit_brand(user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owner/manager can upload logos")
     brand = db.get(Brand, brand_id)
     if not brand:
@@ -151,7 +268,7 @@ async def upload_brand_logo(
     if not raw:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file")
     if len(raw) > MAX_BYTES:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File too large (max 15MB)")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File too large (max 100MB)")
 
     row = store_attachment(
         db=db,

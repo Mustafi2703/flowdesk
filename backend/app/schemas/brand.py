@@ -34,6 +34,7 @@ class BrandCreate(BaseModel):
     brand_voice: str | None = None
     responsibilities: str | None = None
     assigned_members: list[uuid.UUID] = Field(default_factory=list)
+    assigned_managers: list[uuid.UUID] = Field(default_factory=list)
 
 
 class BrandUpdate(BaseModel):
@@ -53,6 +54,7 @@ class BrandUpdate(BaseModel):
     brand_voice: str | None = None
     responsibilities: str | None = None
     assigned_members: list[uuid.UUID] | None = None
+    assigned_managers: list[uuid.UUID] | None = None
 
 
 class BrandOut(BaseModel):
@@ -76,6 +78,7 @@ class BrandOut(BaseModel):
     brand_voice: str | None
     responsibilities: str | None
     assigned_members: list[uuid.UUID]
+    assigned_managers: list[uuid.UUID]
     created_by: uuid.UUID | None
     created_at: datetime
     updated_at: datetime

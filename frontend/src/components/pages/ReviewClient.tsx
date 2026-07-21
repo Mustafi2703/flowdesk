@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { SessionUser } from '@/types'
 import { PageHeader, PageShell, PageToolbar, Section, StatCard, StatGrid } from '@/components/app/Section'
+import { DocumentViewer } from '@/components/app/DocumentViewer'
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   pending: { bg: 'rgba(234,179,8,0.15)', text: '#EAB308' },
@@ -16,6 +17,7 @@ export default function ReviewClient({ session }: { session: SessionUser }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [viewing, setViewing] = useState<any | null>(null)
 
   async function load(status = filter) {
     setError('')
@@ -94,7 +96,7 @@ export default function ReviewClient({ session }: { session: SessionUser }) {
         <StatCard label="Pending" value={filter === 'pending' ? items.length : pending} accent="#EAB308" />
       </StatGrid>
 
-      <Section title="Uploads" subtitle="Approve or reject brand and task files" style={{ marginTop: 16 }}>
+      <Section title="Uploads" subtitle="Click a file to view · approve or reject" style={{ marginTop: 16 }}>
         {items.length === 0 ? (
           <div style={{ color: 'var(--sf-muted)', fontSize: 13, padding: 20, textAlign: 'center' }}>No files in this filter.</div>
         ) : (
@@ -105,15 +107,20 @@ export default function ReviewClient({ session }: { session: SessionUser }) {
               return (
                 <div key={f.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 14px', background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 10 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <a href={`/api/attachments/${f.id}`} target="_blank" rel="noreferrer" style={{ color: 'var(--sf-text)', fontWeight: 600, fontSize: 13, textDecoration: 'none' }}>
+                    <button
+                      type="button"
+                      onClick={() => setViewing(f)}
+                      style={{ color: 'var(--sf-text)', fontWeight: 600, fontSize: 13, textDecoration: 'none', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+                    >
                       {f.file_name}
-                    </a>
+                    </button>
                     <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 3 }}>
-                      {f.entity_type} · {f.uploader?.name || 'Unknown'} · {f.created_at ? new Date(f.created_at).toLocaleString() : '—'}
+                      {f.entity_type} · {f.uploader?.name || 'Unknown'} · {f.created_at ? new Date(f.created_at).toLocaleString() : '—'} · click to view
                     </div>
                   </div>
                   <span style={{ background: c.bg, color: c.text, fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, textTransform: 'uppercase' }}>{st}</span>
                   <div style={{ display: 'flex', gap: 6 }}>
+                    <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '5px 10px' }} onClick={() => setViewing(f)}>View</button>
                     <button type="button" disabled={saving === f.id} className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '5px 10px' }} onClick={() => setStatus(f.id, 'approved')}>Approve</button>
                     <button type="button" disabled={saving === f.id} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '5px 10px', color: 'var(--sf-danger)' }} onClick={() => setStatus(f.id, 'rejected')}>Reject</button>
                   </div>
@@ -123,6 +130,7 @@ export default function ReviewClient({ session }: { session: SessionUser }) {
           </div>
         )}
       </Section>
+      <DocumentViewer file={viewing} open={!!viewing} onClose={() => setViewing(null)} />
     </PageShell>
   )
 }

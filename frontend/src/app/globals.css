@@ -738,15 +738,15 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 2.5rem 3rem 2.5rem 2rem;
+  padding: 2.5rem 2rem;
   background: #0f1117;
 }
 
 .login-card {
   width: 100%;
-  max-width: 380px;
+  max-width: 400px;
+  margin-left: auto;
   margin-right: auto;
-  margin-left: clamp(0px, 8vw, 48px);
   background: #161922;
   border: 1px solid #252b3d;
   border-radius: 14px;

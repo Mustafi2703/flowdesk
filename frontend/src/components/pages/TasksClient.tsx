@@ -691,6 +691,8 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
             users={teamUsers}
             selectedIds={assignedTo}
             onChange={setAssignedTo}
+            variant="dropdown"
+            placeholder="Assign team members…"
             emptyLabel="No Team members found. Owner/Manager: add people under Team first."
           />
         </div>
@@ -730,6 +732,8 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
                       users={teamUsers}
                       selectedIds={st.assigned_to || []}
                       onChange={(ids) => updateSubTask(idx, { assigned_to: ids })}
+                      variant="dropdown"
+                      placeholder="Assign sub-task…"
                     />
                   </div>
                 </div>

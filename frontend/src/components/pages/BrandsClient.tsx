@@ -59,6 +59,8 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   const [showCreate, setShowCreate] = useState(false)
   const [loading, setLoading] = useState(true)
   const canEdit = ['owner', 'manager'].includes(session.role)
+  const isOwner = session.role === 'owner'
+  const isReadOnlyRole = ['hr', 'accountant'].includes(session.role)
 
   function load() {
     return Promise.all([
@@ -78,7 +80,13 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   useEffect(() => { load() }, [])
 
   const visible = useMemo(
-    () => (session.role === 'team' ? brands.filter(b => (b.assigned_members || []).some((id: string) => sameId(id, session.id))) : brands),
+    () => {
+      if (session.role !== 'team') return brands
+      return brands.filter(b =>
+        (b.assigned_members || []).some((id: string) => sameId(id, session.id)) ||
+        (b.assigned_managers || []).some((id: string) => sameId(id, session.id))
+      )
+    },
     [brands, session.id, session.role]
   )
 
@@ -125,8 +133,8 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
     <PageShell>
       <PageToolbar>
         <PageHeader
-          title={session.role === 'team' ? 'My brands' : 'Brands'}
-          subtitle={`${visible.length} client${visible.length === 1 ? '' : 's'}`}
+          title={session.role === 'team' ? 'My brands' : isReadOnlyRole ? 'Brands (view)' : 'Brands'}
+          subtitle={`${visible.length} client${visible.length === 1 ? '' : 's'}${isReadOnlyRole ? ' · read-only' : ''}`}
         />
         {canEdit && (
           <button type="button" onClick={() => setShowCreate(true)} className="sf-btn sf-btn-primary">
@@ -178,11 +186,13 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                 users={users}
                 session={session}
                 canEdit={canEdit}
+                canAssignManagers={isOwner}
+                canAssignTeam={canEdit}
                 tab={section}
                 onTabChange={setSection}
-              onRefresh={load}
-              attendance={attendance}
-            />
+                onRefresh={load}
+                attendance={attendance}
+              />
             </>
           ) : (
             <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--sf-muted)' }}>
@@ -197,11 +207,12 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   )
 }
 
-function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, onRefresh, attendance }: any) {
+function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers, canAssignTeam, tab, onTabChange, onRefresh, attendance }: any) {
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [editingTask, setEditingTask] = useState<any>(null)
   const [progressTask, setProgressTask] = useState<any>(null)
   const [createAsProject, setCreateAsProject] = useState(false)
+  const [managerIds, setManagerIds] = useState<string[]>(() => (brand.assigned_managers || []).map(String))
   const [memberIds, setMemberIds] = useState<string[]>(() => (brand.assigned_members || []).map(String))
   const [savingMembers, setSavingMembers] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
@@ -229,9 +240,15 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
   const canSetPrice = canSetTaskPrice(session.role)
   const canSeeBilling = ['owner', 'manager', 'accountant'].includes(session.role)
   const statusSelectStyle = { padding: '4px 8px', background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 6, color: 'var(--sf-text)', fontSize: 11, fontFamily: 'inherit' }
-  const assignable = users.filter((u: any) => ['team', 'manager'].includes(u.role) && u.is_active !== false)
+  const assignableManagers = users.filter((u: any) => u.role === 'manager' && u.is_active !== false)
+  const assignableTeam = users.filter((u: any) => u.role === 'team' && u.is_active !== false)
+  const isAllocated =
+    (brand.assigned_members || []).some((id: string) => sameId(id, session.id)) ||
+    (brand.assigned_managers || []).some((id: string) => sameId(id, session.id))
+  const canUploadDocs = canEdit || (session.role === 'team' && isAllocated)
 
   useEffect(() => {
+    setManagerIds((brand.assigned_managers || []).map(String))
     setMemberIds((brand.assigned_members || []).map(String))
     setIdentityDraft({
       logo: brand.logo || '',
@@ -250,21 +267,25 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
       client_type: brand.client_type || 'Retainer',
     })
     setLogoError('')
-  }, [brand.id, brand.assigned_members, brand.logo, brand.logo_url, brand.description, brand.workflow_stage, brand.priority, brand.client_type, brand.short_term_goals, brand.long_term_goals, brand.journey, brand.responsibilities, brand.fonts, brand.logo_variants, brand.brand_colors, brand.photography_style, brand.brand_voice])
+  }, [brand.id, brand.assigned_members, brand.assigned_managers, brand.logo, brand.logo_url, brand.description, brand.workflow_stage, brand.priority, brand.client_type, brand.short_term_goals, brand.long_term_goals, brand.journey, brand.responsibilities, brand.fonts, brand.logo_variants, brand.brand_colors, brand.photography_style, brand.brand_voice])
 
   async function saveMembers() {
     setSavingMembers(true)
+    const body: Record<string, string[]> = {}
+    if (canAssignTeam) body.assigned_members = memberIds
+    if (canAssignManagers) body.assigned_managers = managerIds
     const res = await fetch(`/api/brands/${brand.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ assigned_members: memberIds }),
+      body: JSON.stringify(body),
     })
     setSavingMembers(false)
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      alert(data.error || data.detail || 'Could not update brand team')
+      alert(data.error || data.detail || 'Could not update brand allocation')
       return
     }
+    alert('Brand allocation saved. Assigned managers and team can open brand documents.')
     onRefresh()
   }
 
@@ -463,27 +484,68 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
             {tasks.length === 0 && <div style={{ color: 'var(--sf-muted-2)', fontSize: 12 }}>No tasks yet — add a project or task from the tabs above.</div>}
           </div>
           <div style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, padding: 18 }}>
-            <div style={{ color: 'var(--sf-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Assigned team</div>
-            {canEdit ? (
+            <div style={{ color: 'var(--sf-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Brand allocation</div>
+            <div style={{ color: 'var(--sf-muted)', fontSize: 12, marginBottom: 12 }}>
+              Owner assigns managers. Managers assign team. Everyone allocated can view brand documents.
+            </div>
+            {(canAssignManagers || canAssignTeam) ? (
               <>
-                <PeoplePicker
-                  users={assignable}
-                  selectedIds={memberIds}
-                  onChange={setMemberIds}
-                  emptyLabel="No Team or Manager users to allocate."
-                />
+                {canAssignManagers && (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 650, marginBottom: 6 }}>Managers</div>
+                    <PeoplePicker
+                      users={assignableManagers}
+                      selectedIds={managerIds}
+                      onChange={setManagerIds}
+                      variant="dropdown"
+                      placeholder="Select managers…"
+                      emptyLabel="No Manager users yet."
+                      groupByRole={false}
+                    />
+                  </div>
+                )}
+                {canAssignTeam && (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 650, marginBottom: 6 }}>Team members</div>
+                    <PeoplePicker
+                      users={assignableTeam}
+                      selectedIds={memberIds}
+                      onChange={setMemberIds}
+                      variant="dropdown"
+                      placeholder="Select team members…"
+                      emptyLabel="No Team users yet."
+                      groupByRole={false}
+                    />
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={saveMembers}
                   disabled={savingMembers}
                   className="sf-btn sf-btn-primary"
-                  style={{ marginTop: 10, fontSize: 12 }}
+                  style={{ marginTop: 8, fontSize: 12 }}
                 >
-                  {savingMembers ? 'Saving…' : 'Save team allocation'}
+                  {savingMembers ? 'Saving…' : 'Save allocation'}
                 </button>
               </>
             ) : (
               <>
+                <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>Managers</div>
+                {(brand.assigned_managers || []).map((uid: string) => {
+                  const u = users.find((u: any) => sameId(u.id, uid))
+                  if (!u) return null
+                  return (
+                    <div key={`m-${uid}`} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 10px', background: 'var(--sf-surface-2)', borderRadius: 7, marginBottom: 5 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 6, background: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 10 }}>{u.avatar || u.name?.slice(0, 2)}</div>
+                      <div>
+                        <div style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600 }}>{u.name}</div>
+                        <div style={{ color: 'var(--sf-muted)', fontSize: 10 }}>{[u.designation, 'Manager'].filter(Boolean).join(' · ')}</div>
+                      </div>
+                    </div>
+                  )
+                })}
+                {!(brand.assigned_managers?.length > 0) && <div style={{ color: 'var(--sf-muted-2)', fontSize: 12, marginBottom: 10 }}>No managers assigned.</div>}
+                <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', margin: '10px 0 6px' }}>Team</div>
                 {(brand.assigned_members || []).map((uid: string) => {
                   const u = users.find((u: any) => sameId(u.id, uid))
                   if (!u) return null
@@ -492,7 +554,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
                       <div style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--sf-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sf-text)', fontWeight: 700, fontSize: 10 }}>{u.avatar || u.name?.slice(0, 2)}</div>
                       <div>
                         <div style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600 }}>{u.name}</div>
-                        <div style={{ color: 'var(--sf-muted)', fontSize: 10 }}>{u.designation}</div>
+                        <div style={{ color: 'var(--sf-muted)', fontSize: 10 }}>{[u.designation, u.department].filter(Boolean).join(' · ') || u.role}</div>
                       </div>
                     </div>
                   )
@@ -703,7 +765,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
               </div>
             )}
           </div>
-          <FileAttachmentsPanel entityType="brand" entityId={brand.id} canUpload={canEdit} title="Brand files & documents" />
+          <FileAttachmentsPanel entityType="brand" entityId={brand.id} canUpload={canUploadDocs} title="Brand files & documents" />
         </div>
       )}
 
@@ -761,6 +823,7 @@ function CreateBrand({ onClose, onSaved }: any) {
   const [longGoals, setLongGoals] = useState('')
   const [journey, setJourney] = useState('')
   const [saving, setSaving] = useState(false)
+  const [createdBrand, setCreatedBrand] = useState<any | null>(null)
   const sInp = { width: '100%', padding: '9px 12px', background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)', fontSize: 13, outline: 'none', fontFamily: "'DM Sans',sans-serif" }
 
   function lines(text: string) {
@@ -793,59 +856,85 @@ function CreateBrand({ onClose, onSaved }: any) {
       alert(data.error || data.detail || 'Could not create brand')
       return
     }
+    const brand = await res.json().catch(() => null)
+    if (brand?.id) {
+      setCreatedBrand(brand)
+      return
+    }
+    onSaved()
+  }
+
+  function finish() {
     onSaved()
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={onClose}>
-      <div style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 16, padding: 28, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={createdBrand ? undefined : onClose}>
+      <div style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 16, padding: 28, width: '100%', maxWidth: 580, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ color: 'var(--sf-text)', fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, fontWeight: 700 }}>Add new brand</h3>
-          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--sf-muted)', cursor: 'pointer', fontSize: 22 }}>×</button>
+          <h3 style={{ color: 'var(--sf-text)', fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, fontWeight: 700 }}>
+            {createdBrand ? `Documents · ${createdBrand.name}` : 'Add new brand'}
+          </h3>
+          <button type="button" onClick={createdBrand ? finish : onClose} style={{ background: 'none', border: 'none', color: 'var(--sf-muted)', cursor: 'pointer', fontSize: 22 }}>×</button>
         </div>
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Brand Name *</label>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Quick Furnish" style={sInp} />
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Logo initials (fallback)</label>
-          <input value={logo} onChange={e => setLogo(e.target.value.slice(0, 8))} placeholder="e.g. QF (max 8)" style={sInp} />
-          <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 4 }}>After create, open Identity → Upload logo image (PNG/JPG/SVG).</div>
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Description</label>
-          <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Brief description…" rows={2} style={{ ...sInp, resize: 'vertical' as const }} />
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Responsibilities</label>
-          <textarea value={resp} onChange={e => setResp(e.target.value)} placeholder="What does the agency handle?" rows={2} style={{ ...sInp, resize: 'vertical' as const }} />
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-          <div>
-            <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Short-term goals</label>
-            <textarea value={shortGoals} onChange={e => setShortGoals(e.target.value)} placeholder="One goal per line" rows={3} style={{ ...sInp, resize: 'vertical' as const }} />
-          </div>
-          <div>
-            <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Long-term goals</label>
-            <textarea value={longGoals} onChange={e => setLongGoals(e.target.value)} placeholder="One goal per line" rows={3} style={{ ...sInp, resize: 'vertical' as const }} />
-          </div>
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Journey milestones</label>
-          <textarea value={journey} onChange={e => setJourney(e.target.value)} placeholder="One milestone per line — e.g. Onboarded · First campaign · Retainer signed" rows={3} style={{ ...sInp, resize: 'vertical' as const }} />
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-          {[['Client Type', ct, setCt, ['Retainer', 'Project-Based', 'One-Time', 'Internal']], ['Priority', priority, setPriority, ['P1', 'P2', 'P3', 'P4']]].map(([label, val, set, opts]) => (
-            <div key={String(label)}>
-              <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>{label}</label>
-              <select value={String(val)} onChange={e => (set as any)(e.target.value)} style={{ ...sInp, cursor: 'pointer' }}>{(opts as string[]).map(o => <option key={o}>{o}</option>)}</select>
+
+        {!createdBrand ? (
+          <>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Brand Name *</label>
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Quick Furnish" style={sInp} />
             </div>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" onClick={save} disabled={!name || saving} className="sf-btn sf-btn-primary">{saving ? 'Creating…' : 'Create brand'}</button>
-          <button type="button" onClick={onClose} className="sf-btn sf-btn-ghost">Cancel</button>
-        </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Logo initials (fallback)</label>
+              <input value={logo} onChange={e => setLogo(e.target.value.slice(0, 8))} placeholder="e.g. QF (max 8)" style={sInp} />
+              <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 4 }}>After create you can upload logo + brand documents in the next step.</div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Description</label>
+              <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Brief description…" rows={2} style={{ ...sInp, resize: 'vertical' as const }} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Responsibilities</label>
+              <textarea value={resp} onChange={e => setResp(e.target.value)} placeholder="What does the agency handle?" rows={2} style={{ ...sInp, resize: 'vertical' as const }} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+              <div>
+                <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Short-term goals</label>
+                <textarea value={shortGoals} onChange={e => setShortGoals(e.target.value)} placeholder="One goal per line" rows={3} style={{ ...sInp, resize: 'vertical' as const }} />
+              </div>
+              <div>
+                <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Long-term goals</label>
+                <textarea value={longGoals} onChange={e => setLongGoals(e.target.value)} placeholder="One goal per line" rows={3} style={{ ...sInp, resize: 'vertical' as const }} />
+              </div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Journey milestones</label>
+              <textarea value={journey} onChange={e => setJourney(e.target.value)} placeholder="One milestone per line — e.g. Onboarded · First campaign · Retainer signed" rows={3} style={{ ...sInp, resize: 'vertical' as const }} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+              {[['Client Type', ct, setCt, ['Retainer', 'Project-Based', 'One-Time', 'Internal']], ['Priority', priority, setPriority, ['P1', 'P2', 'P3', 'P4']]].map(([label, val, set, opts]) => (
+                <div key={String(label)}>
+                  <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>{label}</label>
+                  <select value={String(val)} onChange={e => (set as any)(e.target.value)} style={{ ...sInp, cursor: 'pointer' }}>{(opts as string[]).map(o => <option key={o}>{o}</option>)}</select>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={save} disabled={!name || saving} className="sf-btn sf-btn-primary">{saving ? 'Creating…' : 'Create brand'}</button>
+              <button type="button" onClick={onClose} className="sf-btn sf-btn-ghost">Cancel</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ color: 'var(--sf-success)', fontSize: 13, marginBottom: 14, fontWeight: 600 }}>
+              Brand created. Upload guidelines, logos, and briefs — click any file to view.
+            </div>
+            <FileAttachmentsPanel entityType="brand" entityId={createdBrand.id} canUpload title="Brand documents" />
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <button type="button" onClick={finish} className="sf-btn sf-btn-primary">Done</button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

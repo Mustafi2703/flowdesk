@@ -128,7 +128,7 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
     <PageShell>
       <PageHeader
         title="Workflow Dashboard"
-        subtitle="Campaign stages across brands · live from your tasks and team"
+        subtitle="Brand campaign board · stages, capacity, and live tasks"
       />
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>

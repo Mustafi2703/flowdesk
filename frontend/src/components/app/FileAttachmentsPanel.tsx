@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { DocumentViewer } from '@/components/app/DocumentViewer'
 
 export function FileAttachmentsPanel({
   entityType,
@@ -17,8 +18,14 @@ export function FileAttachmentsPanel({
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
+  const [viewing, setViewing] = useState<any | null>(null)
 
   async function load() {
+    if (!entityId) {
+      setFiles([])
+      setLoading(false)
+      return
+    }
     setError('')
     const res = await fetch(`/api/attachments?entity_type=${entityType}&entity_id=${entityId}`)
     const data = await res.json().catch(() => [])
@@ -32,12 +39,13 @@ export function FileAttachmentsPanel({
   }
 
   useEffect(() => {
-    if (entityId) load()
+    setLoading(true)
+    load()
   }, [entityType, entityId])
 
   async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (!file) return
+    if (!file || !entityId) return
     setUploading(true)
     setError('')
     const form = new FormData()
@@ -63,6 +71,7 @@ export function FileAttachmentsPanel({
       setError(data.error || data.detail || 'Could not delete')
       return
     }
+    if (viewing?.id === id) setViewing(null)
     load()
   }
 
@@ -70,6 +79,14 @@ export function FileAttachmentsPanel({
     if (n < 1024) return `${n} B`
     if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
     return `${(n / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  if (!entityId) {
+    return (
+      <div style={{ background: 'var(--sf-surface-2)', border: '1px dashed var(--sf-border)', borderRadius: 10, padding: 14, color: 'var(--sf-muted)', fontSize: 12 }}>
+        Save the brand first to upload and view documents.
+      </div>
+    )
   }
 
   return (
@@ -87,22 +104,34 @@ export function FileAttachmentsPanel({
       {loading ? (
         <div style={{ color: 'var(--sf-muted)', fontSize: 12 }}>Loading files…</div>
       ) : files.length === 0 ? (
-        <div style={{ color: 'var(--sf-muted-2)', fontSize: 12 }}>No files yet.</div>
+        <div style={{ color: 'var(--sf-muted-2)', fontSize: 12 }}>No files yet. Upload brand guidelines, logos, or briefs.</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {files.map((f) => (
             <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--sf-border)' }}>
-              <div style={{ minWidth: 0 }}>
-                <a href={`/api/attachments/${f.id}`} target="_blank" rel="noreferrer" style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                  {f.file_name}
-                </a>
-                <div style={{ color: 'var(--sf-muted)', fontSize: 10 }}>{fmtSize(f.file_size || 0)}</div>
+              <button
+                type="button"
+                onClick={() => setViewing(f)}
+                style={{ minWidth: 0, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+              >
+                <div style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600 }}>{f.file_name}</div>
+                <div style={{ color: 'var(--sf-muted)', fontSize: 10 }}>
+                  {fmtSize(f.file_size || 0)}
+                  {f.review_status ? ` · ${f.review_status}` : ''}
+                  {' · click to view'}
+                </div>
+              </button>
+              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                <button type="button" onClick={() => setViewing(f)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px' }}>View</button>
+                {canUpload && (
+                  <button type="button" onClick={() => remove(f.id)} style={{ background: 'none', border: 'none', color: '#F87171', cursor: 'pointer', fontSize: 11 }}>Delete</button>
+                )}
               </div>
-              <button type="button" onClick={() => remove(f.id)} style={{ background: 'none', border: 'none', color: '#F87171', cursor: 'pointer', fontSize: 11 }}>Delete</button>
             </div>
           ))}
         </div>
       )}
+      <DocumentViewer file={viewing} open={!!viewing} onClose={() => setViewing(null)} />
     </div>
   )
 }

@@ -27,7 +27,7 @@ from app.utils.queues import DASHBOARD_CACHE
 router = APIRouter(prefix="/attachments", tags=["attachments"])
 
 UPLOAD_ROOT = Path(os.environ.get("UPLOAD_ROOT", str(Path(__file__).resolve().parents[4] / "uploads")))
-MAX_BYTES = 15 * 1024 * 1024  # 15 MB
+MAX_BYTES = 100 * 1024 * 1024  # 100 MB (spec §6.1)
 ALLOWED_ENTITY = {"task", "brand"}
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 
@@ -57,6 +57,14 @@ def _serialize(row: FileAttachment) -> dict[str, Any]:
     }
 
 
+def _brand_people(brand: Brand | None) -> set[str]:
+    if not brand:
+        return set()
+    return {str(x) for x in (brand.assigned_members or [])} | {
+        str(x) for x in (getattr(brand, "assigned_managers", None) or [])
+    }
+
+
 def _can_access_entity(db: Session, entity_type: str, entity_id: uuid.UUID, user: Profile) -> bool:
     role = Role(user.role)
     if entity_type == "task":
@@ -65,28 +73,34 @@ def _can_access_entity(db: Session, entity_type: str, entity_id: uuid.UUID, user
             return False
         if role in {Role.OWNER, Role.MANAGER, Role.HR, Role.ACCOUNTANT}:
             return True
-        if user.id in (task.assigned_to or []):
+        if str(user.id) in {str(x) for x in (task.assigned_to or [])}:
             return True
         me = str(user.id)
-        return any(me in {str(x) for x in (st.get("assigned_to") or [])} for st in (task.sub_tasks or []))
+        if any(me in {str(x) for x in (st.get("assigned_to") or [])} for st in (task.sub_tasks or [])):
+            return True
+        if task.brand_id:
+            brand = db.get(Brand, task.brand_id)
+            if me in _brand_people(brand):
+                return True
+        return False
     if entity_type == "brand":
         brand = db.get(Brand, entity_id)
         if not brand:
             return False
+        # Spec: Owner/Manager/HR/Accountant can view; Team only if allocated.
         if role in {Role.OWNER, Role.MANAGER, Role.HR, Role.ACCOUNTANT}:
             return True
-        return user.id in (brand.assigned_members or [])
+        return str(user.id) in _brand_people(brand)
     return False
 
 
 def _can_upload(user: Profile) -> bool:
+    # Spec §3: File upload Owner / Manager / Team — not HR or Accounts.
     return Role(user.role) in {
         Role.OWNER,
         Role.MANAGER,
         Role.TEAM,
         Role.DEVELOPER,
-        Role.ACCOUNTANT,
-        Role.HR,
     }
 
 
@@ -226,7 +240,7 @@ async def upload_attachment(
     if not raw:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file")
     if len(raw) > MAX_BYTES:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File too large (max 15MB)")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File too large (max 100MB)")
 
     row = store_attachment(
         db=db,

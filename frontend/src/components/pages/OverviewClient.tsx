@@ -16,6 +16,7 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const [announcements, setAnnouncements] = useState<any[]>([])
   const [leaves, setLeaves] = useState<any[]>([])
   const [updates, setUpdates] = useState<any[]>([])
+  const [notifications, setNotifications] = useState<any[]>([])
   const [todayLog, setTodayLog] = useState<any>(null)
   const [clocked, setClocked] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -34,11 +35,13 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
       fetch('/api/leave').then(r => r.json()),
       fetch('/api/updates').then(r => r.json()).catch(() => []),
       fetch('/api/attendance').then(r => r.json()).catch(() => []),
-    ]).then(([t, a, l, u, att]) => {
+      fetch('/api/notifications').then(r => r.json()).catch(() => []),
+    ]).then(([t, a, l, u, att, n]) => {
       setTasks(Array.isArray(t) ? t : [])
       setAnnouncements(Array.isArray(a) ? a : [])
       setLeaves(Array.isArray(l) ? l : [])
       setUpdates(Array.isArray(u) ? u : [])
+      setNotifications(Array.isArray(n) ? n : [])
       const logs = Array.isArray(att) ? att : []
       const todays = logs.find((x: any) => x.date === today)
       setTodayLog(todays || null)
@@ -46,6 +49,18 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
       setLoading(false)
     })
   }, [])
+
+  async function markRead(id: string) {
+    const res = await fetch(`/api/notifications/${id}/read`, { method: 'POST' })
+    if (!res.ok) return
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)))
+  }
+
+  async function markAllRead() {
+    const unread = notifications.filter((n) => !n.is_read)
+    await Promise.all(unread.map((n) => fetch(`/api/notifications/${n.id}/read`, { method: 'POST' })))
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
+  }
 
   const clockIn  = () => fetch('/api/attendance/clockin',  { method:'POST' }).then(async (r) => {
     const log = await r.json().catch(() => null)
@@ -78,6 +93,7 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const flagged     = tasks.filter(t => ['Struggling','Needs Attention'].includes(t.status))
   const underReview = tasks.filter(t => t.status === 'Under Review' || t.requires_review)
   const pendingLeav = leaves.filter(l => l.status === 'Pending')
+  const unreadNotifs = notifications.filter(n => !n.is_read)
   const isTeam      = session.role === 'team'
   const isAdmin     = ['owner','manager'].includes(session.role)
 
@@ -139,6 +155,7 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
       )}
 
       <StatGrid>
+        <StatCard label="Notifications" value={unreadNotifs.length} sub={`${notifications.length} total`} accent="#E8630A" />
         {isAdmin && <>
           <StatCard label="Total Tasks" value={tasks.length} sub={`${tasks.filter(t=>t.status==='Completed').length} completed`} accent="#3B82F6" />
           <StatCard label="Overdue" value={overdue.length} accent="#EF4444" />
@@ -167,6 +184,60 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
           <button type="button" className="sf-link-btn" onClick={() => router.push('/billing')}>Open Billing module →</button>
         </div>
       )}
+
+      <Section
+        title="Your notifications"
+        subtitle={unreadNotifs.length ? `${unreadNotifs.length} unread for you` : 'You are caught up'}
+        action={unreadNotifs.length > 0 ? (
+          <button type="button" className="sf-link-btn" onClick={markAllRead}>Mark all read</button>
+        ) : undefined}
+        flush
+      >
+        {notifications.length === 0 ? (
+          <div style={{ padding: '1rem 1.125rem', color: 'var(--sf-muted)', fontSize: 13 }}>No notifications yet — assignments and reviews will show here.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 280, overflowY: 'auto' }}>
+            {notifications.slice(0, 20).map((n: any) => (
+              <div
+                key={n.id}
+                onClick={() => { if (!n.is_read) markRead(n.id) }}
+                style={{
+                  padding: '0.75rem 1rem',
+                  borderBottom: '1px solid var(--sf-border)',
+                  display: 'flex',
+                  gap: 12,
+                  alignItems: 'flex-start',
+                  cursor: n.is_read ? 'default' : 'pointer',
+                  background: n.is_read ? 'transparent' : 'rgba(232,99,10,0.06)',
+                }}
+              >
+                <span style={{
+                  width: 8, height: 8, borderRadius: '50%', marginTop: 5, flexShrink: 0,
+                  background: n.is_read ? 'var(--sf-border)' : 'var(--sf-accent)',
+                }} />
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ color: 'var(--sf-text)', fontSize: 13, fontWeight: n.is_read ? 500 : 650, lineHeight: 1.4 }}>
+                    {n.message || 'Update'}
+                  </div>
+                  <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 3 }}>
+                    {n.type || 'system'} · {n.created_at ? new Date(n.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                  </div>
+                </div>
+                {!n.is_read && (
+                  <button
+                    type="button"
+                    className="sf-btn sf-btn-ghost"
+                    style={{ fontSize: 10, padding: '4px 8px', flexShrink: 0 }}
+                    onClick={(e) => { e.stopPropagation(); markRead(n.id) }}
+                  >
+                    Read
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
 
       <div className="sf-page-grid-2" style={{ flex: 1 }}>
         <Section

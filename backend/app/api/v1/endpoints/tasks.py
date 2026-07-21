@@ -33,10 +33,20 @@ _IST = timezone(timedelta(hours=5, minutes=30))
 _ASSIGNEE_PROGRESS_FIELDS = frozenset({"status", "checklist", "sub_tasks", "description"})
 
 
-def _serialize(task: Task, brand_map: dict[uuid.UUID, Brand] | None = None, *, role: Role | None = None, creators: dict[uuid.UUID, Profile] | None = None) -> dict[str, Any]:
+def _serialize(
+    task: Task,
+    brand_map: dict[uuid.UUID, Brand] | None = None,
+    *,
+    role: Role | None = None,
+    creators: dict[uuid.UUID, Profile] | None = None,
+    assigners: dict[uuid.UUID, Profile] | None = None,
+) -> dict[str, Any]:
     """Match the joined shape the demo frontend expects."""
     brand = (brand_map or {}).get(task.brand_id) if task.brand_id else None
-    creator = (creators or {}).get(task.created_by) if task.created_by else None
+    assigner_id = task.assigned_by or task.created_by
+    assigner = None
+    if assigner_id:
+        assigner = (assigners or {}).get(assigner_id) or (creators or {}).get(assigner_id)
     payload: dict[str, Any] = {
         "id": str(task.id),
         "title": task.title,
@@ -45,14 +55,15 @@ def _serialize(task: Task, brand_map: dict[uuid.UUID, Brand] | None = None, *, r
         "assigned_to": [str(uid) for uid in (task.assigned_to or [])],
         "assigned_managers": [str(uid) for uid in (task.assigned_managers or [])],
         "created_by": str(task.created_by) if task.created_by else None,
+        "assigned_by_id": str(task.assigned_by) if task.assigned_by else (str(task.created_by) if task.created_by else None),
         "assigned_by": (
             {
-                "id": str(creator.id),
-                "name": creator.name,
-                "avatar": creator.avatar,
-                "role": creator.role,
+                "id": str(assigner.id),
+                "name": assigner.name,
+                "avatar": assigner.avatar,
+                "role": assigner.role,
             }
-            if creator
+            if assigner
             else None
         ),
         "type": task.type,
@@ -69,6 +80,8 @@ def _serialize(task: Task, brand_map: dict[uuid.UUID, Brand] | None = None, *, r
         "checklist": task.checklist or [],
         "sub_tasks": task.sub_tasks or [],
         "recurring_config": task.recurring_config,
+        "updates_closed": bool(getattr(task, "updates_closed", False)),
+        "updates_closed_at": task.updates_closed_at.isoformat() if getattr(task, "updates_closed_at", None) else None,
         "created_at": task.created_at.isoformat(),
         "updated_at": task.updated_at.isoformat(),
         "brand": (
@@ -89,15 +102,26 @@ def _serialize(task: Task, brand_map: dict[uuid.UUID, Brand] | None = None, *, r
     return payload
 
 
+def _people_map(db: Session, *id_lists: list[uuid.UUID | None]) -> dict[uuid.UUID, Profile]:
+    ids: set[uuid.UUID] = set()
+    for lst in id_lists:
+        for x in lst:
+            if x:
+                ids.add(x)
+    if not ids:
+        return {}
+    return {p.id: p for p in db.scalars(select(Profile).where(Profile.id.in_(ids))).all()}
+
+
 def _is_assignee(task: Task, user: Profile) -> bool:
-    if user.id in (task.assigned_to or []):
+    if str(user.id) in {str(x) for x in (task.assigned_to or [])}:
         return True
     me = str(user.id)
     return any(me in {str(x) for x in (st.get("assigned_to") or [])} for st in (task.sub_tasks or []))
 
 
 def _is_parent_assignee(task: Task, user: Profile) -> bool:
-    return user.id in (task.assigned_to or [])
+    return str(user.id) in {str(x) for x in (task.assigned_to or [])}
 
 
 def _validate_sub_task_patch(old_subs: list[dict], new_subs: list[dict], user: Profile) -> None:
@@ -134,14 +158,19 @@ def _is_clocked_in_today(db: Session, user: Profile) -> bool:
     return log is not None and log.login_time is not None and log.logout_time is None
 
 
-def _can_view(task: Task, user: Profile) -> bool:
+def _can_view(task: Task, user: Profile, brand: Brand | None = None) -> bool:
     role = Role(user.role)
     if role in {Role.OWNER, Role.MANAGER, Role.HR, Role.ACCOUNTANT}:
         return True
-    if user.id in (task.assigned_to or []):
+    if _is_assignee(task, user):
         return True
-    me = str(user.id)
-    return any(me in {str(x) for x in (st.get("assigned_to") or [])} for st in (task.sub_tasks or []))
+    # Brand-allocated people can open that brand's tasks (Updates + docs).
+    if brand is not None and (
+        str(user.id) in {str(x) for x in (brand.assigned_members or [])}
+        or str(user.id) in {str(x) for x in (getattr(brand, "assigned_managers", None) or [])}
+    ):
+        return True
+    return False
 
 
 def _creator_map(db: Session, tasks: list[Task]) -> dict[uuid.UUID, Profile]:
@@ -159,6 +188,21 @@ def _brand_map(db: Session, brand_ids: list[uuid.UUID]) -> dict[uuid.UUID, Brand
     return {brand.id: brand for brand in rows}
 
 
+def _resolve_brand(db: Session, task: Task, cache: dict[uuid.UUID, Brand] | None = None) -> Brand | None:
+    if not task.brand_id:
+        return None
+    if cache is not None and task.brand_id in cache:
+        return cache[task.brand_id]
+    brand = db.get(Brand, task.brand_id)
+    if brand is not None and cache is not None:
+        cache[task.brand_id] = brand
+    return brand
+
+
+def _can_view_db(db: Session, task: Task, user: Profile) -> bool:
+    return _can_view(task, user, _resolve_brand(db, task))
+
+
 @router.get("")
 def list_tasks(
     brand_id: uuid.UUID | None = Query(default=None),
@@ -172,19 +216,17 @@ def list_tasks(
     if status_filter:
         stmt = stmt.where(Task.status == status_filter)
     tasks = db.scalars(stmt).all()
-    visible = [task for task in tasks if _can_view(task, user)]
-    brands = _brand_map(db, [task.brand_id for task in visible if task.brand_id])
+    brands = _brand_map(db, [task.brand_id for task in tasks if task.brand_id])
+    visible = [
+        task
+        for task in tasks
+        if _can_view(task, user, brands.get(task.brand_id) if task.brand_id else None)
+    ]
     creator_ids = [task.created_by for task in visible if task.created_by]
-    creators = {
-        p.id: p
-        for p in (
-            db.scalars(select(Profile).where(Profile.id.in_(set(creator_ids)))).all()
-            if creator_ids
-            else []
-        )
-    }
+    assigner_ids = [task.assigned_by for task in visible if task.assigned_by]
+    people = _people_map(db, creator_ids, assigner_ids)
     role = Role(user.role)
-    return [_serialize(task, brands, role=role, creators=creators) for task in visible]
+    return [_serialize(task, brands, role=role, creators=people, assigners=people) for task in visible]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -211,6 +253,7 @@ def create_task(
     task = Task(
         **data,
         created_by=user.id,
+        assigned_by=user.id,
         timeline=[
             {
                 "by": str(user.id),
@@ -226,7 +269,7 @@ def create_task(
         db.add(
             Notification(
                 user_id=assignee_id,
-                message=f'Task "{task.title}" assigned to you',
+                message=f'Task "{task.title}" assigned to you by {user.name}',
                 type="task",
                 link=f"/tasks/{task.id}",
             )
@@ -234,7 +277,8 @@ def create_task(
     db.commit()
     DASHBOARD_CACHE.invalidate()
     brands = _brand_map(db, [task.brand_id] if task.brand_id else [])
-    return _serialize(task, brands, role=Role(user.role), creators=_creator_map(db, [task]))
+    people = _people_map(db, [task.created_by, task.assigned_by])
+    return _serialize(task, brands, role=Role(user.role), creators=people, assigners=people)
 
 
 @router.get("/{task_id}")
@@ -244,10 +288,11 @@ def get_task(
     user: Profile = Depends(get_current_user),
 ) -> dict[str, Any]:
     task = db.get(Task, task_id)
-    if not task or not _can_view(task, user):
+    if not task or not _can_view_db(db, task, user):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     brands = _brand_map(db, [task.brand_id] if task.brand_id else [])
-    return _serialize(task, brands, role=Role(user.role), creators=_creator_map(db, [task]))
+    people = _people_map(db, [task.created_by, task.assigned_by])
+    return _serialize(task, brands, role=Role(user.role), creators=people, assigners=people)
 
 
 @router.patch("/{task_id}")
@@ -258,7 +303,7 @@ def update_task(
     user: Profile = Depends(get_current_user),
 ) -> dict[str, Any]:
     task = db.get(Task, task_id)
-    if not task or not _can_view(task, user):
+    if not task or not _can_view_db(db, task, user):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     role = Role(user.role)
     allowed_manager = role in {Role.OWNER, Role.MANAGER}
@@ -301,8 +346,16 @@ def update_task(
             update[key] = [uuid.UUID(str(v)) for v in update[key]]
 
     previous_assignees = {str(uid) for uid in (task.assigned_to or [])}
+    # Track who assigned whenever assignment changes (owner/manager).
+    if "assigned_to" in update and allowed_manager:
+        update["assigned_by"] = user.id
     for key, value in update.items():
         setattr(task, key, value)
+    # Auto-close Updates when marked Completed (owner/manager can reopen or purge later).
+    if update.get("status") == "Completed" and not task.updates_closed and allowed_manager:
+        task.updates_closed = True
+        task.updates_closed_at = datetime.now(timezone.utc)
+        task.updates_closed_by = user.id
     task.timeline = [
         *(task.timeline or []),
         {
@@ -321,7 +374,7 @@ def update_task(
             db.add(
                 Notification(
                     user_id=uuid.UUID(assignee_id),
-                    message=f'Task "{task.title}" assigned to you',
+                    message=f'Task "{task.title}" assigned to you by {user.name}',
                     type="task",
                     link=f"/tasks/{task.id}",
                 )
@@ -341,7 +394,8 @@ def update_task(
         db.commit()
     DASHBOARD_CACHE.invalidate()
     brands = _brand_map(db, [task.brand_id] if task.brand_id else [])
-    return _serialize(task, brands, role=role, creators=_creator_map(db, [task]))
+    people = _people_map(db, [task.created_by, task.assigned_by])
+    return _serialize(task, brands, role=role, creators=people, assigners=people)
 
 
 @router.post("/{task_id}/status")
@@ -371,6 +425,77 @@ def delete_task(
     return {"ok": True}
 
 
+@router.post("/{task_id}/updates/close")
+def close_updates(
+    task_id: uuid.UUID,
+    purge: bool = Query(default=True, description="Delete chat messages to free storage"),
+    db: Session = Depends(get_db),
+    user: Profile = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Owner/Manager closes the Updates channel for a finished task."""
+    if Role(user.role) not in {Role.OWNER, Role.MANAGER}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner/Manager only")
+    task = db.get(Task, task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    purged = 0
+    if purge:
+        chats = db.scalars(select(TaskChat).where(TaskChat.task_id == task_id)).all()
+        purged = len(chats)
+        for chat in chats:
+            db.delete(chat)
+    task.updates_closed = True
+    task.updates_closed_at = datetime.now(timezone.utc)
+    task.updates_closed_by = user.id
+    task.timeline = [
+        *(task.timeline or []),
+        {
+            "by": str(user.id),
+            "action": "Closed updates channel" + (f" (purged {purged} messages)" if purge else ""),
+            "at": datetime.now(timezone.utc).isoformat(),
+        },
+    ]
+    db.commit()
+    db.refresh(task)
+    DASHBOARD_CACHE.invalidate()
+    brands = _brand_map(db, [task.brand_id] if task.brand_id else [])
+    people = _people_map(db, [task.created_by, task.assigned_by])
+    out = _serialize(task, brands, role=Role(user.role), creators=people, assigners=people)
+    out["purged_messages"] = purged
+    return out
+
+
+@router.post("/{task_id}/updates/reopen")
+def reopen_updates(
+    task_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: Profile = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Owner/Manager reopens a closed Updates channel."""
+    if Role(user.role) not in {Role.OWNER, Role.MANAGER}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner/Manager only")
+    task = db.get(Task, task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    task.updates_closed = False
+    task.updates_closed_at = None
+    task.updates_closed_by = None
+    task.timeline = [
+        *(task.timeline or []),
+        {
+            "by": str(user.id),
+            "action": "Reopened updates channel",
+            "at": datetime.now(timezone.utc).isoformat(),
+        },
+    ]
+    db.commit()
+    db.refresh(task)
+    DASHBOARD_CACHE.invalidate()
+    brands = _brand_map(db, [task.brand_id] if task.brand_id else [])
+    people = _people_map(db, [task.created_by, task.assigned_by])
+    return _serialize(task, brands, role=Role(user.role), creators=people, assigners=people)
+
+
 @router.get("/{task_id}/chats")
 def list_chats(
     task_id: uuid.UUID,
@@ -378,7 +503,7 @@ def list_chats(
     user: Profile = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     task = db.get(Task, task_id)
-    if not task or not _can_view(task, user):
+    if not task or not _can_view_db(db, task, user):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     chats = db.scalars(
         select(TaskChat).where(TaskChat.task_id == task_id).order_by(TaskChat.created_at)
@@ -424,8 +549,13 @@ def send_chat(
     user: Profile = Depends(get_current_user),
 ) -> dict[str, Any]:
     task = db.get(Task, task_id)
-    if not task or not _can_view(task, user):
+    if not task or not _can_view_db(db, task, user):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    if getattr(task, "updates_closed", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Updates channel is closed for this completed task",
+        )
     chat = TaskChat(task_id=task_id, sender_id=user.id, **payload.model_dump())
     db.add(chat)
     db.commit()
@@ -469,12 +599,19 @@ def developer_board(
 ) -> list[dict[str, Any]]:
     tasks = db.scalars(select(Task).order_by(Task.due_date.nulls_last())).all()
     role = Role(user.role)
+    brands_all = _brand_map(db, [task.brand_id for task in tasks if task.brand_id])
     visible: list[Task] = []
     for task in tasks:
         is_dev = task.type == "Development" or task.task_mode == "project"
         if not is_dev:
             continue
-        if role in {Role.OWNER, Role.MANAGER} or _can_view(task, user):
+        brand = brands_all.get(task.brand_id) if task.brand_id else None
+        if role in {Role.OWNER, Role.MANAGER} or _can_view(task, user, brand):
             visible.append(task)
-    brands = _brand_map(db, [task.brand_id for task in visible if task.brand_id])
-    return [_serialize(task, brands, role=role, creators=_creator_map(db, visible)) for task in visible]
+    brands = {bid: brands_all[bid] for bid in {t.brand_id for t in visible if t.brand_id} if bid in brands_all}
+    people = _people_map(
+        db,
+        [t.created_by for t in visible],
+        [t.assigned_by for t in visible],
+    )
+    return [_serialize(task, brands, role=role, creators=people, assigners=people) for task in visible]

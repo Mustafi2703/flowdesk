@@ -26,6 +26,8 @@ export interface Task {
   requires_review: boolean; is_billable: boolean; billable_amount: number | null
   billed_at: string | null; checklist: ChecklistItem[]; sub_tasks: SubTask[]
   recurring_config: RecurringConfig | null; created_at: string; updated_at: string
+  updates_closed?: boolean
+  updates_closed_at?: string | null
   brand?: { id: string; name: string; logo: string | null }
 }
 
@@ -41,7 +43,9 @@ export interface Brand {
   brand_colors?: string | null
   photography_style?: string | null
   brand_voice?: string | null
-  responsibilities: string | null; assigned_members: string[]
+  responsibilities: string | null
+  assigned_members: string[]
+  assigned_managers?: string[]
   created_at: string; updated_at: string
 }
 

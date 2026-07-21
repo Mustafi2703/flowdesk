@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
 import { PageHeader, PageShell, Section, StatCard, StatGrid } from '@/components/app/Section'
 import { EmptyState } from '@/components/app/Icons'
+import { resolveNotificationLink } from '@/lib/notifications'
 
 function Chip({ status }: { status: string }) {
   return <span style={{ background: STATUS_BG[status]||'#F3F4F6', color: STATUS_TEXT[status]||'#374151', fontSize:10, fontWeight:700, padding:'3px 7px', borderRadius:5, whiteSpace:'nowrap' }}>{status}</span>
@@ -202,8 +203,7 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
                 key={n.id}
                 onClick={() => {
                   if (!n.is_read) markRead(n.id)
-                  if (n.link) router.push(n.link)
-                  else if (n.type === 'chat') router.push('/updates')
+                  router.push(resolveNotificationLink(n.link, n.type))
                 }}
                 style={{
                   padding: '0.75rem 1rem',

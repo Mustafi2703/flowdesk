@@ -271,7 +271,7 @@ def create_task(
                 user_id=assignee_id,
                 message=f'Task "{task.title}" assigned to you by {user.name}',
                 type="task",
-                link=f"/tasks/{task.id}",
+                link="/tasks",
             )
         )
     db.commit()
@@ -376,7 +376,7 @@ def update_task(
                     user_id=uuid.UUID(assignee_id),
                     message=f'Task "{task.title}" assigned to you by {user.name}',
                     type="task",
-                    link=f"/tasks/{task.id}",
+                    link="/tasks",
                 )
             )
         if new_assignees:
@@ -388,7 +388,7 @@ def update_task(
                     user_id=manager_id,
                     message=f'Task "{task.title}" flagged as {task.status}',
                     type="task",
-                    link=f"/tasks/{task.id}",
+                    link="/tasks",
                 )
             )
         db.commit()

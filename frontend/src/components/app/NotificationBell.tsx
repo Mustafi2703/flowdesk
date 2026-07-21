@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Icon } from '@/components/app/Icons'
+import { resolveNotificationLink } from '@/lib/notifications'
 
 type Notif = {
   id: string
@@ -14,9 +15,9 @@ type Notif = {
 }
 
 /**
- * Global notification prompt: badge + dropdown + toast when new Updates arrive.
+ * Top-right notification prompt: bell, dropdown panel, toast.
  */
-export function NotificationBell({ collapsed = false }: { collapsed?: boolean }) {
+export function NotificationBell() {
   const router = useRouter()
   const [items, setItems] = useState<Notif[]>([])
   const [open, setOpen] = useState(false)
@@ -68,54 +69,68 @@ export function NotificationBell({ collapsed = false }: { collapsed?: boolean })
     setItems((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)))
   }
 
+  async function markAllRead() {
+    const unread = items.filter((n) => !n.is_read)
+    await Promise.all(unread.map((n) => fetch(`/api/notifications/${n.id}/read`, { method: 'POST' })))
+    setItems((prev) => prev.map((n) => ({ ...n, is_read: true })))
+  }
+
   function openNotif(n: Notif) {
     if (!n.is_read) markRead(n.id)
     setOpen(false)
     setToast(null)
-    router.push(n.link || '/updates')
+    router.push(resolveNotificationLink(n.link, n.type))
   }
 
-  const unread = items.filter((n) => !n.is_read)
-  const unreadCount = unread.length
+  const unreadCount = items.filter((n) => !n.is_read).length
 
   return (
-    <div ref={panelRef} style={{ position: 'relative', marginBottom: collapsed ? 8 : '1rem', padding: collapsed ? '0 0.25rem' : '0 0.375rem' }}>
+    <div ref={panelRef} style={{ position: 'relative' }}>
       <button
         type="button"
-        className="sf-nav"
         onClick={() => setOpen((v) => !v)}
         title="Notifications"
-        style={{ width: '100%', position: 'relative' }}
+        aria-label="Notifications"
+        aria-expanded={open}
+        style={{
+          position: 'relative',
+          width: 40,
+          height: 40,
+          borderRadius: 10,
+          border: '1px solid var(--sf-border)',
+          background: open ? 'rgba(232,99,10,0.12)' : 'var(--sf-surface)',
+          color: 'var(--sf-text)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          boxShadow: 'var(--sf-shadow)',
+        }}
       >
-        <span className="sf-icon" style={{ position: 'relative' }}>
-          <Icon name="bell" size={16} />
-          {unreadCount > 0 && (
-            <span
-              style={{
-                position: 'absolute',
-                top: -4,
-                right: -6,
-                minWidth: 14,
-                height: 14,
-                padding: '0 3px',
-                borderRadius: 999,
-                background: 'var(--sf-accent)',
-                color: '#fff',
-                fontSize: 9,
-                fontWeight: 800,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                lineHeight: 1,
-              }}
-            >
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-          )}
-        </span>
-        {!collapsed && <span>Notifications</span>}
-        {!collapsed && unreadCount > 0 && (
-          <span style={{ marginLeft: 'auto', color: 'var(--sf-accent)', fontSize: 11, fontWeight: 700 }}>{unreadCount}</span>
+        <Icon name="bell" size={18} />
+        {unreadCount > 0 && (
+          <span
+            style={{
+              position: 'absolute',
+              top: -5,
+              right: -5,
+              minWidth: 18,
+              height: 18,
+              padding: '0 5px',
+              borderRadius: 999,
+              background: 'var(--sf-accent)',
+              color: '#fff',
+              fontSize: 10,
+              fontWeight: 800,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              lineHeight: 1,
+              border: '2px solid var(--sf-bg)',
+            }}
+          >
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
         )}
       </button>
 
@@ -123,34 +138,51 @@ export function NotificationBell({ collapsed = false }: { collapsed?: boolean })
         <div
           style={{
             position: 'absolute',
-            left: collapsed ? '100%' : 0,
-            top: collapsed ? 0 : '100%',
-            marginLeft: collapsed ? 8 : 0,
-            marginTop: collapsed ? 0 : 6,
-            width: 320,
-            maxWidth: 'min(320px, calc(100vw - 24px))',
-            maxHeight: 380,
+            right: 0,
+            top: 'calc(100% + 8px)',
+            width: 360,
+            maxWidth: 'min(360px, calc(100vw - 24px))',
+            maxHeight: 440,
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
             background: 'var(--sf-surface)',
             border: '1px solid var(--sf-border)',
-            borderRadius: 12,
-            boxShadow: '0 12px 40px rgba(0,0,0,0.28)',
-            zIndex: 80,
+            borderRadius: 14,
+            boxShadow: '0 18px 50px rgba(0,0,0,0.32)',
+            zIndex: 200,
           }}
         >
-          <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--sf-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 13 }}>Notifications</span>
-            <button type="button" className="sf-link-btn" style={{ fontSize: 11 }} onClick={() => { setOpen(false); router.push('/overview') }}>
-              Dashboard
-            </button>
+          <div style={{
+            padding: '12px 14px',
+            borderBottom: '1px solid var(--sf-border)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 10,
+            background: 'var(--sf-surface-2)',
+          }}>
+            <div>
+              <div style={{ color: 'var(--sf-text)', fontWeight: 750, fontSize: 14, fontFamily: "'Space Grotesk',sans-serif" }}>
+                Notifications
+              </div>
+              <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 2 }}>
+                {unreadCount ? `${unreadCount} unread` : 'You are caught up'}
+              </div>
+            </div>
+            {unreadCount > 0 && (
+              <button type="button" className="sf-link-btn" style={{ fontSize: 11 }} onClick={markAllRead}>
+                Mark all read
+              </button>
+            )}
           </div>
           <div style={{ overflowY: 'auto', flex: 1 }}>
             {items.length === 0 ? (
-              <div style={{ padding: 16, color: 'var(--sf-muted)', fontSize: 12 }}>No notifications yet.</div>
+              <div style={{ padding: 20, color: 'var(--sf-muted)', fontSize: 13, textAlign: 'center' }}>
+                No notifications yet — task updates will show here.
+              </div>
             ) : (
-              items.slice(0, 25).map((n) => (
+              items.slice(0, 30).map((n) => (
                 <button
                   key={n.id}
                   type="button"
@@ -161,16 +193,37 @@ export function NotificationBell({ collapsed = false }: { collapsed?: boolean })
                     border: 'none',
                     borderBottom: '1px solid var(--sf-border)',
                     background: n.is_read ? 'transparent' : 'rgba(232,99,10,0.08)',
-                    padding: '10px 12px',
+                    padding: '12px 14px',
                     cursor: 'pointer',
                     fontFamily: "'DM Sans',sans-serif",
+                    display: 'flex',
+                    gap: 10,
+                    alignItems: 'flex-start',
                   }}
                 >
-                  <div style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: n.is_read ? 500 : 650, lineHeight: 1.4 }}>
-                    {n.message || 'Update'}
-                  </div>
-                  <div style={{ color: 'var(--sf-muted)', fontSize: 10, marginTop: 3 }}>
-                    {n.type === 'chat' ? 'Updates' : n.type} · {n.created_at ? new Date(n.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                  <span style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    marginTop: 5,
+                    flexShrink: 0,
+                    background: n.is_read ? 'var(--sf-border)' : 'var(--sf-accent)',
+                  }} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ color: 'var(--sf-text)', fontSize: 13, fontWeight: n.is_read ? 500 : 650, lineHeight: 1.4 }}>
+                      {n.message || 'Update'}
+                    </div>
+                    <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 4 }}>
+                      {n.type === 'chat' ? 'Updates' : (n.type || 'system')} ·{' '}
+                      {n.created_at
+                        ? new Date(n.created_at).toLocaleString('en-IN', {
+                            day: 'numeric',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : ''}
+                    </div>
                   </div>
                 </button>
               ))
@@ -185,8 +238,8 @@ export function NotificationBell({ collapsed = false }: { collapsed?: boolean })
           style={{
             position: 'fixed',
             right: 20,
-            bottom: 20,
-            width: 340,
+            top: 72,
+            width: 360,
             maxWidth: 'calc(100vw - 40px)',
             background: 'var(--sf-surface)',
             border: '1px solid var(--sf-border)',
@@ -203,7 +256,7 @@ export function NotificationBell({ collapsed = false }: { collapsed?: boolean })
             New update
           </div>
           <div style={{ color: 'var(--sf-text)', fontSize: 13, fontWeight: 650, lineHeight: 1.4 }}>{toast.message}</div>
-          <div style={{ color: 'var(--sf-accent)', fontSize: 11, marginTop: 8, fontWeight: 600 }}>Open channel →</div>
+          <div style={{ color: 'var(--sf-accent)', fontSize: 11, marginTop: 8, fontWeight: 600 }}>Open →</div>
         </div>
       )}
     </div>

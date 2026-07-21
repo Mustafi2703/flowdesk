@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { SessionUser, NAV_ITEMS, ROLE_COLORS, ROLE_LABELS } from '@/types'
+import { ThemeToggle } from '@/components/app/ThemeProvider'
 import { Icon } from '@/components/app/Icons'
 
 export default function Sidebar({ session }: { session: SessionUser }) {
@@ -120,13 +121,9 @@ export default function Sidebar({ session }: { session: SessionUser }) {
         )}
       </div>
 
-      {!collapsed && (
-        <div style={{ padding: '0 0.375rem', marginBottom: '1rem' }}>
-          <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0 0.5rem' }}>
-            Menu
-          </div>
-        </div>
-      )}
+      <div style={{ padding: collapsed ? '0 0.25rem' : '0 0.375rem', marginBottom: '1rem' }}>
+        <ThemeToggle compact />
+      </div>
 
       {/* Navigation */}
       <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>

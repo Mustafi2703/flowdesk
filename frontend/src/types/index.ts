@@ -1,4 +1,4 @@
-export type Role = 'owner' | 'manager' | 'team' | 'hr' | 'accountant' | 'developer'
+export type Role = 'owner' | 'manager' | 'team' | 'hr' | 'accountant'
 
 export interface Profile {
   id: string; name: string; email: string; role: Role
@@ -79,12 +79,12 @@ export interface SessionUser {
 
 export const ROLE_COLORS: Record<string, string> = {
   owner: '#E8630A', manager: '#3B82F6', team: '#10B981',
-  hr: '#8B5CF6', accountant: '#EC4899', developer: '#10B981',
+  hr: '#8B5CF6', accountant: '#EC4899',
 }
 
 export const ROLE_LABELS: Record<string, string> = {
   owner: 'Owner', manager: 'Manager', team: 'Team Member',
-  hr: 'HR Manager', accountant: 'Accounts', developer: 'Team Member',
+  hr: 'HR Manager', accountant: 'Accounts',
 }
 
 export const STATUS_BG: Record<string, string> = {

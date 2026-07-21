@@ -341,12 +341,42 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
             background: 'var(--sf-bg)',
           }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--sf-border)', flexShrink: 0 }}>
-              <div style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 14, fontFamily: "'Space Grotesk',sans-serif" }}>{selectedBrand.name}</div>
-              <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 2 }}>
-                {isMgmt ? 'Edit brand details' : 'Brand overview'}
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                {selectedBrand.logo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={selectedBrand.logo_url} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover' }} />
+                ) : (
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 8,
+                    background: 'linear-gradient(135deg,#E8630A,#1A1A2E)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: '#fff', fontSize: 12, fontWeight: 700,
+                  }}>
+                    {(selectedBrand.logo || selectedBrand.name || '?').slice(0, 2)}
+                  </div>
+                )}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 14, fontFamily: "'Space Grotesk',sans-serif" }}>{selectedBrand.name}</div>
+                  <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 2 }}>
+                    {isMgmt ? 'Edit brand · docs · logos' : 'Brand overview · docs'}
+                  </div>
+                </div>
               </div>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
+              {(selectedBrand.logo_variants || []).length > 0 && (
+                <div>
+                  <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Logo variants</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {(selectedBrand.logo_variants || []).map((v: string) => (
+                      <span key={v} style={{
+                        padding: '5px 8px', borderRadius: 7, fontSize: 11, fontWeight: 650,
+                        background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', color: 'var(--sf-text)',
+                      }}>{v}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
               {[
                 ['Client type', 'client_type', 'select', ['Retainer', 'Project-Based', 'One-Time', 'Internal']],
                 ['Priority', 'priority', 'select', ['P1', 'P2', 'P3', 'P4']],
@@ -411,7 +441,15 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                   {savingBrand ? 'Saving…' : 'Save brand'}
                 </button>
               )}
-              <FileAttachmentsPanel entityType="brand" entityId={selectedBrand.id} canUpload={isMgmt} title="Brand documents" />
+              <FileAttachmentsPanel
+                entityType="brand"
+                entityId={selectedBrand.id}
+                canUpload={isMgmt || (session.role === 'team' && (
+                  (selectedBrand.assigned_members || []).some((id: string) => sameUserId(id, session.id)) ||
+                  (selectedBrand.assigned_managers || []).some((id: string) => sameUserId(id, session.id))
+                ))}
+                title="Brand documents"
+              />
             </div>
           </div>
         )}

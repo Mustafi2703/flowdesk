@@ -63,7 +63,10 @@ Legend: **Ready** = shipped in product · **Partial** = works with known limits 
 
 ---
 
-## Brand RBAC (spec-aligned)
+## Storage note (not building yet)
+
+Document management is **live** (DB-backed uploads + in-app viewer). Cloudflare R2 can be wired later when the client finalizes storage — no change required for current demos.
+
 
 | Role | View brands | Edit brand | Assign managers | Assign team | Upload docs |
 |------|-------------|------------|-----------------|-------------|-------------|

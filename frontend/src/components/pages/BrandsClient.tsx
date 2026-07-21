@@ -484,21 +484,58 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
             {tasks.length === 0 && <div style={{ color: 'var(--sf-muted-2)', fontSize: 12 }}>No tasks yet — add a project or task from the tabs above.</div>}
           </div>
           <div style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, padding: 18 }}>
-            <div style={{ color: 'var(--sf-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Brand allocation</div>
+            <div style={{ color: 'var(--sf-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Allocated people</div>
             <div style={{ color: 'var(--sf-muted)', fontSize: 12, marginBottom: 12 }}>
-              Owner assigns managers. Managers assign team. Everyone allocated can view brand documents.
+              With roles. Owner assigns managers; managers add team. Allocated people see brand documents.
             </div>
-            {(canAssignManagers || canAssignTeam) ? (
+
+            {/* Always list current allocation with roles */}
+            <div style={{ marginBottom: (canAssignManagers || canAssignTeam) ? 14 : 0 }}>
+              {[
+                ...((brand.assigned_managers || []).map((uid: string) => ({ uid, roleLabel: 'Manager' }))),
+                ...((brand.assigned_members || []).map((uid: string) => ({ uid, roleLabel: 'Team' }))),
+              ].map(({ uid, roleLabel }) => {
+                const u = users.find((x: any) => sameId(x.id, uid))
+                if (!u) return null
+                return (
+                  <div key={`${roleLabel}-${uid}`} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 10px', background: 'var(--sf-surface-2)', borderRadius: 7, marginBottom: 5 }}>
+                    <div style={{
+                      width: 28, height: 28, borderRadius: 6,
+                      background: roleLabel === 'Manager' ? '#3B82F6' : 'var(--sf-accent)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#fff', fontWeight: 700, fontSize: 10,
+                    }}>{u.avatar || u.name?.slice(0, 2)}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600 }}>{u.name}</div>
+                      <div style={{ color: 'var(--sf-muted)', fontSize: 10 }}>
+                        {[u.designation, u.department].filter(Boolean).join(' · ') || roleLabel}
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, flexShrink: 0,
+                      background: roleLabel === 'Manager' ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)',
+                      color: roleLabel === 'Manager' ? '#3B82F6' : '#10B981',
+                    }}>{roleLabel}</span>
+                  </div>
+                )
+              })}
+              {!(brand.assigned_managers?.length || brand.assigned_members?.length) && (
+                <div style={{ color: 'var(--sf-muted-2)', fontSize: 12, marginBottom: 8 }}>Nobody allocated yet.</div>
+              )}
+            </div>
+
+            {(canAssignManagers || canAssignTeam) && (
               <>
+                <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Add / update allocation</div>
                 {canAssignManagers && (
-                  <div style={{ marginBottom: 14 }}>
+                  <div style={{ marginBottom: 12 }}>
                     <div style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 650, marginBottom: 6 }}>Managers</div>
                     <PeoplePicker
                       users={assignableManagers}
                       selectedIds={managerIds}
                       onChange={setManagerIds}
                       variant="dropdown"
-                      placeholder="Select managers…"
+                      placeholder="Add managers…"
                       emptyLabel="No Manager users yet."
                       groupByRole={false}
                     />
@@ -512,7 +549,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                       selectedIds={memberIds}
                       onChange={setMemberIds}
                       variant="dropdown"
-                      placeholder="Select team members…"
+                      placeholder="Add team members…"
                       emptyLabel="No Team users yet."
                       groupByRole={false}
                     />
@@ -527,39 +564,6 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                 >
                   {savingMembers ? 'Saving…' : 'Save allocation'}
                 </button>
-              </>
-            ) : (
-              <>
-                <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>Managers</div>
-                {(brand.assigned_managers || []).map((uid: string) => {
-                  const u = users.find((u: any) => sameId(u.id, uid))
-                  if (!u) return null
-                  return (
-                    <div key={`m-${uid}`} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 10px', background: 'var(--sf-surface-2)', borderRadius: 7, marginBottom: 5 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 6, background: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 10 }}>{u.avatar || u.name?.slice(0, 2)}</div>
-                      <div>
-                        <div style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600 }}>{u.name}</div>
-                        <div style={{ color: 'var(--sf-muted)', fontSize: 10 }}>{[u.designation, 'Manager'].filter(Boolean).join(' · ')}</div>
-                      </div>
-                    </div>
-                  )
-                })}
-                {!(brand.assigned_managers?.length > 0) && <div style={{ color: 'var(--sf-muted-2)', fontSize: 12, marginBottom: 10 }}>No managers assigned.</div>}
-                <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', margin: '10px 0 6px' }}>Team</div>
-                {(brand.assigned_members || []).map((uid: string) => {
-                  const u = users.find((u: any) => sameId(u.id, uid))
-                  if (!u) return null
-                  return (
-                    <div key={uid} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 10px', background: 'var(--sf-surface-2)', borderRadius: 7, marginBottom: 5 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--sf-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sf-text)', fontWeight: 700, fontSize: 10 }}>{u.avatar || u.name?.slice(0, 2)}</div>
-                      <div>
-                        <div style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600 }}>{u.name}</div>
-                        <div style={{ color: 'var(--sf-muted)', fontSize: 10 }}>{[u.designation, u.department].filter(Boolean).join(' · ') || u.role}</div>
-                      </div>
-                    </div>
-                  )
-                })}
-                {!(brand.assigned_members?.length > 0) && <div style={{ color: 'var(--sf-muted-2)', fontSize: 12 }}>No team assigned.</div>}
               </>
             )}
           </div>
@@ -695,15 +699,28 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                     </div>
                   </div>
                 </div>
-                {[['Client Type', brand.client_type], ['Priority', brand.priority], ['Workflow stage', WORKFLOW_STAGES.find(s => s.id === (brand.workflow_stage || 'assigned'))?.label], ['Team', `${brand.assigned_members?.length || 0} members`]].map(([l, v]) => (
+                {[['Client Type', brand.client_type], ['Priority', brand.priority], ['Workflow stage', WORKFLOW_STAGES.find(s => s.id === (brand.workflow_stage || 'assigned'))?.label], ['Allocated', `${(brand.assigned_managers?.length || 0) + (brand.assigned_members?.length || 0)} people`]].map(([l, v]) => (
                   <div key={String(l)} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid var(--sf-border)' }}>
                     <span style={{ color: 'var(--sf-muted)', fontSize: 12 }}>{l}</span>
                     <span style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600 }}>{v}</span>
                   </div>
                 ))}
+                {(brand.logo_variants || []).length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Logo variants</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {(brand.logo_variants || []).map((v: string) => (
+                        <span key={v} style={{
+                          padding: '5px 8px', borderRadius: 7, fontSize: 11, fontWeight: 650,
+                          background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', color: 'var(--sf-text)',
+                        }}>{v}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {canEdit && (
                   <label className="sf-btn sf-btn-primary" style={{ marginTop: 14, fontSize: 12, display: 'inline-block', cursor: uploadingLogo ? 'wait' : 'pointer' }}>
-                    {uploadingLogo ? 'Uploading…' : 'Upload logo image'}
+                    {uploadingLogo ? 'Uploading…' : 'Upload / update logo'}
                     <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden disabled={uploadingLogo} onChange={uploadLogo} />
                   </label>
                 )}

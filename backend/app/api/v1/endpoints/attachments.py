@@ -95,13 +95,11 @@ def _can_access_entity(db: Session, entity_type: str, entity_id: uuid.UUID, user
 
 
 def _can_upload(user: Profile) -> bool:
-    # Spec §3: File upload Owner / Manager / Team — not HR or Accounts.
-    return Role(user.role) in {
-        Role.OWNER,
-        Role.MANAGER,
-        Role.TEAM,
-        Role.DEVELOPER,
-    }
+    # Spec §3 / Updates.md: Owner, Manager, Team only — no Developer dept.
+    role = Role(user.role)
+    if role is Role.DEVELOPER:
+        role = Role.TEAM
+    return role in {Role.OWNER, Role.MANAGER, Role.TEAM}
 
 
 def store_attachment(

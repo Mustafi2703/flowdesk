@@ -5,11 +5,13 @@ from __future__ import annotations
 import os
 import re
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse, Response
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -47,6 +49,10 @@ def _serialize(row: FileAttachment) -> dict[str, Any]:
         "mime_type": row.mime_type,
         "uploaded_by": str(row.uploaded_by) if row.uploaded_by else None,
         "created_at": row.created_at.isoformat() if row.created_at else None,
+        "review_status": row.review_status or "pending",
+        "reviewed_by": str(row.reviewed_by) if row.reviewed_by else None,
+        "reviewed_at": row.reviewed_at.isoformat() if row.reviewed_at else None,
+        "review_notes": row.review_notes,
         "url": f"/api/attachments/{row.id}",
     }
 
@@ -139,6 +145,64 @@ def list_attachments(
         .order_by(FileAttachment.created_at.desc())
     ).all()
     return [_serialize(row) for row in rows]
+
+
+@router.get("/review-queue")
+def review_queue(
+    status_filter: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    user: Profile = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    """Owner/Manager inbox of uploaded files awaiting review."""
+    if Role(user.role) not in {Role.OWNER, Role.MANAGER}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner/Manager only")
+    stmt = select(FileAttachment).order_by(FileAttachment.created_at.desc()).limit(200)
+    if status_filter:
+        stmt = stmt.where(FileAttachment.review_status == status_filter)
+    rows = db.scalars(stmt).all()
+    uploaders = {
+        p.id: p
+        for p in db.scalars(
+            select(Profile).where(Profile.id.in_({r.uploaded_by for r in rows if r.uploaded_by}))
+        ).all()
+    } if rows else {}
+    out = []
+    for row in rows:
+        item = _serialize(row)
+        uploader = uploaders.get(row.uploaded_by) if row.uploaded_by else None
+        item["uploader"] = (
+            {"id": str(uploader.id), "name": uploader.name, "role": uploader.role}
+            if uploader
+            else None
+        )
+        out.append(item)
+    return out
+
+
+class AttachmentReview(BaseModel):
+    review_status: str = Field(pattern="^(pending|approved|rejected)$")
+    review_notes: str | None = None
+
+
+@router.patch("/{attachment_id}/review")
+def review_attachment(
+    attachment_id: uuid.UUID,
+    payload: AttachmentReview,
+    db: Session = Depends(get_db),
+    user: Profile = Depends(get_current_user),
+) -> dict[str, Any]:
+    if Role(user.role) not in {Role.OWNER, Role.MANAGER}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner/Manager only")
+    row = db.get(FileAttachment, attachment_id)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+    row.review_status = payload.review_status
+    row.review_notes = payload.review_notes
+    row.reviewed_by = user.id
+    row.reviewed_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(row)
+    return _serialize(row)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

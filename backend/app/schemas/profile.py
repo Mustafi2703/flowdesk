@@ -23,11 +23,13 @@ class ProfileCreate(ProfileBase):
     password: str | None = Field(default=None, min_length=8, max_length=128)
     leaves_total: int = 21
     manager_id: uuid.UUID | None = None
+    manager_ids: list[uuid.UUID] = Field(default_factory=list)
     department_id: uuid.UUID | None = None
 
 
 class ProfileUpdate(BaseModel):
     name: str | None = None
+    email: EmailStr | None = None
     department: str | None = None
     department_id: uuid.UUID | None = None
     designation: str | None = None
@@ -36,6 +38,7 @@ class ProfileUpdate(BaseModel):
     is_active: bool | None = None
     leaves_total: int | None = None
     manager_id: uuid.UUID | None = None
+    manager_ids: list[uuid.UUID] | None = None
 
 
 class PasswordChange(BaseModel):
@@ -51,4 +54,5 @@ class ProfileOut(ProfileBase):
     leaves_total: int
     leaves_taken: int
     manager_id: uuid.UUID | None = None
+    manager_ids: list[uuid.UUID] = Field(default_factory=list)
     created_at: datetime

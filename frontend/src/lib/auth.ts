@@ -50,4 +50,5 @@ export const canViewAll      = (r: string) => ['owner','manager','hr'].includes(
 export const canAccessTasks  = (r: string) => ['owner','manager','team'].includes(r)
 export const canAccessDevBoard = (r: string) => ['owner','manager','team'].includes(r)
 export const canAccessTeam   = (r: string) => ['owner','manager','hr'].includes(r)
+export const canAccessReview = (r: string) => ['owner','manager'].includes(r)
 export const canAccessPerformance = (r: string) => ['owner','manager','hr','team'].includes(r)

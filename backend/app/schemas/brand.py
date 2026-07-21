@@ -27,6 +27,11 @@ class BrandCreate(BaseModel):
     short_term_goals: list[str] = Field(default_factory=list)
     long_term_goals: list[str] = Field(default_factory=list)
     journey: list[str] = Field(default_factory=list)
+    fonts: str | None = None
+    logo_variants: list[str] = Field(default_factory=list)
+    brand_colors: str | None = None
+    photography_style: str | None = None
+    brand_voice: str | None = None
     responsibilities: str | None = None
     assigned_members: list[uuid.UUID] = Field(default_factory=list)
 
@@ -41,6 +46,11 @@ class BrandUpdate(BaseModel):
     short_term_goals: list[str] | None = None
     long_term_goals: list[str] | None = None
     journey: list[str] | None = None
+    fonts: str | None = None
+    logo_variants: list[str] | None = None
+    brand_colors: str | None = None
+    photography_style: str | None = None
+    brand_voice: str | None = None
     responsibilities: str | None = None
     assigned_members: list[uuid.UUID] | None = None
 
@@ -59,6 +69,11 @@ class BrandOut(BaseModel):
     short_term_goals: list[str]
     long_term_goals: list[str]
     journey: list[str]
+    fonts: str | None
+    logo_variants: list[str]
+    brand_colors: str | None
+    photography_style: str | None
+    brand_voice: str | None
     responsibilities: str | None
     assigned_members: list[uuid.UUID]
     created_by: uuid.UUID | None

@@ -33,6 +33,12 @@ class Profile(UUIDPKMixin, TimestampsMixin, Base):
         nullable=True,
         index=True,
     )
+    # One member can report to multiple managers (Updates.md #11).
+    manager_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        postgresql.ARRAY(postgresql.UUID(as_uuid=True)),
+        nullable=False,
+        server_default=text("ARRAY[]::uuid[]"),
+    )
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<Profile {self.name} role={self.role}>"

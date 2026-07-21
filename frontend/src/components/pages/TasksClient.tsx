@@ -246,6 +246,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                   <th>Task</th>
                   <th>Brand</th>
                   <th>Assignees</th>
+                  <th>Assigned by</th>
                   <th>Type</th>
                   <th>Status</th>
                   <th>Priority</th>
@@ -281,6 +282,9 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                       <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default' }}>{task.brand?.name || '—'}</td>
                       <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default', color: 'var(--sf-text-secondary)', fontSize: 12, maxWidth: 160 }}>
                         {assigneeLabel}
+                      </td>
+                      <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default', color: 'var(--sf-muted)', fontSize: 12 }}>
+                        {task.assigned_by?.name || '—'}
                       </td>
                       <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default' }}>{task.type || '—'}</td>
                       <td onClick={e => e.stopPropagation()}>

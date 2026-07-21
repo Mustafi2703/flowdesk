@@ -20,7 +20,7 @@ import string
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
@@ -238,6 +238,19 @@ def create_user(
     manager_id = _resolve_manager_id(
         db, actor=user, new_role=new_role, requested_manager_id=manager_id
     )
+    # Support multi-manager on create (owner can pass manager_ids).
+    raw_ids = list(getattr(payload, "manager_ids", None) or [])
+    resolved_extra: list[uuid.UUID] = []
+    for mid in raw_ids:
+        try:
+            resolved_extra.append(
+                _resolve_manager_id(db, actor=user, new_role=new_role, requested_manager_id=mid)
+            )
+        except HTTPException:
+            continue
+    if manager_id:
+        resolved_extra = [manager_id] + [x for x in resolved_extra if x != manager_id]
+    primary, managers = _sync_managers(resolved_extra, manager_id)
     profile = Profile(
         name=payload.name.strip(),
         email=email,
@@ -247,7 +260,8 @@ def create_user(
         designation=payload.designation,
         avatar=(payload.avatar or payload.name[:2]).upper(),
         leaves_total=payload.leaves_total,
-        manager_id=manager_id,
+        manager_id=primary,
+        manager_ids=managers,
     )
     db.add(profile)
     db.commit()
@@ -275,8 +289,21 @@ def create_user(
 def _manager_can_edit(actor: Profile, profile: Profile) -> bool:
     if Role(profile.role) not in _MANAGER_ASSIGNABLE:
         return False
-    return profile.manager_id == actor.id
+    if profile.manager_id == actor.id:
+        return True
+    return actor.id in (profile.manager_ids or [])
 
+
+def _sync_managers(manager_ids: list[uuid.UUID] | None, manager_id: uuid.UUID | None) -> tuple[uuid.UUID | None, list[uuid.UUID]]:
+    """Normalize multi-manager list; primary manager_id is the first entry."""
+    ids: list[uuid.UUID] = []
+    for mid in manager_ids or []:
+        if mid and mid not in ids:
+            ids.append(mid)
+    if manager_id and manager_id not in ids:
+        ids.insert(0, manager_id)
+    primary = ids[0] if ids else None
+    return primary, ids
 
 @router.patch("/{profile_id}", response_model=ProfileOut)
 def update_user(
@@ -316,13 +343,42 @@ def update_user(
 
     # Owner can edit any user.
     if role is Role.OWNER:
-        if "manager_id" in incoming and incoming["manager_id"] is not None:
-            incoming["manager_id"] = _resolve_manager_id(
-                db,
-                actor=user,
-                new_role=Role(incoming.get("role") or profile.role),
-                requested_manager_id=incoming["manager_id"],
+        unset = payload.model_dump(exclude_unset=True)
+        if "email" in incoming and incoming["email"] is not None:
+            new_email = str(incoming["email"]).lower().strip()
+            clash = db.scalar(
+                select(Profile).where(Profile.email == new_email, Profile.id != profile.id)
             )
+            if clash:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use")
+            incoming["email"] = new_email
+        if "manager_ids" in unset:
+            resolved: list[uuid.UUID] = []
+            for mid in list(payload.manager_ids or []):
+                resolved.append(
+                    _resolve_manager_id(
+                        db,
+                        actor=user,
+                        new_role=Role(incoming.get("role") or profile.role),
+                        requested_manager_id=mid,
+                    )
+                )
+            primary, managers = _sync_managers(resolved, None)
+            incoming["manager_id"] = primary
+            incoming["manager_ids"] = managers
+        elif "manager_id" in unset:
+            mid = incoming.get("manager_id")
+            if mid is not None:
+                mid = _resolve_manager_id(
+                    db,
+                    actor=user,
+                    new_role=Role(incoming.get("role") or profile.role),
+                    requested_manager_id=mid,
+                )
+            others = [x for x in (profile.manager_ids or []) if x != profile.manager_id]
+            primary, managers = _sync_managers(others, mid)
+            incoming["manager_id"] = primary
+            incoming["manager_ids"] = managers
         for key, value in incoming.items():
             setattr(profile, key, value)
         db.commit()
@@ -386,21 +442,31 @@ def reset_password(
 @router.delete("/{profile_id}")
 def deactivate_user(
     profile_id: uuid.UUID,
+    hard: bool = Query(default=False),
     db: Session = Depends(get_db),
     user: Profile = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Soft-deactivate a user. Only Owner can fully deactivate."""
+    """Soft-deactivate a user, or permanently delete when hard=true (Owner only)."""
     _require_owner(user)
     profile = db.get(Profile, profile_id)
     if not profile:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     if profile.id == user.id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot deactivate yourself")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete yourself")
+    if hard:
+        # Clear FK references that would block delete.
+        dependents = db.scalars(select(Profile).where(Profile.manager_id == profile.id)).all()
+        for dep in dependents:
+            dep.manager_id = None
+            dep.manager_ids = [m for m in (dep.manager_ids or []) if m != profile.id]
+        db.delete(profile)
+        db.commit()
+        DASHBOARD_CACHE.invalidate()
+        return {"ok": True, "deleted": str(profile_id), "hard": True}
     profile.is_active = False
     db.commit()
     DASHBOARD_CACHE.invalidate()
-    return {"ok": True, "deactivated": str(profile.id)}
-
+    return {"ok": True, "deactivated": str(profile.id), "hard": False}
 
 class ReactivateResponse(BaseModel):
     ok: bool
@@ -445,7 +511,13 @@ def my_reports(db: Session = Depends(get_db), user: Profile = Depends(get_curren
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers only")
     return db.scalars(
         select(Profile)
-        .where(Profile.is_active.is_(True), Profile.manager_id == user.id)
+        .where(
+            Profile.is_active.is_(True),
+            or_(
+                Profile.manager_id == user.id,
+                Profile.manager_ids.contains([user.id]),
+            ),
+        )
         .order_by(Profile.name)
     ).all()
 

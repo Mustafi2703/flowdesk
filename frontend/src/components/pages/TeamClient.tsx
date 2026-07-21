@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { SessionUser, ROLE_COLORS, ROLE_LABELS } from '@/types'
 import { PageHeader, PageShell, PageTabs, PageToolbar, Section, StatCard, StatGrid } from '@/components/app/Section'
 import { Modal } from '@/components/app/Modal'
+import { PeoplePicker } from '@/components/app/PeoplePicker'
 
 const TEAM_PANELS = [
   { id: 'members', label: 'Team members' },
@@ -54,7 +55,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [deptError, setDeptError] = useState('')
-  const [userForm, setUserForm] = useState({ name: '', email: '', role: 'team', department: '', department_id: '', designation: '', password: '', manager_id: '', is_active: true })
+  const [userForm, setUserForm] = useState({ name: '', email: '', role: 'team', department: '', department_id: '', designation: '', password: '', manager_id: '', manager_ids: [] as string[], is_active: true })
   const [deptForm, setDeptForm] = useState({ name: '', description: '', manager_id: '' })
   const CORE_ROLES = ['owner', 'manager', 'team', 'hr', 'accountant']
   const today = new Date().toISOString().split('T')[0]
@@ -118,7 +119,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   }
 
   function startCreateUser() {
-    setUserForm({ name: '', email: '', role: assignableRoles[0] || 'team', department: '', department_id: '', designation: '', password: '', manager_id: '', is_active: true })
+    setUserForm({ name: '', email: '', role: assignableRoles[0] || 'team', department: '', department_id: '', designation: '', password: '', manager_id: '', manager_ids: [], is_active: true })
     setEditingUser(null)
     setShowAdd(true)
     setShowDept(false)
@@ -147,6 +148,8 @@ export default function TeamClient({ session }: { session: SessionUser }) {
 
   function startEditUser(u: any) {
     const deptMatch = departments.find((d: any) => (d.name || '').toLowerCase() === (u.department || '').toLowerCase())
+    const mgrIds = (u.manager_ids || []).map(String)
+    if (u.manager_id && !mgrIds.includes(String(u.manager_id))) mgrIds.unshift(String(u.manager_id))
     setEditingUser(u)
     setUserForm({
       name: u.name || '',
@@ -157,6 +160,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
       designation: u.designation || '',
       password: '',
       manager_id: u.manager_id || '',
+      manager_ids: mgrIds,
       is_active: u.is_active !== false,
     })
     setShowAdd(false)
@@ -188,13 +192,16 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     if (userForm.department_id) payload.department_id = userForm.department_id
     else if (userForm.department) payload.department = userForm.department
     if (userForm.password) payload.password = userForm.password
-    if (role === 'owner' && userForm.manager_id) payload.manager_id = userForm.manager_id
+    if (role === 'owner') {
+      if (userForm.manager_ids?.length) payload.manager_ids = userForm.manager_ids
+      else if (userForm.manager_id) payload.manager_id = userForm.manager_id
+    }
     const res = await fetch('/api/team', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
     const data = await res.json().catch(() => ({}))
     setSaving(false)
     if (!res.ok) { setError(data.error || data.detail || 'Could not create user'); return }
     setNotice(`User created. Temporary password: ${data.temporary_password}`)
-    setUserForm({ name: '', email: '', role: assignableRoles[0] || 'team', department: '', department_id: '', designation: '', password: '', manager_id: '', is_active: true })
+    setUserForm({ name: '', email: '', role: assignableRoles[0] || 'team', department: '', department_id: '', designation: '', password: '', manager_id: '', manager_ids: [], is_active: true })
     setShowAdd(false)
     refresh()
   }
@@ -211,8 +218,9 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     else if (userForm.department) payload.department = userForm.department
     if (role === 'owner') {
       payload.role = userForm.role
+      payload.email = userForm.email
       payload.is_active = userForm.is_active
-      if (userForm.manager_id) payload.manager_id = userForm.manager_id
+      payload.manager_ids = userForm.manager_ids || []
     }
     const res = await fetch(`/api/team/${editingUser.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
     const data = await res.json().catch(() => ({}))
@@ -280,6 +288,17 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     refresh()
   }
 
+  async function hardDeleteUser(id: string, name: string) {
+    if (!confirm(`Permanently delete ${name}? This cannot be undone.`)) return
+    setError(''); setNotice('')
+    const res = await fetch(`/api/team/${id}?hard=true`, { method: 'DELETE' })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setError(data.error || data.detail || 'Could not delete user'); return }
+    setNotice(`${name} permanently deleted.`)
+    setViewingUser(null)
+    refresh()
+  }
+
   function isAssigned(task: any, uid: string) {
     return (task.assigned_to || []).some((id: unknown) => sameId(id, uid))
       || (task.sub_tasks || []).some((st: any) => (st.assigned_to || []).some((id: unknown) => sameId(id, uid)))
@@ -316,7 +335,11 @@ export default function TeamClient({ session }: { session: SessionUser }) {
       return !doneDay || doneDay <= t.due_date
     }).length
     const onTimePct = completed.length ? Math.round((onTimeCount / completed.length) * 100) : 0
-    return { allocated, completed: completed.length, delayed: delayed.length, onTimePct, critical, high, all }
+    const monthKey = today.slice(0, 7)
+    const thisMonth = all.filter(t => (t.created_at || '').slice(0, 7) === monthKey || (t.due_date || '').slice(0, 7) === monthKey)
+    const monthDone = thisMonth.filter(t => t.status === 'Completed').length
+    const monthLate = thisMonth.filter(t => t.due_date && t.due_date < today && t.status !== 'Completed').length
+    return { allocated, completed: completed.length, delayed: delayed.length, onTimePct, critical, high, all, thisMonth: thisMonth.length, monthDone, monthLate }
   }
 
   const isOnline = (uid: string) => attendance.some(a => a.user_id === uid && a.date === today && !a.logout_time)
@@ -427,19 +450,22 @@ export default function TeamClient({ session }: { session: SessionUser }) {
             {role === 'owner' && (
               <>
                 <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Email
-                  <input disabled value={userForm.email} className="sf-input" style={{ marginTop: 6, opacity: 0.7 }} />
+                  <input required type="email" value={userForm.email} onChange={e => setUserForm({ ...userForm, email: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
                 </label>
                 <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Role
                   <select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value })} className="sf-input" style={{ marginTop: 6 }}>
                     {CORE_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                   </select>
                 </label>
-                <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Manager
-                  <select value={userForm.manager_id} onChange={e => setUserForm({ ...userForm, manager_id: e.target.value })} className="sf-input" style={{ marginTop: 6 }}>
-                    <option value="">No manager</option>
-                    {sortedManagers.map((m: any) => <option key={m.id} value={m.id}>{m.name} ({m.role})</option>)}
-                  </select>
-                </label>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>Managers (multi)</div>
+                  <PeoplePicker
+                    users={sortedManagers}
+                    selectedIds={userForm.manager_ids || []}
+                    onChange={(ids) => setUserForm({ ...userForm, manager_ids: ids, manager_id: ids[0] || '' })}
+                    emptyLabel="No managers available"
+                  />
+                </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--sf-text-secondary)', fontSize: 13 }}>
                   <input type="checkbox" checked={userForm.is_active} onChange={e => setUserForm({ ...userForm, is_active: e.target.checked })} />
                   Active account
@@ -509,12 +535,15 @@ export default function TeamClient({ session }: { session: SessionUser }) {
               <input type="password" placeholder="Blank = auto generate" value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
             </label>
             {role === 'owner' && (
-              <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Manager
-                <select value={userForm.manager_id} onChange={e => setUserForm({ ...userForm, manager_id: e.target.value })} className="sf-input" style={{ marginTop: 6 }}>
-                  <option value="">No manager (optional)</option>
-                  {sortedManagers.map((m: any) => <option key={m.id} value={m.id}>{m.name} ({m.role})</option>)}
-                </select>
-              </label>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>Managers (multi)</div>
+                <PeoplePicker
+                  users={sortedManagers}
+                  selectedIds={userForm.manager_ids || []}
+                  onChange={(ids) => setUserForm({ ...userForm, manager_ids: ids, manager_id: ids[0] || '' })}
+                  emptyLabel="No managers available"
+                />
+              </div>
             )}
           </div>
         </form>
@@ -575,21 +604,31 @@ export default function TeamClient({ session }: { session: SessionUser }) {
             <StatCard label="Delayed" value={tasks.filter(t => t.due_date && t.due_date < today && t.status !== 'Completed').length} accent="#EF4444" />
           </StatGrid>
 
-          <Section title="All members" subtitle="Click a member for their task summary popup" style={{ marginTop: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(270px,1fr))', gap: 14 }}>
+          <Section title="Team directory" subtitle="Uniform cards · open a member for full task & performance modal" style={{ marginTop: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 14, alignItems: 'stretch' }}>
               {team.map((u: any) => {
                 const l = load(u.id)
                 const perf = memberPerf(u.id)
-                const all = perf.all
-                const active = all.filter(t => !['Completed', 'On Hold'].includes(t.status))
-                const done = perf.completed
+                const active = perf.all.filter(t => !['Completed', 'On Hold'].includes(t.status))
                 const memberOnline = isOnline(u.id)
-                const topTasks = active.slice(0, 3)
+                const mgrLabels = (u.manager_ids?.length ? u.manager_ids : (u.manager_id ? [u.manager_id] : []))
+                  .map((id: string) => managerName(id))
+                  .filter(Boolean)
                 return (
                   <div
                     key={u.id}
                     onClick={() => setViewingUser(u)}
-                    style={{ background: 'var(--sf-surface)', border: `1px solid ${viewingUser?.id === u.id ? 'var(--sf-accent)' : (u.is_active ? 'var(--sf-border)' : '#3A2430')}`, borderRadius: 14, padding: 18, opacity: u.is_active ? 1 : 0.65, cursor: 'pointer' }}
+                    style={{
+                      background: 'var(--sf-surface)',
+                      border: `1px solid ${viewingUser?.id === u.id ? 'var(--sf-accent)' : (u.is_active ? 'var(--sf-border)' : '#3A2430')}`,
+                      borderRadius: 14,
+                      padding: 18,
+                      opacity: u.is_active ? 1 : 0.65,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      minHeight: 210,
+                    }}
                   >
                     <div style={{ display: 'flex', gap: 11, marginBottom: 12, alignItems: 'center' }}>
                       <div style={{ position: 'relative' }}>
@@ -599,50 +638,26 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                       <div style={{ minWidth: 0 }}>
                         <div style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 13 }}>{u.name}</div>
                         <div style={{ color: 'var(--sf-muted)', fontSize: 11 }}>{u.designation || u.department || ROLE_LABELS[u.role]}</div>
-                        {u.manager_id && <div style={{ color: 'var(--sf-muted-2)', fontSize: 10, marginTop: 2 }}>Reports to {managerName(u.manager_id) || '—'}</div>}
+                        {mgrLabels.length > 0 && <div style={{ color: 'var(--sf-muted-2)', fontSize: 10, marginTop: 2 }}>Reports to {mgrLabels.join(', ')}</div>}
                       </div>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ background: l.color + '20', color: l.color, fontSize: 10, padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>{l.label}</span>
                       <span style={{ color: u.is_active ? 'var(--sf-muted)' : '#EF4444', fontSize: 11 }}>{u.is_active ? `${active.length} active` : 'Inactive'}</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6, marginBottom: 10 }}>
-                      {[['Alloc', perf.allocated, 'var(--sf-text)'], ['Done', done, '#10B981'], ['Late', perf.delayed, '#EF4444'], ['On-time', `${perf.onTimePct}%`, '#FBBF24']].map(([lbl, v, c]) => (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6, marginBottom: 'auto' }}>
+                      {[['Alloc', perf.allocated, 'var(--sf-text)'], ['Done', perf.completed, '#10B981'], ['Late', perf.delayed, '#EF4444'], ['On-time', `${perf.onTimePct}%`, '#FBBF24']].map(([lbl, v, c]) => (
                         <div key={String(lbl)} style={{ background: 'var(--sf-surface-2)', borderRadius: 7, padding: '7px', textAlign: 'center' }}>
                           <div style={{ color: String(c), fontWeight: 700, fontSize: 12 }}>{v}</div>
                           <div style={{ color: 'var(--sf-muted)', fontSize: 9 }}>{lbl}</div>
                         </div>
                       ))}
                     </div>
-                    {(perf.critical > 0 || perf.high > 0) && (
-                      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-                        {perf.critical > 0 && <span style={{ ...badgeFromPriority('Critical'), fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5 }}>{perf.critical} Critical</span>}
-                        {perf.high > 0 && <span style={{ ...badgeFromPriority('High'), fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5 }}>{perf.high} High</span>}
-                      </div>
-                    )}
-                    {topTasks.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 4 }}>
-                        {topTasks.map((t: any) => {
-                          const c = priorityStyle(t.priority)
-                          const late = t.due_date && t.due_date < today && t.status !== 'Completed'
-                          return (
-                            <div key={t.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 8px', background: 'var(--sf-surface-2)', borderRadius: 8, borderLeft: `3px solid ${late ? '#EF4444' : c.bar}` }}>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ color: 'var(--sf-text)', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</div>
-                              </div>
-                              <PriorityBadge priority={t.priority} />
-                            </div>
-                          )
-                        })}
-                        {active.length > 3 && (
-                          <div style={{ color: 'var(--sf-muted)', fontSize: 10 }}>+{active.length - 3} more · open summary</div>
-                        )}
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
                       {canEditUser(u) && <button type="button" onClick={() => startEditUser(u)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px' }}>Edit</button>}
-                      {canReset && u.id !== session.id && <button type="button" onClick={() => resetPassword(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px' }}>Reset Password</button>}
+                      {canReset && u.id !== session.id && <button type="button" onClick={() => resetPassword(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px' }}>Reset</button>}
                       {role === 'owner' && u.id !== session.id && u.is_active && <button type="button" onClick={() => deactivateUser(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px', color: 'var(--sf-danger)' }}>Deactivate</button>}
+                      {role === 'owner' && u.id !== session.id && <button type="button" onClick={() => hardDeleteUser(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px', color: '#F87171' }}>Delete</button>}
                     </div>
                   </div>
                 )
@@ -685,6 +700,9 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                         ['Critical', perf.critical, '#F87171'],
                         ['High', perf.high, '#FB923C'],
                         ['On-time', `${perf.onTimePct}%`, '#FBBF24'],
+                        ['This month', perf.thisMonth, '#8B5CF6'],
+                        ['Month done', perf.monthDone, '#06B6D4'],
+                        ['Month late', perf.monthLate, '#F97316'],
                       ].map(([label, value, color]) => (
                         <div key={String(label)} style={{ background: 'var(--sf-surface-2)', borderRadius: 8, padding: '8px 6px', textAlign: 'center' }}>
                           <div style={{ color: String(color), fontWeight: 700, fontSize: 15 }}>{value}</div>
@@ -692,6 +710,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                         </div>
                       ))}
                     </div>
+                    <div style={{ color: 'var(--sf-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Assigned tasks</div>
                     {perf.all.length === 0 ? (
                       <div style={{ color: 'var(--sf-muted)', fontSize: 13, padding: 16, textAlign: 'center' }}>No tasks assigned to this member.</div>
                     ) : (
@@ -716,6 +735,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                               <div style={{ color: 'var(--sf-text)', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{t.title}</div>
                               <div style={{ color: 'var(--sf-muted)', fontSize: 11 }}>
                                 {t.brand?.name || 'No brand'} · {t.type || 'Task'} · Due {t.due_date || '—'}
+                                {t.assigned_by?.name ? ` · Assigned by ${t.assigned_by.name}` : ''}
                               </div>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>

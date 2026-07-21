@@ -33,9 +33,10 @@ _IST = timezone(timedelta(hours=5, minutes=30))
 _ASSIGNEE_PROGRESS_FIELDS = frozenset({"status", "checklist", "sub_tasks", "description"})
 
 
-def _serialize(task: Task, brand_map: dict[uuid.UUID, Brand] | None = None, *, role: Role | None = None) -> dict[str, Any]:
+def _serialize(task: Task, brand_map: dict[uuid.UUID, Brand] | None = None, *, role: Role | None = None, creators: dict[uuid.UUID, Profile] | None = None) -> dict[str, Any]:
     """Match the joined shape the demo frontend expects."""
     brand = (brand_map or {}).get(task.brand_id) if task.brand_id else None
+    creator = (creators or {}).get(task.created_by) if task.created_by else None
     payload: dict[str, Any] = {
         "id": str(task.id),
         "title": task.title,
@@ -44,6 +45,16 @@ def _serialize(task: Task, brand_map: dict[uuid.UUID, Brand] | None = None, *, r
         "assigned_to": [str(uid) for uid in (task.assigned_to or [])],
         "assigned_managers": [str(uid) for uid in (task.assigned_managers or [])],
         "created_by": str(task.created_by) if task.created_by else None,
+        "assigned_by": (
+            {
+                "id": str(creator.id),
+                "name": creator.name,
+                "avatar": creator.avatar,
+                "role": creator.role,
+            }
+            if creator
+            else None
+        ),
         "type": task.type,
         "task_mode": task.task_mode,
         "priority": task.priority,
@@ -133,6 +144,13 @@ def _can_view(task: Task, user: Profile) -> bool:
     return any(me in {str(x) for x in (st.get("assigned_to") or [])} for st in (task.sub_tasks or []))
 
 
+def _creator_map(db: Session, tasks: list[Task]) -> dict[uuid.UUID, Profile]:
+    ids = [t.created_by for t in tasks if t.created_by]
+    if not ids:
+        return {}
+    return {p.id: p for p in db.scalars(select(Profile).where(Profile.id.in_(set(ids)))).all()}
+
+
 def _brand_map(db: Session, brand_ids: list[uuid.UUID]) -> dict[uuid.UUID, Brand]:
     ids = [bid for bid in brand_ids if bid]
     if not ids:
@@ -156,8 +174,17 @@ def list_tasks(
     tasks = db.scalars(stmt).all()
     visible = [task for task in tasks if _can_view(task, user)]
     brands = _brand_map(db, [task.brand_id for task in visible if task.brand_id])
+    creator_ids = [task.created_by for task in visible if task.created_by]
+    creators = {
+        p.id: p
+        for p in (
+            db.scalars(select(Profile).where(Profile.id.in_(set(creator_ids)))).all()
+            if creator_ids
+            else []
+        )
+    }
     role = Role(user.role)
-    return [_serialize(task, brands, role=role) for task in visible]
+    return [_serialize(task, brands, role=role, creators=creators) for task in visible]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -207,7 +234,7 @@ def create_task(
     db.commit()
     DASHBOARD_CACHE.invalidate()
     brands = _brand_map(db, [task.brand_id] if task.brand_id else [])
-    return _serialize(task, brands, role=Role(user.role))
+    return _serialize(task, brands, role=Role(user.role), creators=_creator_map(db, [task]))
 
 
 @router.get("/{task_id}")
@@ -220,7 +247,7 @@ def get_task(
     if not task or not _can_view(task, user):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     brands = _brand_map(db, [task.brand_id] if task.brand_id else [])
-    return _serialize(task, brands, role=Role(user.role))
+    return _serialize(task, brands, role=Role(user.role), creators=_creator_map(db, [task]))
 
 
 @router.patch("/{task_id}")
@@ -314,7 +341,7 @@ def update_task(
         db.commit()
     DASHBOARD_CACHE.invalidate()
     brands = _brand_map(db, [task.brand_id] if task.brand_id else [])
-    return _serialize(task, brands, role=role)
+    return _serialize(task, brands, role=role, creators=_creator_map(db, [task]))
 
 
 @router.post("/{task_id}/status")
@@ -450,4 +477,4 @@ def developer_board(
         if role in {Role.OWNER, Role.MANAGER} or _can_view(task, user):
             visible.append(task)
     brands = _brand_map(db, [task.brand_id for task in visible if task.brand_id])
-    return [_serialize(task, brands, role=role) for task in visible]
+    return [_serialize(task, brands, role=role, creators=_creator_map(db, visible)) for task in visible]

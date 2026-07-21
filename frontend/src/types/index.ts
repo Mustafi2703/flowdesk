@@ -5,6 +5,7 @@ export interface Profile {
   department: string | null; designation: string | null; avatar: string | null
   is_active: boolean; leaves_total: number; leaves_taken: number
   manager_id: string | null
+  manager_ids?: string[]
   created_at: string; updated_at: string
 }
 
@@ -19,6 +20,7 @@ export interface RecurringConfig { enabled: boolean; frequency: string; day_of_m
 export interface Task {
   id: string; title: string; description: string | null; brand_id: string | null
   assigned_to: string[]; assigned_managers: string[]; created_by: string | null
+  assigned_by?: { id: string; name: string; avatar: string | null; role: string } | null
   type: TaskType | null; task_mode: 'standard' | 'project'; priority: TaskPriority | null
   status: TaskStatus; start_date: string | null; due_date: string | null
   requires_review: boolean; is_billable: boolean; billable_amount: number | null
@@ -34,6 +36,11 @@ export interface Brand {
   workflow_stage?: string | null
   short_term_goals: string[]; long_term_goals: string[]
   journey: string[]
+  fonts?: string | null
+  logo_variants?: string[]
+  brand_colors?: string | null
+  photography_style?: string | null
+  brand_voice?: string | null
   responsibilities: string | null; assigned_members: string[]
   created_at: string; updated_at: string
 }
@@ -101,6 +108,7 @@ export type NavIcon =
   | 'announcements'
   | 'billing'
   | 'inbox'
+  | 'review'
 
 export const NAV_ITEMS = [
   { id: 'overview',      label: 'Dashboard',     icon: 'dashboard' as NavIcon, roles: ['owner','manager','team','hr','accountant'] },
@@ -109,6 +117,7 @@ export const NAV_ITEMS = [
   { id: 'updates',       label: 'Updates',       icon: 'inbox' as NavIcon, roles: ['owner','manager','team','hr','accountant'] },
   { id: 'devboard',      label: 'Workflow',      icon: 'code' as NavIcon, roles: ['owner','manager','team'] },
   { id: 'brands',        label: 'Brands',        icon: 'brands' as NavIcon, roles: ['owner','manager','hr','accountant','team'] },
+  { id: 'review',        label: 'Review',        icon: 'review' as NavIcon, roles: ['owner','manager'] },
   { id: 'team',          label: 'Team',          icon: 'team' as NavIcon, roles: ['owner','manager','hr'] },
   { id: 'performance',   label: 'Performance',   icon: 'performance' as NavIcon, roles: ['owner','manager','hr','team'] },
   { id: 'attendance',    label: 'Attendance',    icon: 'attendance' as NavIcon, roles: ['owner','manager','team','hr','accountant'] },

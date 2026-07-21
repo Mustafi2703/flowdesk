@@ -36,6 +36,13 @@ class Brand(UUIDPKMixin, TimestampsMixin, Base):
     journey: Mapped[list[str]] = mapped_column(
         ARRAY(String), nullable=False, server_default=text("ARRAY[]::varchar[]")
     )
+    fonts: Mapped[str | None] = mapped_column(Text, nullable=True)
+    logo_variants: Mapped[list[str]] = mapped_column(
+        ARRAY(String), nullable=False, server_default=text("ARRAY[]::varchar[]")
+    )
+    brand_colors: Mapped[str | None] = mapped_column(Text, nullable=True)
+    photography_style: Mapped[str | None] = mapped_column(Text, nullable=True)
+    brand_voice: Mapped[str | None] = mapped_column(Text, nullable=True)
     responsibilities: Mapped[str | None] = mapped_column(Text, nullable=True)
     assigned_members: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(UUID(as_uuid=True)),

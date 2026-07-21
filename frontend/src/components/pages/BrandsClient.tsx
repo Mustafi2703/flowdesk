@@ -214,6 +214,11 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
     long_term_goals: (brand.long_term_goals || []).join('\n'),
     journey: (brand.journey || []).join('\n'),
     responsibilities: brand.responsibilities || '',
+    fonts: brand.fonts || '',
+    logo_variants: (brand.logo_variants || []).join('\n'),
+    brand_colors: brand.brand_colors || '',
+    photography_style: brand.photography_style || '',
+    brand_voice: brand.brand_voice || '',
     workflow_stage: brand.workflow_stage || 'assigned',
     priority: brand.priority || 'P3',
     client_type: brand.client_type || 'Retainer',
@@ -235,12 +240,17 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
       long_term_goals: (brand.long_term_goals || []).join('\n'),
       journey: (brand.journey || []).join('\n'),
       responsibilities: brand.responsibilities || '',
+      fonts: brand.fonts || '',
+      logo_variants: (brand.logo_variants || []).join('\n'),
+      brand_colors: brand.brand_colors || '',
+      photography_style: brand.photography_style || '',
+      brand_voice: brand.brand_voice || '',
       workflow_stage: brand.workflow_stage || 'assigned',
       priority: brand.priority || 'P3',
       client_type: brand.client_type || 'Retainer',
     })
     setLogoError('')
-  }, [brand.id, brand.assigned_members, brand.logo, brand.logo_url, brand.description, brand.workflow_stage, brand.priority, brand.client_type, brand.short_term_goals, brand.long_term_goals, brand.journey, brand.responsibilities])
+  }, [brand.id, brand.assigned_members, brand.logo, brand.logo_url, brand.description, brand.workflow_stage, brand.priority, brand.client_type, brand.short_term_goals, brand.long_term_goals, brand.journey, brand.responsibilities, brand.fonts, brand.logo_variants, brand.brand_colors, brand.photography_style, brand.brand_voice])
 
   async function saveMembers() {
     setSavingMembers(true)
@@ -289,6 +299,11 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
         long_term_goals: lines(identityDraft.long_term_goals),
         journey: lines(identityDraft.journey),
         responsibilities: identityDraft.responsibilities || null,
+        fonts: identityDraft.fonts || null,
+        logo_variants: lines(identityDraft.logo_variants),
+        brand_colors: identityDraft.brand_colors || null,
+        photography_style: identityDraft.photography_style || null,
+        brand_voice: identityDraft.brand_voice || null,
         workflow_stage: identityDraft.workflow_stage,
         priority: identityDraft.priority,
         client_type: identityDraft.client_type,
@@ -663,6 +678,21 @@ function BrandDetail({ brand, tasks, users, session, canEdit, tab, onTabChange, 
                 </label>
                 <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Journey milestones (one per line)
                   <textarea value={identityDraft.journey} onChange={e => setIdentityDraft(d => ({ ...d, journey: e.target.value }))} rows={3} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)', resize: 'vertical' }} />
+                </label>
+                <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Brand fonts
+                  <input value={identityDraft.fonts} onChange={e => setIdentityDraft(d => ({ ...d, fonts: e.target.value }))} placeholder="e.g. Syne / DM Sans" style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)' }} />
+                </label>
+                <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Brand colors
+                  <input value={identityDraft.brand_colors} onChange={e => setIdentityDraft(d => ({ ...d, brand_colors: e.target.value }))} placeholder="e.g. #0a0a0f · #d4a574 · #20b2aa" style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)' }} />
+                </label>
+                <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Logo variants (one per line)
+                  <textarea value={identityDraft.logo_variants} onChange={e => setIdentityDraft(d => ({ ...d, logo_variants: e.target.value }))} rows={2} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)', resize: 'vertical' }} />
+                </label>
+                <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Photography style
+                  <textarea value={identityDraft.photography_style} onChange={e => setIdentityDraft(d => ({ ...d, photography_style: e.target.value }))} rows={2} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)', resize: 'vertical' }} />
+                </label>
+                <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Brand voice
+                  <textarea value={identityDraft.brand_voice} onChange={e => setIdentityDraft(d => ({ ...d, brand_voice: e.target.value }))} rows={2} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)', resize: 'vertical' }} />
                 </label>
                 <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Responsibilities
                   <textarea value={identityDraft.responsibilities} onChange={e => setIdentityDraft(d => ({ ...d, responsibilities: e.target.value }))} rows={2} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)', resize: 'vertical' }} />

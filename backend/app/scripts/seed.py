@@ -283,8 +283,6 @@ def seed_users_only() -> None:
         id_map = _build_id_map(db)
         _seed_departments(db, id_map)
         _retire_developer_role(db)
-    with db_session() as db:
-        _ensure_demo_documents(db)
     print("[seed] demo users ready (no sample data)")  # noqa: T201
 
 

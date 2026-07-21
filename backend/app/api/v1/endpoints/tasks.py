@@ -560,17 +560,49 @@ def send_chat(
     db.add(chat)
     db.commit()
     db.refresh(chat)
-    recipients = {
-        *(task.assigned_to or []),
-        *(task.assigned_managers or []),
-    } - {user.id}
+
+    def _as_uuid(value: Any) -> uuid.UUID | None:
+        if value is None:
+            return None
+        try:
+            return value if isinstance(value, uuid.UUID) else uuid.UUID(str(value))
+        except (TypeError, ValueError):
+            return None
+
+    recipients: set[uuid.UUID] = set()
+    for raw in (*(task.assigned_to or []), *(task.assigned_managers or [])):
+        uid = _as_uuid(raw)
+        if uid:
+            recipients.add(uid)
+    for raw in (task.created_by, task.assigned_by):
+        uid = _as_uuid(raw)
+        if uid:
+            recipients.add(uid)
+    # Sub-task assignees on this task
+    for sub in task.sub_tasks or []:
+        for raw in sub.get("assigned_to") or []:
+            uid = _as_uuid(raw)
+            if uid:
+                recipients.add(uid)
+    if task.brand_id:
+        brand = db.get(Brand, task.brand_id)
+        if brand:
+            for raw in (*(brand.assigned_members or []), *(getattr(brand, "assigned_managers", None) or [])):
+                uid = _as_uuid(raw)
+                if uid:
+                    recipients.add(uid)
+    recipients.discard(user.id)
+
+    preview = (chat.message or "").strip()
+    if len(preview) > 80:
+        preview = preview[:77] + "…"
     for recipient in recipients:
         db.add(
             Notification(
                 user_id=recipient,
-                message=f'{user.name} sent a message in "{task.title}"',
+                message=f'{user.name} on "{task.title}": {preview}' if preview else f'{user.name} sent a message in "{task.title}"',
                 type="chat",
-                link=f"/tasks/{task.id}",
+                link=f"/updates?task={task.id}",
             )
         )
     db.commit()

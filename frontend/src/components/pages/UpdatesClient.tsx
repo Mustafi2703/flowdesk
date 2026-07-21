@@ -1,6 +1,7 @@
 // @ts-nocheck
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { SessionUser, ROLE_COLORS, STATUS_BG, STATUS_TEXT } from '@/types'
 import { PageHeader, PageShell } from '@/components/app/Section'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
@@ -15,6 +16,7 @@ const WORKFLOW_STAGES = ['assigned', 'design', 'content', 'editing', 'approval',
  * When a brand is selected, brand fields are editable (owner/manager).
  */
 export default function UpdatesClient({ session }: { session: SessionUser }) {
+  const searchParams = useSearchParams()
   const [updates, setUpdates] = useState<any[]>([])
   const [tasks, setTasks] = useState<any[]>([])
   const [brands, setBrands] = useState<any[]>([])
@@ -29,13 +31,14 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
   const [savingBrand, setSavingBrand] = useState(false)
   const [savingTask, setSavingTask] = useState(false)
   const [brandDraft, setBrandDraft] = useState<any>(null)
-  const [docsOpen, setDocsOpen] = useState(true)
+  const [docsOpen, setDocsOpen] = useState(false)
   const [showClosed, setShowClosed] = useState(false)
   const [closing, setClosing] = useState(false)
   const channelScrollRef = useRef<HTMLDivElement | null>(null)
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const isMgmt = ['owner', 'manager'].includes(session.role)
+  const deepLinkHandled = useRef(false)
 
   async function loadFeed() {
     const [u, t, peeps, b] = await Promise.all([
@@ -68,12 +71,26 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     return () => clearInterval(id)
   }, [selectedTaskId])
 
+  // Open task from /updates?task=… (notification deep link)
   useEffect(() => {
-    setDocsOpen(true)
+    if (loading || deepLinkHandled.current) return
+    const taskId = searchParams.get('task')
+    if (!taskId) return
+    const task = tasks.find((t) => String(t.id) === String(taskId))
+    if (!task) return
+    deepLinkHandled.current = true
+    if (task.brand_id) setBrandFilter(String(task.brand_id))
+    loadThread(task.id)
+  }, [loading, tasks, searchParams])
+
+  useEffect(() => {
+    setDocsOpen(false)
   }, [selectedTaskId])
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = chatScrollRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
   }, [thread.length, selectedTaskId])
 
   const selectedBrand = useMemo(() => {
@@ -275,7 +292,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
 
   return (
     <PageShell fill>
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', gap: '1rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%', overflow: 'hidden', gap: '0.75rem' }}>
       <PageHeader
         title="Updates"
         subtitle={isMgmt ? 'Brand channels · close completed chats to free storage · who assigned is tracked' : 'Your assigned task channels'}
@@ -325,10 +342,9 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
         gap: 0,
         flex: 1,
         minHeight: 0,
-        height: '100%',
+        overflow: 'hidden',
         border: '1px solid var(--sf-border)',
         borderRadius: 14,
-        overflow: 'hidden',
         background: 'var(--sf-surface)',
       }}>
         {/* Brand edit panel when selected */}
@@ -338,6 +354,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
             display: 'flex',
             flexDirection: 'column',
             minHeight: 0,
+            overflow: 'hidden',
             background: 'var(--sf-bg)',
           }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--sf-border)', flexShrink: 0 }}>
@@ -455,7 +472,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
         )}
 
         {/* Channel list */}
-        <div style={{ borderRight: '1px solid var(--sf-border)', display: 'flex', flexDirection: 'column', minHeight: 0, background: 'var(--sf-surface-2)' }}>
+        <div style={{ borderRight: '1px solid var(--sf-border)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', background: 'var(--sf-surface-2)' }}>
           <div style={{ padding: 12, borderBottom: '1px solid var(--sf-border)', flexShrink: 0 }}>
             <div style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
               Channels{selectedBrand ? ` · ${selectedBrand.name}` : ''}
@@ -518,7 +535,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
         </div>
 
         {/* Thread pane */}
-        <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, height: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
           {!selectedTaskId || !selectedTask ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sf-muted)', fontSize: 14, padding: 32, textAlign: 'center' }}>
               {selectedBrand

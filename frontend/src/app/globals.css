@@ -115,6 +115,11 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+/* Fill pages (Updates): lock the main pane so only channel/chat scroll */
+.sf-main-scroll:has(> .sf-page-fill) {
+  overflow: hidden;
+}
+
 .sf-page {
   display: flex;
   flex-direction: column;
@@ -130,6 +135,10 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .sf-page-header {

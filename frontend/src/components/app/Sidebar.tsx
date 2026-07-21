@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { SessionUser, NAV_ITEMS, ROLE_COLORS, ROLE_LABELS } from '@/types'
 import { ThemeToggle } from '@/components/app/ThemeProvider'
 import { Icon } from '@/components/app/Icons'
+import { NotificationBell } from '@/components/app/NotificationBell'
 
 export default function Sidebar({ session }: { session: SessionUser }) {
   const router = useRouter()
@@ -122,10 +123,12 @@ export default function Sidebar({ session }: { session: SessionUser }) {
       </div>
 
       {!collapsed && (
-        <div style={{ padding: '0 0.375rem', marginBottom: '1rem' }}>
+        <div style={{ padding: '0 0.375rem', marginBottom: '0.75rem' }}>
           <ThemeToggle compact />
         </div>
       )}
+
+      <NotificationBell collapsed={collapsed} />
 
       {/* Navigation */}
       <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>

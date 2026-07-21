@@ -70,7 +70,7 @@ export interface Announcement {
 
 export interface Notification {
   id: string; user_id: string; message: string | null
-  type: string; is_read: boolean; created_at: string
+  type: string; is_read: boolean; link?: string | null; created_at: string
 }
 
 export interface SessionUser {

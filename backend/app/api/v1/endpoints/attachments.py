@@ -252,6 +252,24 @@ async def upload_attachment(
     return _serialize(row)
 
 
+def _serve_attachment(row: FileAttachment):
+    path = UPLOAD_ROOT / row.file_path
+    media = row.mime_type or "application/octet-stream"
+    if path.exists():
+        return FileResponse(path, filename=row.file_name, media_type=media)
+    raw = row.file_data
+    if raw is not None:
+        content = bytes(raw) if not isinstance(raw, (bytes, bytearray)) else bytes(raw)
+        if content:
+            return Response(
+                content=content,
+                media_type=media,
+                headers={"Content-Disposition": f'inline; filename="{row.file_name}"'},
+            )
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File missing on disk")
+
+
+@router.get("/{attachment_id}")
 @router.get("/{attachment_id}/download")
 def download_attachment(
     attachment_id: uuid.UUID,
@@ -261,17 +279,15 @@ def download_attachment(
     row = db.get(FileAttachment, attachment_id)
     if not row or not _can_access_entity(db, row.entity_type, row.entity_id, user):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
-    path = UPLOAD_ROOT / row.file_path
-    media = row.mime_type or "application/octet-stream"
-    if path.exists():
-        return FileResponse(path, filename=row.file_name, media_type=media)
-    if row.file_data:
-        return Response(
-            content=bytes(row.file_data),
-            media_type=media,
-            headers={"Content-Disposition": f'inline; filename="{row.file_name}"'},
-        )
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File missing on disk")
+    try:
+        return _serve_attachment(row)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001 — surface corrupt blobs as 404, not 500
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Could not read file ({exc.__class__.__name__})",
+        ) from exc
 
 
 @router.delete("/{attachment_id}")

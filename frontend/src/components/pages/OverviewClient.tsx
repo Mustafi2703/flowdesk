@@ -200,14 +200,18 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
             {notifications.slice(0, 20).map((n: any) => (
               <div
                 key={n.id}
-                onClick={() => { if (!n.is_read) markRead(n.id) }}
+                onClick={() => {
+                  if (!n.is_read) markRead(n.id)
+                  if (n.link) router.push(n.link)
+                  else if (n.type === 'chat') router.push('/updates')
+                }}
                 style={{
                   padding: '0.75rem 1rem',
                   borderBottom: '1px solid var(--sf-border)',
                   display: 'flex',
                   gap: 12,
                   alignItems: 'flex-start',
-                  cursor: n.is_read ? 'default' : 'pointer',
+                  cursor: 'pointer',
                   background: n.is_read ? 'transparent' : 'rgba(232,99,10,0.06)',
                 }}
               >
@@ -220,7 +224,8 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
                     {n.message || 'Update'}
                   </div>
                   <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 3 }}>
-                    {n.type || 'system'} · {n.created_at ? new Date(n.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                    {n.type === 'chat' ? 'Updates' : (n.type || 'system')} · {n.created_at ? new Date(n.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                    {n.link ? ' · Open →' : ''}
                   </div>
                 </div>
                 {!n.is_read && (

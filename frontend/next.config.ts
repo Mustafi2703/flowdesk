@@ -10,9 +10,9 @@ const nextConfig: NextConfig = {
   experimental: {
     proxyClientMaxBodySize: '110mb',
     middlewareClientMaxBodySize: '110mb',
-    serverActions: {
-      bodySizeLimit: '110mb',
-    },
+  },
+  serverActions: {
+    bodySizeLimit: '110mb',
   },
 }
 

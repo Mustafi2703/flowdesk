@@ -49,8 +49,18 @@ class Settings(BaseSettings):
 
     # ── Database ─────────────────────────────────────────────────────────
     database_url: str = "postgresql+psycopg://tms:tms@localhost:5432/scrumfolks_tms"
-    database_pool_size: int = 20
-    database_max_overflow: int = 10
+    # Sized for ~50 concurrent team members on Railway / managed Postgres.
+    database_pool_size: int = 30
+    database_max_overflow: int = 20
+
+    # ── Object storage (Cloudflare R2 / S3-compatible) ────────────────────
+    # When set, document bytes live in the bucket; Postgres keeps metadata only.
+    s3_bucket: str | None = None
+    s3_access_key_id: str | None = None
+    s3_secret_access_key: str | None = None
+    s3_endpoint_url: str | None = None  # e.g. https://<accountid>.r2.cloudflarestorage.com
+    s3_region: str = "auto"
+    s3_prefix: str = "uploads"
 
     # ── Redis ────────────────────────────────────────────────────────────
     redis_url: str = "redis://localhost:6379/0"

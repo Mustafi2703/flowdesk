@@ -22,6 +22,7 @@ from app.models.attachment import FileAttachment
 from app.models.brand import Brand
 from app.models.profile import Profile
 from app.models.task import Task
+from app.services import object_storage
 from app.utils.queues import DASHBOARD_CACHE
 
 router = APIRouter(prefix="/attachments", tags=["attachments"])
@@ -118,22 +119,41 @@ def store_attachment(
     safe = _SAFE_NAME.sub("_", filename).strip("._") or "file"
     stored_name = f"{uuid.uuid4().hex}_{safe}"
     rel_path = f"{entity_type}/{entity_id}/{stored_name}"
-    if WRITE_DISK:
+    storage_key: str | None = None
+    storage_backend = "db"
+    file_data: bytes | None = raw
+
+    if object_storage.storage_enabled():
+        storage_key = object_storage.object_key(entity_type, str(entity_id), stored_name)
+        try:
+            object_storage.put_object(key=storage_key, body=raw, content_type=mime_type)
+            storage_backend = "s3"
+            file_data = None  # keep Postgres lean — bytes live in the bucket
+            rel_path = storage_key
+        except Exception:
+            # Fall back to DB so uploads never brick the product if R2 is misconfigured.
+            storage_key = None
+            storage_backend = "db"
+            file_data = raw
+    elif WRITE_DISK:
         try:
             dest_dir = _ensure_upload_dir(entity_type, entity_id)
             dest = dest_dir / stored_name
             dest.write_bytes(raw)
             rel_path = str(dest.relative_to(UPLOAD_ROOT))
+            storage_backend = "disk"
         except OSError:
-            # Ephemeral/full disk — keep durable copy in Postgres file_data.
             rel_path = f"{entity_type}/{entity_id}/{stored_name}"
+            storage_backend = "db"
 
     row = FileAttachment(
         entity_type=entity_type,
         entity_id=entity_id,
         file_name=filename,
         file_path=rel_path,
-        file_data=raw,
+        file_data=file_data,
+        storage_key=storage_key,
+        storage_backend=storage_backend,
         file_size=len(raw),
         mime_type=mime_type,
         uploaded_by=user.id,
@@ -258,10 +278,22 @@ async def upload_attachment(
 
 
 def _serve_attachment(row: FileAttachment):
-    path = UPLOAD_ROOT / row.file_path
     media = row.mime_type or "application/octet-stream"
+    # 1) Object bucket (R2 / S3)
+    if getattr(row, "storage_backend", None) == "s3" and getattr(row, "storage_key", None):
+        if object_storage.storage_enabled():
+            content = object_storage.get_object_bytes(row.storage_key)
+            if content:
+                return Response(
+                    content=content,
+                    media_type=media,
+                    headers={"Content-Disposition": f'inline; filename="{row.file_name}"'},
+                )
+    # 2) Local disk
+    path = UPLOAD_ROOT / row.file_path
     if path.exists():
         return FileResponse(path, filename=row.file_name, media_type=media)
+    # 3) Legacy BYTEA in Postgres
     raw = row.file_data
     if raw is not None:
         content = bytes(raw) if not isinstance(raw, (bytes, bytearray)) else bytes(raw)
@@ -306,6 +338,9 @@ def delete_attachment(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
     if Role(user.role) not in {Role.OWNER, Role.MANAGER} and row.uploaded_by != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot delete this file")
+    if getattr(row, "storage_backend", None) == "s3" and getattr(row, "storage_key", None):
+        if object_storage.storage_enabled():
+            object_storage.delete_object(row.storage_key)
     path = UPLOAD_ROOT / row.file_path
     if path.exists():
         path.unlink()

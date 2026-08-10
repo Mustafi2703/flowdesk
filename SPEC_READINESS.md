@@ -29,7 +29,7 @@ Legend: **Ready** = shipped in product · **Partial** = works with known limits 
 | Direct messaging (team ↔ manager) | Gap | Spec §5.2 — not in v1 |
 | Email OTP / forgot password | Gap | Spec §1 — login password only today |
 | File auto-delete lifecycle + trash | Partial | Columns exist; UI/cron not full |
-| Virus scan / S3 signed URLs | Gap | DB/disk storage on Railway today |
+| Virus scan / S3 signed URLs | Partial | **R2/S3 bucket storage wired** when `S3_*` env set; see `STORAGE_SETUP.md` |
 | PDF/CSV performance export | Gap | Spec §6.2 |
 | Rich text editor | Partial | Plain textareas |
 | Custom domain tasks.scrumfolks.com | Ops | Point DNS to Railway when ready |
@@ -63,9 +63,12 @@ Legend: **Ready** = shipped in product · **Partial** = works with known limits 
 
 ---
 
-## Storage note (not building yet)
+## Storage note
 
-Document management is **live** (DB-backed uploads + in-app viewer). Cloudflare R2 can be wired later when the client finalizes storage — no change required for current demos.
+Document uploads support **Cloudflare R2 / S3 buckets** (preferred for ~50 users + large docs).  
+Set `S3_*` on Railway — see **`STORAGE_SETUP.md`**. Without those vars, files still store in Postgres `file_data` (demo/small use).
+
+Postgres holds users/tasks/chats/metadata; enlarge the Railway Postgres volume if you keep many legacy BYTEA files.
 
 
 | Role | View brands | Edit brand | Assign managers | Assign team | Upload docs |

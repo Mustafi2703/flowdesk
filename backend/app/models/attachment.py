@@ -20,6 +20,11 @@ class FileAttachment(UUIDPKMixin, TimestampsMixin, Base):
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)
     file_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    # When storage_backend == "s3", bytes live in the bucket at storage_key.
+    storage_key: Mapped[str | None] = mapped_column(String(700), nullable=True, index=True)
+    storage_backend: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'db'")
+    )
     file_size: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     mime_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
     auto_delete_days: Mapped[int | None] = mapped_column(Integer, nullable=True)

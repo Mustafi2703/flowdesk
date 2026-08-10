@@ -32,6 +32,11 @@ type ProxyOptions = {
   forwardBody?: boolean
   /** Extra headers to add to the upstream request. */
   extraHeaders?: Record<string, string>
+  /**
+   * Stream the request body to FastAPI (needed for large multipart uploads).
+   * Avoids buffering into memory / hitting ~10MB proxy truncation.
+   */
+  streamBody?: boolean
 }
 
 export async function proxy(req: NextRequest, opts: ProxyOptions): Promise<NextResponse> {
@@ -45,33 +50,47 @@ export async function proxy(req: NextRequest, opts: ProxyOptions): Promise<NextR
   const incomingContentType = req.headers.get('content-type') || 'application/json'
   const isMultipart = incomingContentType.includes('multipart/form-data')
   const headers: Record<string, string> = {
-    'accept': isMultipart ? '*/*' : 'application/json',
+    accept: isMultipart ? '*/*' : 'application/json',
     ...(opts.extraHeaders || {}),
   }
-  // Let fetch set multipart boundary — do not force application/json.
-  if (!isMultipart) {
-    headers['content-type'] = incomingContentType
-  } else {
+  // Preserve original content-type (incl. multipart boundary).
+  if (incomingContentType) {
     headers['content-type'] = incomingContentType
   }
 
   const token = req.cookies.get(COOKIE)?.value
   if (token) {
-    headers['authorization'] = `Bearer ${token}`
-    headers['cookie'] = `${COOKIE}=${token}`
+    headers.authorization = `Bearer ${token}`
+    headers.cookie = `${COOKIE}=${token}`
+  }
+
+  const contentLength = req.headers.get('content-length')
+  if (contentLength) {
+    headers['content-length'] = contentLength
   }
 
   let body: BodyInit | undefined
+  let duplex: 'half' | undefined
   if (opts.forwardBody !== false && method !== 'GET' && method !== 'HEAD') {
-    if (isMultipart) {
-      body = await req.arrayBuffer()
+    if (opts.streamBody || isMultipart) {
+      // Stream large uploads instead of arrayBuffer() (which truncates ~10MB on Railway).
+      if (req.body) {
+        body = req.body
+        duplex = 'half'
+      }
     } else {
       const raw = await req.text()
       if (raw) body = raw
     }
   }
 
-  const upstream = await fetch(url.toString(), { method, headers, body, cache: 'no-store' })
+  const upstream = await fetch(url.toString(), {
+    method,
+    headers,
+    body,
+    cache: 'no-store',
+    ...(duplex ? ({ duplex } as RequestInit) : {}),
+  })
   const contentType = upstream.headers.get('content-type') || 'application/json'
   // Binary downloads (attachments) need arrayBuffer, not text.
   if (contentType.includes('application/json') || contentType.startsWith('text/')) {

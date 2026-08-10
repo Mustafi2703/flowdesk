@@ -46,6 +46,12 @@ export function FileAttachmentsPanel({
   async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file || !entityId) return
+    const maxBytes = 100 * 1024 * 1024
+    if (file.size > maxBytes) {
+      setError('File is too large (max 100 MB)')
+      e.target.value = ''
+      return
+    }
     setUploading(true)
     setError('')
     const form = new FormData()
@@ -57,7 +63,13 @@ export function FileAttachmentsPanel({
     setUploading(false)
     e.target.value = ''
     if (!res.ok) {
-      setError(data.error || data.detail || 'Upload failed')
+      const detail = data.error || data.detail
+      const msg = typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail)
+          ? 'Upload failed — try a smaller file or refresh and retry'
+          : 'Upload failed'
+      setError(msg)
       return
     }
     load()

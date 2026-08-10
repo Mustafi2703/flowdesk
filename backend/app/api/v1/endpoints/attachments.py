@@ -28,6 +28,9 @@ router = APIRouter(prefix="/attachments", tags=["attachments"])
 
 UPLOAD_ROOT = Path(os.environ.get("UPLOAD_ROOT", str(Path(__file__).resolve().parents[4] / "uploads")))
 MAX_BYTES = 100 * 1024 * 1024  # 100 MB (spec §6.1)
+# Railway containers have tiny ephemeral disks — default to DB-only bytes.
+# Set UPLOAD_WRITE_DISK=true only when a persistent volume is mounted at UPLOAD_ROOT.
+WRITE_DISK = os.environ.get("UPLOAD_WRITE_DISK", "false").lower() in {"1", "true", "yes"}
 ALLOWED_ENTITY = {"task", "brand"}
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 
@@ -114,14 +117,16 @@ def store_attachment(
 ) -> FileAttachment:
     safe = _SAFE_NAME.sub("_", filename).strip("._") or "file"
     stored_name = f"{uuid.uuid4().hex}_{safe}"
-    dest_dir = _ensure_upload_dir(entity_type, entity_id)
-    dest = dest_dir / stored_name
-    try:
-        dest.write_bytes(raw)
-        rel_path = str(dest.relative_to(UPLOAD_ROOT))
-    except OSError:
-        # Disk may be ephemeral/read-only — DB bytes are the durable copy.
-        rel_path = f"{entity_type}/{entity_id}/{stored_name}"
+    rel_path = f"{entity_type}/{entity_id}/{stored_name}"
+    if WRITE_DISK:
+        try:
+            dest_dir = _ensure_upload_dir(entity_type, entity_id)
+            dest = dest_dir / stored_name
+            dest.write_bytes(raw)
+            rel_path = str(dest.relative_to(UPLOAD_ROOT))
+        except OSError:
+            # Ephemeral/full disk — keep durable copy in Postgres file_data.
+            rel_path = f"{entity_type}/{entity_id}/{stored_name}"
 
     row = FileAttachment(
         entity_type=entity_type,

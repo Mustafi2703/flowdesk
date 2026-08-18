@@ -36,11 +36,21 @@ export default function ReviewClient({ session }: { session: SessionUser }) {
   useEffect(() => { load() }, [])
 
   async function setStatus(id: string, review_status: string) {
+    let review_notes = ''
+    if (review_status === 'rejected') {
+      review_notes = window.prompt('Rejection comments / suggestions (required):') || ''
+      if (review_notes.trim().length < 2) {
+        alert('Please add comments when rejecting')
+        return
+      }
+    } else if (review_status === 'approved') {
+      review_notes = window.prompt('Review comments (optional):') || ''
+    }
     setSaving(id)
     const res = await fetch(`/api/attachments/${id}/review`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ review_status }),
+      body: JSON.stringify({ review_status, review_notes }),
     })
     setSaving(null)
     if (!res.ok) {
@@ -114,9 +124,20 @@ export default function ReviewClient({ session }: { session: SessionUser }) {
                     >
                       {f.file_name}
                     </button>
+                    {f.entity_type === 'task' && f.entity_id && (
+                      <div style={{ marginTop: 4 }}>
+                        <a href={`/tasks/${f.entity_id}`} style={{ color: '#60A5FA', fontSize: 11 }}>Open task</a>
+                      </div>
+                    )}
                     <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 3 }}>
-                      {f.entity_type} · {f.uploader?.name || 'Unknown'} · {f.created_at ? new Date(f.created_at).toLocaleString() : '—'} · click to view
+                      {f.entity_type} · {f.uploader?.name || 'Unknown'} · v{f.review_version || '1'} · {f.created_at ? new Date(f.created_at).toLocaleString() : '—'}
+                      {f.review_notes ? ` · ${f.review_notes}` : ''}
                     </div>
+                    {(f.review_history || []).length > 0 && (
+                      <div style={{ color: 'var(--sf-muted-2)', fontSize: 10, marginTop: 4 }}>
+                        History: {(f.review_history || []).map((h: any) => `v${h.version} ${h.status}`).join(' → ')}
+                      </div>
+                    )}
                   </div>
                   <span style={{ background: c.bg, color: c.text, fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, textTransform: 'uppercase' }}>{st}</span>
                   <div style={{ display: 'flex', gap: 6 }}>

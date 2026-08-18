@@ -1,6 +1,7 @@
 // @ts-nocheck
 'use client'
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
 import { EmptyState, Icon } from '@/components/app/Icons'
 import { PageHeader, PageShell, PageTabs, PageToolbar, Section } from '@/components/app/Section'
@@ -18,12 +19,24 @@ const WORKFLOW_STAGES = [
   { id: 'delivered', label: 'Delivered' },
 ]
 
+function brandLogoSrc(brand: any) {
+  if (!brand?.logo_url) return null
+  const stamp = brand.updated_at ? new Date(brand.updated_at).getTime() : ''
+  return stamp ? `${brand.logo_url}?v=${stamp}` : brand.logo_url
+}
+
+function logoAttachmentId(logoUrl?: string | null) {
+  if (!logoUrl?.includes('/api/attachments/')) return null
+  return logoUrl.split('/').pop()?.split('?')[0] || null
+}
+
 function BrandLogoMark({ brand, size = 40 }: { brand: any; size?: number }) {
-  const initials = brand.logo || brand.name?.slice(0, 2) || '?'
-  if (brand.logo_url) {
+  const initials = (brand.logo || brand.name?.slice(0, 2) || '?').slice(0, 8)
+  const src = brandLogoSrc(brand)
+  if (src) {
     return (
       <img
-        src={brand.logo_url}
+        src={src}
         alt={brand.name}
         width={size}
         height={size}
@@ -32,7 +45,7 @@ function BrandLogoMark({ brand, size = 40 }: { brand: any; size?: number }) {
     )
   }
   return (
-    <div style={{ width: size, height: size, background: 'linear-gradient(135deg,#E8630A,#FF9A4A)', borderRadius: size > 48 ? 12 : 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sf-text)', fontWeight: 800, fontSize: size > 48 ? 18 : 12, flexShrink: 0 }}>
+    <div style={{ width: size, height: size, background: 'linear-gradient(135deg,#E8630A,#FF9A4A)', borderRadius: size > 48 ? 12 : 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sf-text)', fontWeight: 800, fontSize: size > 48 ? 14 : 11, flexShrink: 0, padding: 2, overflow: 'hidden', textOverflow: 'ellipsis' }}>
       {initials}
     </div>
   )
@@ -61,6 +74,10 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   const canEdit = ['owner', 'manager'].includes(session.role)
   const isOwner = session.role === 'owner'
   const isReadOnlyRole = ['hr', 'accountant'].includes(session.role)
+
+  function patchBrand(updated: any) {
+    setBrands(prev => prev.map(b => (sameId(b.id, updated.id) ? { ...b, ...updated } : b)))
+  }
 
   function load() {
     return Promise.all([
@@ -136,7 +153,22 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
           title={session.role === 'team' ? 'My brands' : isReadOnlyRole ? 'Brands (view)' : 'Brands'}
           subtitle={`${visible.length} client${visible.length === 1 ? '' : 's'}${isReadOnlyRole ? ' · read-only' : ''}`}
         />
-        {canEdit && (
+        {canEdit && selected && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" onClick={() => setShowCreate(true)} className="sf-btn sf-btn-primary">
+              Add brand
+            </button>
+            <button type="button" className="sf-btn sf-btn-ghost" style={{ color: 'var(--sf-danger)' }} onClick={async () => {
+              if (!window.confirm(`Delete brand "${selected.name}"? Tasks stay but will be unlinked.`)) return
+              const res = await fetch(`/api/brands/${selected.id}`, { method: 'DELETE' })
+              const data = await res.json().catch(() => ({}))
+              if (!res.ok) { alert(data.error || data.detail || 'Could not delete brand'); return }
+              setSelectedId(null)
+              load()
+            }}>Delete brand</button>
+          </div>
+        )}
+        {canEdit && !selected && (
           <button type="button" onClick={() => setShowCreate(true)} className="sf-btn sf-btn-primary">
             Add brand
           </button>
@@ -166,9 +198,9 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                   onClick={() => selectBrand(b)}
                 >
                   <BrandLogoMark brand={b} size={32} />
-                  <span>
-                    <span style={{ display: 'block', lineHeight: 1.2 }}>{b.name}</span>
-                    <span style={{ display: 'block', fontSize: 10, color: 'var(--sf-muted)', fontWeight: 400, marginTop: 2 }}>
+                  <span className="sf-brand-chip-text">
+                    <span className="sf-brand-chip-name">{b.name}</span>
+                    <span className="sf-brand-chip-meta">
                       {bt.length} tasks · {WORKFLOW_STAGES.find(s => s.id === (b.workflow_stage || 'assigned'))?.label || 'Assigned'}
                     </span>
                   </span>
@@ -191,6 +223,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                 tab={section}
                 onTabChange={setSection}
                 onRefresh={load}
+                onBrandUpdated={patchBrand}
                 attendance={attendance}
               />
             </>
@@ -207,7 +240,8 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   )
 }
 
-function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers, canAssignTeam, tab, onTabChange, onRefresh, attendance }: any) {
+function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers, canAssignTeam, tab, onTabChange, onRefresh, onBrandUpdated, attendance }: any) {
+  const router = useRouter()
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [editingTask, setEditingTask] = useState<any>(null)
   const [progressTask, setProgressTask] = useState<any>(null)
@@ -304,7 +338,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
       setLogoError(data.error || data.detail || 'Logo upload failed')
       return
     }
-    onRefresh()
+    onBrandUpdated?.(data)
   }
 
   async function saveIdentity() {
@@ -341,8 +375,9 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
   }
 
   function canUpdateStatus(task: any) {
+    if (!clockedIn) return false
     if (canEdit) return true
-    return isTaskAssignee(task, session.id) && clockedIn
+    return isTaskAssignee(task, session.id)
   }
 
   function canUpdateProgress(task: any) {
@@ -394,9 +429,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
   }
 
   function openEditTask(t: any) {
-    setEditingTask(t)
-    setCreateAsProject(false)
-    setShowTaskModal(true)
+    router.push(`/tasks/${t.id}`)
   }
 
   async function deleteTask(t: any) {
@@ -413,11 +446,11 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
 
   return (
     <div>
-      <div style={{ background: 'linear-gradient(135deg,var(--sf-surface),var(--sf-surface-2))', border: '1px solid var(--sf-border)', borderRadius: 16, padding: '20px 24px', marginBottom: 20 }}>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+      <div className="sf-brand-hero">
+        <div className="sf-brand-hero-body">
           <BrandLogoMark brand={brand} size={56} />
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <h1 style={{ color: 'var(--sf-text)', fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, fontWeight: 700, marginBottom: 6 }}>{brand.name}</h1>
+          <div className="sf-brand-hero-main">
+            <h1 className="sf-brand-hero-name" title={brand.name}>{brand.name}</h1>
             <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
               <span style={{ background: '#3B82F620', color: '#3B82F6', fontSize: 11, padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>{brand.client_type}</span>
               <span style={{ background: '#8B5CF620', color: '#8B5CF6', fontSize: 11, padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>{brand.priority}</span>
@@ -425,18 +458,19 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                 {WORKFLOW_STAGES.find(s => s.id === (brand.workflow_stage || 'assigned'))?.label || 'Assigned'}
               </span>
             </div>
-            <p style={{ color: 'var(--sf-text-secondary)', fontSize: 13, lineHeight: 1.6, margin: 0 }}>{brand.description}</p>
+            <p className="sf-brand-hero-desc">{brand.description}</p>
             {canEdit && (
               <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <label className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 10px', cursor: uploadingLogo ? 'wait' : 'pointer' }}>
                   {uploadingLogo ? 'Uploading logo…' : brand.logo_url ? 'Replace logo' : 'Upload logo'}
                   <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden disabled={uploadingLogo} onChange={uploadLogo} />
                 </label>
+                <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 11 }} onClick={() => { setEditingIdentity(true); onTabChange('identity') }}>Edit brand</button>
                 {logoError && <span style={{ color: '#F87171', fontSize: 11 }}>{logoError}</span>}
               </div>
             )}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(70px, 1fr))', gap: 8, flexShrink: 0 }}>
+          <div className="sf-brand-hero-stats">
             {[['Total', tasks.length, '#3B82F6'], ['Projects', projects.length, '#06B6D4'], ['Done', done, '#10B981'], ['Flagged', fl.length, '#EF4444']].map(([l, v, c]) => (
               <div key={String(l)} style={{ background: 'var(--sf-bg)', borderRadius: 10, padding: '8px 12px', textAlign: 'center', border: '1px solid var(--sf-border)' }}>
                 <div style={{ color: String(c), fontWeight: 700, fontSize: 18 }}>{v}</div>
@@ -447,11 +481,13 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginTop: 16 }}>
-        <PageHeader
-          title={BRAND_SECTIONS.find(s => s.id === tab)?.label || 'Overview'}
-          subtitle={brand.name}
-        />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginTop: 16, minWidth: 0, gap: 12 }}>
+        <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
+          <PageHeader
+            title={BRAND_SECTIONS.find(s => s.id === tab)?.label || 'Overview'}
+            subtitle={brand.name}
+          />
+        </div>
         {canEdit && tab === 'projects' && (
           <button type="button" onClick={openCreateProject} className="sf-btn sf-btn-primary">Add project</button>
         )}
@@ -593,9 +629,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     {renderStatus(t)}
-                    {canUpdateProgress(t) && (
-                      <button type="button" onClick={() => setProgressTask(t)} className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '4px 8px' }}>Progress</button>
-                    )}
+                    <button type="button" onClick={() => router.push(`/tasks/${t.id}`)} className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '4px 8px' }}>Open</button>
                     {canEdit && (
                       <>
                         <button type="button" onClick={() => openEditTask(t)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px' }}>Edit</button>
@@ -642,9 +676,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                 <div style={{ color: 'var(--sf-muted)', fontSize: 11 }}>{t.type} · Due {t.due_date}</div>
               </div>
               {renderStatus(t)}
-              {canUpdateProgress(t) && (
-                <button type="button" onClick={() => setProgressTask(t)} className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '4px 8px' }}>Progress</button>
-              )}
+              <button type="button" onClick={() => router.push(`/tasks/${t.id}`)} className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '4px 8px' }}>Open</button>
               {canEdit && (
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button type="button" onClick={() => openEditTask(t)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px' }}>Edit</button>
@@ -678,8 +710,8 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
       )}
 
       {tab === 'identity' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, padding: 18 }}>
+        <div className="sf-brand-identity-grid">
+          <div style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, padding: 18, minWidth: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <div style={{ color: 'var(--sf-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Brand info</div>
               {canEdit && (
@@ -690,21 +722,39 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
             </div>
             {!editingIdentity ? (
               <>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 14 }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 14, minWidth: 0 }}>
                   <BrandLogoMark brand={brand} size={64} />
-                  <div>
-                    <div style={{ color: 'var(--sf-text)', fontWeight: 700 }}>{brand.name}</div>
-                    <div style={{ color: 'var(--sf-muted)', fontSize: 12 }}>
+                  <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                    <div className="sf-truncate" style={{ color: 'var(--sf-text)', fontWeight: 700 }} title={brand.name}>{brand.name}</div>
+                    <div className="sf-truncate" style={{ color: 'var(--sf-muted)', fontSize: 12 }} title={brand.logo || ''}>
                       {brand.logo_url ? 'Image logo set' : `Initials: ${brand.logo || '—'}`}
                     </div>
                   </div>
                 </div>
                 {[['Client Type', brand.client_type], ['Priority', brand.priority], ['Workflow stage', WORKFLOW_STAGES.find(s => s.id === (brand.workflow_stage || 'assigned'))?.label], ['Allocated', `${(brand.assigned_managers?.length || 0) + (brand.assigned_members?.length || 0)} people`]].map(([l, v]) => (
-                  <div key={String(l)} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid var(--sf-border)' }}>
-                    <span style={{ color: 'var(--sf-muted)', fontSize: 12 }}>{l}</span>
-                    <span style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600 }}>{v}</span>
+                  <div key={String(l)} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '9px 0', borderBottom: '1px solid var(--sf-border)', minWidth: 0 }}>
+                    <span style={{ color: 'var(--sf-muted)', fontSize: 12, flexShrink: 0 }}>{l}</span>
+                    <span className="sf-truncate" style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600, textAlign: 'right' }} title={String(v ?? '')}>{v}</span>
                   </div>
                 ))}
+                <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
+                  <div>
+                    <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Fonts</div>
+                    <div style={{ color: 'var(--sf-text)', fontSize: 13, overflowWrap: 'anywhere' }}>{brand.fonts || 'Not specified'}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Brand colors</div>
+                    <div style={{ color: 'var(--sf-text)', fontSize: 13, overflowWrap: 'anywhere' }}>{brand.brand_colors || 'Not specified'}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Photography style</div>
+                    <div style={{ color: 'var(--sf-text)', fontSize: 13, overflowWrap: 'anywhere' }}>{brand.photography_style || 'Not specified'}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Brand voice</div>
+                    <div style={{ color: 'var(--sf-text)', fontSize: 13, overflowWrap: 'anywhere' }}>{brand.brand_voice || 'Not specified'}</div>
+                  </div>
+                </div>
                 {(brand.logo_variants || []).length > 0 && (
                   <div style={{ marginTop: 12 }}>
                     <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Logo variants</div>
@@ -782,7 +832,14 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
               </div>
             )}
           </div>
-          <FileAttachmentsPanel entityType="brand" entityId={brand.id} canUpload={canUploadDocs} title="Brand files & documents" />
+          <FileAttachmentsPanel
+            key={`brand-files-${brand.id}-${logoAttachmentId(brand.logo_url) || 'none'}`}
+            entityType="brand"
+            entityId={brand.id}
+            canUpload={canUploadDocs}
+            title="Brand files & documents"
+            excludeIds={[logoAttachmentId(brand.logo_url)].filter(Boolean)}
+          />
         </div>
       )}
 

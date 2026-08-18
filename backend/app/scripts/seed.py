@@ -168,9 +168,9 @@ LEAVES = [
 
 def _seed_users(db) -> None:
     """Create/update demo accounts. Manager links are applied in a second pass."""
-    existing_by_email = {
-        profile.email.lower(): profile for profile in db.scalars(select(Profile)).all()
-    }
+    profiles = db.scalars(select(Profile)).all()
+    existing_by_email = {profile.email.lower(): profile for profile in profiles}
+    existing_by_id = {profile.id: profile for profile in profiles}
     password_hash = hash_password(settings.seed_password)
     # Map seed UUID constants to actual profile rows (bootstrap owner may differ).
     id_map: dict[uuid.UUID, uuid.UUID] = {}
@@ -178,20 +178,11 @@ def _seed_users(db) -> None:
     # Pass 1 — ensure every account exists; defer manager_id to avoid FK ordering issues.
     for seed_uid, name, email, role, dept, designation, avatar, _manager in USERS:
         email_key = email.lower()
-        if email_key in existing_by_email:
-            profile = existing_by_email[email_key]
-            profile.password_hash = password_hash
-            profile.is_active = True
-            profile.name = name
-            profile.role = role
-            profile.department = dept
-            profile.designation = designation
-            profile.avatar = avatar
-            id_map[seed_uid] = profile.id
-            continue
-
-        db.add(
-            Profile(
+        # Prefer a profile matched by canonical demo UUID first; this avoids
+        # duplicate PK insert attempts when stale emails drift in production DB.
+        profile = existing_by_id.get(seed_uid) or existing_by_email.get(email_key)
+        if profile is None:
+            profile = Profile(
                 id=seed_uid,
                 name=name,
                 email=email_key,
@@ -202,15 +193,30 @@ def _seed_users(db) -> None:
                 avatar=avatar,
                 manager_id=None,
             )
-        )
-        db.flush()
-        id_map[seed_uid] = seed_uid
-        existing_by_email[email_key] = db.get(Profile, seed_uid)  # type: ignore[assignment]
+            db.add(profile)
+
+        profile.password_hash = password_hash
+        profile.is_active = True
+        profile.name = name
+        profile.email = email_key
+        profile.role = role
+        profile.department = dept
+        profile.designation = designation
+        profile.avatar = avatar
+        # Reset first to avoid FK violations when old manager_id points to
+        # stale demo UUIDs; pass 2 rewires hierarchy using resolved IDs.
+        profile.manager_id = None
+
+        id_map[seed_uid] = profile.id
+        existing_by_id[profile.id] = profile
+        existing_by_email[email_key] = profile
 
     # Pass 2 — wire reporting hierarchy using resolved DB UUIDs.
     for seed_uid, _name, email, *_rest, seed_manager in USERS:
         profile = existing_by_email[email.lower()]
         resolved_manager = id_map.get(seed_manager) if seed_manager is not None else None
+        if resolved_manager is not None and db.get(Profile, resolved_manager) is None:
+            resolved_manager = None
         if profile.manager_id != resolved_manager:
             profile.manager_id = resolved_manager
 
@@ -324,35 +330,64 @@ def seed() -> None:
             if not (brand.assigned_managers or []):
                 brand.assigned_managers = [MANAGER]
 
-        if not db.scalars(select(Task.id).limit(1)).first():
-            for task_data in _all_tasks():
-                db.add(Task(**task_data))
-
-        if not db.scalars(select(Announcement.id).limit(1)).first():
-            for title, body, priority, creator_idx in ANNOUNCEMENTS:
-                db.add(
-                    Announcement(
-                        title=title,
-                        body=body,
-                        priority=priority,
-                        created_by=USERS[creator_idx][0],
-                    )
+        # Seed demo tasks idempotently (don’t depend on the global tasks table
+        # being empty; production may already have non-demo tasks).
+        desired_tasks = _all_tasks()
+        for task_data in desired_tasks:
+            existing = db.scalar(
+                select(Task.id).where(
+                    Task.title == task_data["title"],
+                    Task.brand_id == task_data["brand_id"],
                 )
+            )
+            if existing:
+                continue
+            db.add(Task(**task_data))
 
-        if not db.scalars(select(LeaveRequest.id).limit(1)).first():
-            today = date.today()
-            for user_idx, leave_type, days, reason in LEAVES:
-                db.add(
-                    LeaveRequest(
-                        user_id=USERS[user_idx][0],
-                        leave_type=leave_type,
-                        start_date=today + timedelta(days=3),
-                        end_date=today + timedelta(days=3 + days - 1),
-                        days=days,
-                        reason=reason,
-                        status="Pending",
-                    )
+        # Seed demo announcements idempotently by title + body.
+        for title, body, priority, creator_idx in ANNOUNCEMENTS:
+            existing = db.scalar(
+                select(Announcement.id).where(
+                    Announcement.title == title,
+                    Announcement.body == body,
+                    Announcement.created_by == USERS[creator_idx][0],
                 )
+            )
+            if existing:
+                continue
+            db.add(
+                Announcement(
+                    title=title,
+                    body=body,
+                    priority=priority,
+                    created_by=USERS[creator_idx][0],
+                )
+            )
+
+        # Seed demo leaves idempotently by (user, leave_type, reason).
+        today = date.today()
+        for user_idx, leave_type, days, reason in LEAVES:
+            user_id = USERS[user_idx][0]
+            existing = db.scalar(
+                select(LeaveRequest.id).where(
+                    LeaveRequest.user_id == user_id,
+                    LeaveRequest.leave_type == leave_type,
+                    LeaveRequest.reason == reason,
+                )
+            )
+            if existing:
+                continue
+            db.add(
+                LeaveRequest(
+                    user_id=user_id,
+                    leave_type=leave_type,
+                    start_date=today + timedelta(days=3),
+                    end_date=today + timedelta(days=3 + days - 1),
+                    days=days,
+                    reason=reason,
+                    status="Pending",
+                )
+            )
 
         _ensure_demo_documents(db)
 
@@ -584,6 +619,75 @@ def ensure_demo_documents() -> None:
         _retire_developer_role(db)
         _ensure_demo_documents(db)
     print("[seed] ensure_demo_documents complete")  # noqa: T201
+
+
+def delete_full_demo_data() -> None:
+    """Best-effort cleanup for the full sales demo.
+
+    Removes only the specific demo brands/tasks/announcements/leaves/docs that
+    `seed()` inserts (fixed UUIDs + seeded titles/reasons). It does *not* wipe
+    users/profiles or the whole workspace.
+    """
+    demo_brand_ids = {bid for bid, *_ in BRANDS}
+    seeded_announcement_titles = {t for t, *_rest in ANNOUNCEMENTS}
+    seeded_announcement_bodies = {b for _t, b, *_rest in ANNOUNCEMENTS}
+    seeded_leave = {(leave_type, reason) for _days_idx, leave_type, _days, reason in LEAVES}
+
+    with db_session() as db:
+        # Delete tasks first so FK relations to tasks/chat resolve cleanly.
+        demo_task_ids = list(
+            db.scalars(select(Task.id).where(Task.brand_id.in_(demo_brand_ids))).all()
+        )
+        if demo_task_ids:
+            # ORM cascade handles task chats.
+            for t in db.scalars(select(Task).where(Task.id.in_(demo_task_ids))).all():
+                db.delete(t)
+
+        # Delete demo brands.
+        for b in db.scalars(select(Brand).where(Brand.id.in_(demo_brand_ids))).all():
+            db.delete(b)
+
+        # Delete demo announcements.
+        demo_owners = {OWNER, MANAGER}
+        if seeded_announcement_titles:
+            for a in db.scalars(
+                select(Announcement).where(
+                    Announcement.created_by.in_(demo_owners),
+                    Announcement.title.in_(seeded_announcement_titles),
+                )
+            ).all():
+                # Defensive: if titles match but bodies differ, keep the row.
+                if a.body in seeded_announcement_bodies:
+                    db.delete(a)
+
+        # Delete demo leaves (team-only seeded record).
+        if seeded_leave:
+            team_id = TEAM
+            # LEAVES: (user_idx, leave_type, days, reason)
+            for leave_type, reason in seeded_leave:
+                for lr in db.scalars(
+                    select(LeaveRequest).where(
+                        LeaveRequest.user_id == team_id,
+                        LeaveRequest.leave_type == leave_type,
+                        LeaveRequest.reason == reason,
+                    )
+                ).all():
+                    db.delete(lr)
+
+        # Delete demo documents (seed-created files only).
+        # The seed script prefixes with .../seed_{file_name}
+        from sqlalchemy import delete
+        from app.models.attachment import FileAttachment
+
+        db.execute(
+            delete(FileAttachment).where(
+                FileAttachment.entity_type.in_(["brand", "task"]),
+                FileAttachment.file_path.like("%/seed_%"),
+            )
+        )
+
+        db.flush()
+    print("[seed] full demo data deleted (users preserved)")  # noqa: T201
 
 
 if __name__ == "__main__":

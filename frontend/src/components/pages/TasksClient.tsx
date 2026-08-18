@@ -1,9 +1,11 @@
 // @ts-nocheck
 'use client'
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { SessionUser, TaskStatus } from '@/types'
 import { Icon } from '@/components/app/Icons'
 import { PageHeader, PageShell, Section } from '@/components/app/Section'
+import { StatusBadge } from '@/components/app/StatusBadge'
 import { TASK_STATUSES, canManageTasks, canSetTaskPrice, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { TaskThreadBox } from '@/components/app/TaskThreadBox'
@@ -67,6 +69,7 @@ function normalizeSubTasks(raw: any[] | undefined) {
 }
 
 export default function TasksClient({ session }: { session: SessionUser }) {
+  const router = useRouter()
   const [tasks, setTasks] = useState<any[]>([])
   const [brands, setBrands] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
@@ -94,12 +97,13 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   }
 
   function canUpdateStatus(task: any) {
+    if (!clockedIn) return false
     if (canEdit) return true
-    return isAssigned(task) && clockedIn
+    return isAssigned(task)
   }
 
   function canUpdateProgress(task: any) {
-    return !canEdit && isAssigned(task) && clockedIn
+    return isAssigned(task) && clockedIn
   }
 
   async function updateTaskStatus(taskId: string, status: string) {
@@ -117,7 +121,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   }
 
   function openTask(task: any) {
-    if (canEdit) setEditingTask(task)
+    router.push(`/tasks/${task.id}`)
   }
 
   async function deleteTask(task: any) {
@@ -177,7 +181,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   if (loading) return <div style={{ color:'var(--sf-muted)', padding:40, textAlign:'center' }}>Loading tasks…</div>
 
   return (
-    <PageShell fill>
+    <PageShell>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexShrink:0 }}>
         <PageHeader
           title={session.role === 'team' ? 'My Tasks' : 'Tasks'}
@@ -192,14 +196,14 @@ export default function TasksClient({ session }: { session: SessionUser }) {
           Owners and managers can edit tasks and set prices. Assigned members can update status from the list.
         </p>
       )}
-      {!canEdit && !clockedIn && (
+      {!clockedIn && (
         <p style={{ color:'#FBBF24', fontSize:12, margin:'-8px 0 12px', flexShrink:0 }}>
-          Clock in from Attendance before updating task progress.
+          Clock in from the top bar before updating task progress or status.
         </p>
       )}
-      {!canEdit && clockedIn && (
+      {clockedIn && (
         <p style={{ color:'var(--sf-muted)', fontSize:12, margin:'-8px 0 12px', flexShrink:0 }}>
-          You are clocked in — update status or use Update progress for notes and checklist.
+          Open a task for the full page. Status, review, and files live there — not in a popup.
         </p>
       )}
 
@@ -251,8 +255,8 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                   <th>Status</th>
                   <th>Priority</th>
                   <th>Due</th>
-                  {canEdit && <th style={{ width:160 }}>Actions</th>}
-                  {!canEdit && <th style={{ width:120 }}>Progress</th>}
+                  {canEdit && <th style={{ width:200 }}>Actions</th>}
+                  {!canEdit && <th style={{ width:140 }}>Open</th>}
                 </tr>
               </thead>
               <tbody>
@@ -267,7 +271,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                     <tr key={task.id}>
                       <td
                         onClick={() => openTask(task)}
-                        style={{ cursor: canEdit ? 'pointer' : 'default' }}
+                        style={{ cursor: 'pointer' }}
                       >
                         <div style={{ fontWeight:600 }}>{task.title}</div>
                         {task.task_mode === 'project' && (
@@ -297,7 +301,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                             {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                           </select>
                         ) : (
-                          <span className={statusClass(task.status)}>{task.status}</span>
+                          <span className={statusClass(task.status)}><StatusBadge status={task.status} /></span>
                         )}
                       </td>
                       <td><PriorityBadge priority={task.priority} /></td>
@@ -312,19 +316,18 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                       </td>
                       {canEdit && (
                         <td onClick={e => e.stopPropagation()}>
-                          <div style={{ display:'flex', gap:6 }}>
-                            <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-ghost" style={{ fontSize:11, padding:'4px 8px' }}>Edit</button>
+                          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                            <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-ghost" style={{ fontSize:11, padding:'4px 8px' }}>Open</button>
+                            {task.requires_review && (
+                              <button type="button" onClick={() => router.push(`/tasks/${task.id}`)} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px' }}>Review</button>
+                            )}
                             <button type="button" onClick={() => deleteTask(task)} className="sf-btn sf-btn-ghost" style={{ fontSize:11, padding:'4px 8px', color:'var(--sf-danger)' }}>Delete</button>
                           </div>
                         </td>
                       )}
                       {!canEdit && (
                         <td onClick={e => e.stopPropagation()}>
-                          {canUpdateProgress(task) ? (
-                            <button type="button" onClick={() => setProgressTask(task)} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px' }}>Update</button>
-                          ) : (
-                            <span style={{ color:'var(--sf-muted)', fontSize:11 }}>{isAssigned(task) ? 'Clock in' : '—'}</span>
-                          )}
+                          <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px' }}>Open</button>
                         </td>
                       )}
                     </tr>
@@ -340,7 +343,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
       ) : (
         <Section title="Task board" subtitle="Kanban by status" flush flex={1}>
           <div style={{ display:'flex', gap:10, overflowX:'auto', overflowY:'auto', height:'100%', padding:'0.75rem' }}>
-          {(['Not Started','In Progress','Under Review','Revision Needed','Completed','On Hold'] as TaskStatus[]).map(col => {
+          {(['Not Started','In Progress','Under Review','Revision Needed','Struggling','Needs Attention','Completed','On Hold'] as TaskStatus[]).map(col => {
             const colTasks = filtered.filter(t => t.status===col)
             return (
               <div key={col} style={{ minWidth:220, flex:'0 0 220px', background:'var(--sf-surface)', border:'1px solid var(--sf-border)', borderRadius:12, padding:10 }}>
@@ -355,11 +358,12 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                   >
                     <div
                       onClick={() => openTask(task)}
-                      style={{ cursor: canEdit ? 'pointer' : 'default' }}
+                      style={{ cursor: 'pointer' }}
                     >
                       <div style={{ color:'var(--sf-text)', fontSize:12, fontWeight:600, marginBottom:4 }}>{task.title}</div>
                       <div style={{ color:'var(--sf-muted)', fontSize:10, marginBottom:6 }}>{task.brand?.name||'—'}</div>
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 8 }}>
+                        <StatusBadge status={task.status} />
                         <span style={{ marginLeft: 6 }}><PriorityBadge priority={task.priority} /></span>
                         {task.due_date && <span style={{ color:'var(--sf-muted)', fontSize:10 }}>{Math.ceil((new Date(task.due_date).getTime()-Date.now())/86400000)}d</span>}
                       </div>
@@ -373,12 +377,12 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                         {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     )}
-                    {canUpdateProgress(task) && (
-                      <button type="button" onClick={() => setProgressTask(task)} className="sf-btn sf-btn-primary" style={{ width:'100%', fontSize:10, padding:'4px 6px', marginBottom: 8 }}>Update progress</button>
+                    <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-ghost" style={{ width:'100%', fontSize:10, padding:'4px 6px', marginBottom: 8 }}>Open task</button>
+                    {canEdit && task.requires_review && (
+                      <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-primary" style={{ width:'100%', fontSize:10, padding:'4px 6px', marginBottom: 8 }}>Review</button>
                     )}
                     {canEdit && (
                       <div style={{ display:'flex', gap:6 }}>
-                        <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-ghost" style={{ flex:1, fontSize:10, padding:'4px 6px' }}>Edit</button>
                         <button type="button" onClick={() => deleteTask(task)} className="sf-btn sf-btn-ghost" style={{ flex:1, fontSize:10, padding:'4px 6px', color:'var(--sf-danger)' }}>Delete</button>
                       </div>
                     )}
@@ -451,6 +455,9 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
+  const [driveLinks, setDriveLinks] = useState<any[]>(() => Array.isArray(task?.external_links) ? task.external_links : [])
+  const [driveLabel, setDriveLabel] = useState('')
+  const [driveUrl, setDriveUrl] = useState('')
 
   // Assignable people: Team department only (Developer is not a department).
   const teamUsers = users.filter((u:any) => u.role === 'team' && u.is_active !== false)
@@ -529,22 +536,25 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
       // Auto-switch to project mode when creating under a new named project.
       if (taskMode === 'standard') setTaskMode('project')
     }
-    const cleanedSubTasks = (needsBrandName || taskMode === 'project')
-      ? subTasks.filter((st) => st.title.trim()).map((st) => ({
+    const cleanedSubTasks = subTasks.filter((st) => st.title.trim()).map((st) => ({
           id: st.id,
           title: st.title.trim(),
           assigned_to: st.assigned_to || [],
           status: st.status || 'Not Started',
           due_date: st.due_date || null,
         }))
-      : []
-    const effectiveMode = needsBrandName ? 'project' : taskMode
+    const effectiveMode = forceProjectMode || needsBrandName ? 'project' : 'standard'
+    const pendingLinks = [...driveLinks]
+    if (driveUrl.trim()) {
+      pendingLinks.push({ label: driveLabel.trim() || 'Drive folder', url: driveUrl.trim() })
+    }
     const body: any = {
       title, description:desc, brand_id:resolvedBrandId, assigned_to:assignedTo,
       type, task_mode:effectiveMode, priority, status, due_date:dueDate,
       requires_review:requiresReview, is_billable:isBillable,
       recurring_config: recurring ? { enabled:true, frequency:recurFreq, next_due:dueDate } : null,
       sub_tasks: cleanedSubTasks,
+      external_links: pendingLinks,
     }
     // Preserve existing managers on edit; on create set current user as manager.
     if (isEdit) {
@@ -609,16 +619,14 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
         </div>
 
         {!isEdit && !forceProjectMode && (
-        <div style={{ display:'flex', background:'var(--sf-surface-2)', borderRadius:9, overflow:'hidden', marginBottom:16 }}>
-          {[['standard','Standard Task'],['project','Project Task (Sub-tasks)']].map(([m,l]) => (
-            <button key={m} onClick={() => setTaskMode(m)} style={{ flex:1, padding:'9px', background:taskMode===m?(m==='project'?'#06B6D4':'var(--sf-accent)'):'transparent', border:'none', color:taskMode===m?'white':'var(--sf-muted)', cursor:'pointer', fontSize:12, fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>{l}</button>
-          ))}
+        <div style={{ background:'rgba(6,182,212,0.08)', border:'1px solid rgba(6,182,212,0.2)', borderRadius:9, padding:'8px 12px', marginBottom:14, color:'var(--sf-text-secondary)', fontSize:12 }}>
+          After creating the task, add sub-tasks on the task page (Sub-tasks tab). They stay on this task — they are not a separate project.
         </div>
         )}
 
         {(forceProjectMode || taskMode === 'project') && !isEdit && (
           <div style={{ background:'rgba(6,182,212,0.1)', border:'1px solid rgba(6,182,212,0.25)', borderRadius:9, padding:'8px 12px', marginBottom:14, color:'#06B6D4', fontSize:12, fontWeight:600 }}>
-            Project mode — add sub-tasks below to break work into phases.
+            Project container — use this only to group work. Sub-tasks belong on each task’s Sub-task tab.
           </div>
         )}
 
@@ -697,8 +705,27 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
           />
         </div>
 
-        {taskMode === 'project' && (
-          <div style={{ marginBottom:16 }}>
+        <div style={{ marginBottom:12 }}>
+          <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:7, display:'block' }}>Google Drive / file links</label>
+          <div style={{ color:'var(--sf-muted)', fontSize:11, marginBottom:8 }}>These go in the assignment email so the team can open the folder immediately.</div>
+          {driveLinks.map((lnk: any, i: number) => (
+            <div key={`${lnk.url}-${i}`} style={{ display:'flex', justifyContent:'space-between', gap:8, padding:'6px 0', borderBottom:'1px solid var(--sf-border)' }}>
+              <span style={{ color:'#60A5FA', fontSize:12, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{lnk.label || lnk.url}</span>
+              <button type="button" onClick={() => setDriveLinks(prev => prev.filter((_, idx) => idx !== i))} style={{ background:'none', border:'none', color:'var(--sf-danger)', cursor:'pointer', fontSize:12 }}>Remove</button>
+            </div>
+          ))}
+          <div style={{ display:'flex', flexDirection:'column', gap:8, marginTop:8 }}>
+            <input value={driveLabel} onChange={e => setDriveLabel(e.target.value)} placeholder="Label (optional)" style={sInp} />
+            <input value={driveUrl} onChange={e => setDriveUrl(e.target.value)} placeholder="https://drive.google.com/…" style={sInp} />
+            <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize:12 }} onClick={() => {
+              if (!driveUrl.trim()) return
+              setDriveLinks(prev => [...prev, { label: driveLabel.trim() || 'Drive folder', url: driveUrl.trim() }])
+              setDriveLabel(''); setDriveUrl('')
+            }}>+ Add Drive link</button>
+          </div>
+        </div>
+
+        <div style={{ marginBottom:16 }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
               <label style={{ color:'#06B6D4', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em' }}>Sub-tasks</label>
               <button type="button" onClick={addSubTask} className="sf-btn sf-btn-ghost" style={{ fontSize:11, padding:'4px 10px' }}>+ Add sub-task</button>
@@ -739,8 +766,7 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
                 </div>
               ))}
             </div>
-          </div>
-        )}
+        </div>
 
         <div style={{ background:'var(--sf-surface-2)', borderRadius:10, padding:14, marginBottom:16, display:'flex', flexDirection:'column', gap:10 }}>
           {[

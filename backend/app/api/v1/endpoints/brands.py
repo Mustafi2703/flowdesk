@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -10,7 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user
-from app.api.v1.endpoints.attachments import MAX_BYTES, store_attachment
+from app.api.v1.endpoints.attachments import MAX_BYTES, logo_attachment_id, remove_attachment_row, store_attachment
+from app.models.attachment import FileAttachment
 from app.core.roles import Role
 from app.db.session import get_db
 from app.models.brand import Brand
@@ -244,6 +246,23 @@ def update_brand(
     return _serialize(brand)
 
 
+@router.delete("/{brand_id}")
+def delete_brand(
+    brand_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: Profile = Depends(get_current_user),
+) -> dict[str, bool]:
+    if not _can_edit_brand(user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owner/manager can delete brands")
+    brand = db.get(Brand, brand_id)
+    if not brand:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found")
+    db.delete(brand)
+    db.commit()
+    DASHBOARD_CACHE.invalidate()
+    return {"ok": True}
+
+
 @router.post("/{brand_id}/logo", status_code=status.HTTP_200_OK)
 async def upload_brand_logo(
     brand_id: uuid.UUID,
@@ -270,11 +289,19 @@ async def upload_brand_logo(
     if len(raw) > MAX_BYTES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File too large (max 100MB)")
 
+    # Replace the previous logo attachment instead of stacking duplicates.
+    old_logo_id = logo_attachment_id(brand.logo_url)
+    if old_logo_id:
+        old_row = db.get(FileAttachment, old_logo_id)
+        if old_row:
+            remove_attachment_row(db, old_row)
+
+    ext = Path(file.filename or "logo.png").suffix or ".png"
     row = store_attachment(
         db=db,
         entity_type="brand",
         entity_id=brand.id,
-        filename=file.filename,
+        filename=f"Brand logo{ext}",
         raw=raw,
         mime_type=file.content_type or "image/png",
         user=user,

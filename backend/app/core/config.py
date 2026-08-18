@@ -76,6 +76,9 @@ class Settings(BaseSettings):
     smtp_user: str | None = None
     smtp_password: str | None = None
     smtp_use_tls: bool = True
+    # When set, all outbound emails (task briefs, digests) go here — useful for QA.
+    email_test_recipient: str | None = None
+    task_brief_emails_enabled: bool = True
 
     # ── AI ───────────────────────────────────────────────────────────────
     anthropic_api_key: str | None = None
@@ -83,7 +86,7 @@ class Settings(BaseSettings):
 
     # ── Scheduler ────────────────────────────────────────────────────────
     enable_scheduler: bool = True
-    digest_hour: int = 9
+    digest_hour: int = 18
     digest_minute: int = 0
     risk_scan_hour: int = 8
     risk_scan_minute: int = 0

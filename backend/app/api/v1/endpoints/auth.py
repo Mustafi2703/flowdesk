@@ -94,14 +94,31 @@ def demo_login(
     if not settings.seed_demo:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Demo login disabled")
     if not settings.seed_password or len(settings.seed_password) < 8:
-        raise HTTPException(status_code=status.HTTP_503_FORBIDDEN, detail="Demo not configured")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Demo not configured")
     email = _DEMO_ROLE_EMAILS.get(payload.role.lower().strip())
     if not email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown demo role")
     user = db.scalar(select(Profile).where(Profile.email == email, Profile.is_active.is_(True)))
     if not user or not verify_password(settings.seed_password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_503_FORBIDDEN, detail="Demo accounts not ready")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Demo accounts not ready")
     return _issue_session(user, response)
+
+
+@router.get("/demo-info")
+def demo_info() -> dict:
+    """Return demo account emails + shared password for QA (SEED_DEMO only)."""
+    if not settings.seed_demo:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Demo login disabled")
+    if not settings.seed_password or len(settings.seed_password) < 8:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Demo not configured")
+    accounts = [
+        {"role": "owner", "email": "owner@scrumfolks.com", "label": "Owner"},
+        {"role": "manager", "email": "manager@scrumfolks.com", "label": "Manager"},
+        {"role": "team", "email": "team@scrumfolks.com", "label": "Team Member"},
+        {"role": "hr", "email": "hr@scrumfolks.com", "label": "HR"},
+        {"role": "accountant", "email": "accountant@scrumfolks.com", "label": "Accounts"},
+    ]
+    return {"password": settings.seed_password, "accounts": accounts}
 
 
 @router.post("/logout")

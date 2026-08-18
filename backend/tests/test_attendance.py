@@ -9,10 +9,20 @@ def test_clock_in_then_out_calculates_hours(client, users):
     cin = client.post("/api/v1/attendance/clockin", headers=headers)
     assert cin.status_code == 200
     assert cin.json()["login_time"] is not None
-    cout = client.post("/api/v1/attendance/clockout", headers=headers)
+    cout = client.post("/api/v1/attendance/clockout?confirm_early=true", headers=headers)
     assert cout.status_code == 200
     assert cout.json()["logout_time"] is not None
     assert cout.json()["hours_worked"] >= 0
+
+
+def test_clock_out_under_nine_hours_requires_confirm(client, users):
+    team = users.create("team")
+    headers = users.auth_headers(team)
+    client.post("/api/v1/attendance/clockin", headers=headers)
+    resp = client.post("/api/v1/attendance/clockout", headers=headers)
+    assert resp.status_code == 409
+    body = resp.json()
+    assert body["needs_confirm"] is True
 
 
 def test_clock_out_without_in_rejected(client, users):

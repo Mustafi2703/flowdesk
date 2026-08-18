@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
 import { PageHeader, PageShell, Section, StatCard, StatGrid } from '@/components/app/Section'
 import { EmptyState } from '@/components/app/Icons'
+import { clockOutWithConfirm } from '@/lib/clock'
 import { resolveNotificationLink } from '@/lib/notifications'
 
 function Chip({ status }: { status: string }) {
@@ -68,10 +69,9 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
     if (log?.login_time) { setTodayLog(log); setClocked(true) }
     else setClocked(true)
   })
-  const clockOut = () => fetch('/api/attendance/clockout', { method:'POST' }).then(async (r) => {
-    const log = await r.json().catch(() => null)
+  const clockOut = () => clockOutWithConfirm().then((log) => {
     if (log) setTodayLog(log)
-    setClocked(false)
+    if (log?.logout_time) setClocked(false)
   })
 
   function liveHoursToday(log: any) {
@@ -124,14 +124,13 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   if (loading) return <div style={{ color:'var(--sf-muted)', padding:40, textAlign:'center' }}>Loading…</div>
 
   return (
-    <PageShell fill>
+    <PageShell>
       <PageHeader
         title={`Good ${greet}, ${session.name.split(' ')[0]}`}
         subtitle={dateStr}
       />
 
-      {isTeam && (
-        <Section title="Attendance" subtitle={clocked ? 'You are clocked in' : 'Not clocked in today'} flush>
+      <Section title="Attendance" subtitle={clocked ? 'You are clocked in' : 'Not clocked in today'} flush>
           <div style={{ padding:'1rem 1.125rem', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
             <div>
               <div style={{ color: clocked ? 'var(--sf-success)' : 'var(--sf-muted)', fontSize:13, fontWeight:600, marginBottom: 6 }}>
@@ -153,7 +152,6 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
             </button>
           </div>
         </Section>
-      )}
 
       <StatGrid>
         <StatCard label="Notifications" value={unreadNotifs.length} sub={`${notifications.length} total`} accent="#E8630A" />

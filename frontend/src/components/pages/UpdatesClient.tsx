@@ -1,10 +1,34 @@
 // @ts-nocheck
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { SessionUser, ROLE_COLORS, STATUS_BG, STATUS_TEXT } from '@/types'
+import { SessionUser, ROLE_COLORS } from '@/types'
 import { PageHeader, PageShell } from '@/components/app/Section'
-import { sameUserId } from '@/lib/tasks'
+import { StatusBadge } from '@/components/app/StatusBadge'
+import { TASK_STATUSES, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
+
+const URL_RE = /(https?:\/\/[^\s]+)/g
+
+function MessageText({ text }: { text: string }) {
+  if (!text) return null
+  const parts = text.split(URL_RE)
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (/^https?:\/\//.test(part)) {
+          const href = part.replace(/[),.;]+$/, '')
+          return (
+            <a key={i} href={href} target="_blank" rel="noreferrer" style={{ color: '#60A5FA', wordBreak: 'break-all' }}>
+              {part}
+            </a>
+          )
+        }
+        return <span key={i}>{part}</span>
+      })}
+    </>
+  )
+}
 
 /**
  * Updates = task channels + chat only (no brand panels).
@@ -14,6 +38,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
   const [updates, setUpdates] = useState<any[]>([])
   const [tasks, setTasks] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
+  const [attendance, setAttendance] = useState<any[]>([])
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [thread, setThread] = useState<any[]>([])
   const [message, setMessage] = useState('')
@@ -22,20 +47,30 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
   const [sending, setSending] = useState(false)
   const [showClosed, setShowClosed] = useState(false)
   const [closing, setClosing] = useState(false)
+  const [reviewNotes, setReviewNotes] = useState('')
+  const [linkLabel, setLinkLabel] = useState('')
+  const [linkUrl, setLinkUrl] = useState('')
+  const [savingLink, setSavingLink] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [showDriveForm, setShowDriveForm] = useState(false)
   const channelScrollRef = useRef<HTMLDivElement | null>(null)
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
   const isMgmt = ['owner', 'manager'].includes(session.role)
   const deepLinkHandled = useRef(false)
+  const today = new Date().toISOString().split('T')[0]
+  const clockedIn = isClockedInToday(attendance, session.id, today)
 
   async function loadFeed() {
-    const [u, t, peeps] = await Promise.all([
+    const [u, t, peeps, att] = await Promise.all([
       fetch('/api/updates').then((r) => r.json()),
       fetch('/api/tasks').then((r) => r.json()),
       fetch('/api/users').then((r) => r.json()).catch(() => []),
+      fetch('/api/attendance').then((r) => r.json()).catch(() => []),
     ])
     setUpdates(Array.isArray(u) ? u : [])
     setTasks(Array.isArray(t) ? t : [])
     setUsers(Array.isArray(peeps) ? peeps : [])
+    setAttendance(Array.isArray(att) ? att : [])
     setLoading(false)
   }
 
@@ -122,6 +157,77 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     await loadFeed()
   }
 
+  async function updateStatus(status: string) {
+    if (!selectedTaskId) return
+    const res = await fetch(`/api/tasks/${selectedTaskId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || data.detail || 'Could not update status')
+      return
+    }
+    await loadFeed()
+  }
+
+  async function addDriveLink() {
+    if (!selectedTaskId || !selectedTask || !linkUrl.trim()) return
+    setSavingLink(true)
+    const next = [...(selectedTask.external_links || []), { label: linkLabel.trim() || 'Drive folder', url: linkUrl.trim() }]
+    const res = await fetch(`/api/tasks/${selectedTaskId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ external_links: next }),
+    })
+    setSavingLink(false)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || data.detail || 'Could not add Drive link')
+      return
+    }
+    setLinkLabel('')
+    setLinkUrl('')
+    await loadFeed()
+  }
+
+  async function removeDriveLink(idx: number) {
+    if (!selectedTaskId || !selectedTask) return
+    const next = (selectedTask.external_links || []).filter((_: any, i: number) => i !== idx)
+    const res = await fetch(`/api/tasks/${selectedTaskId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ external_links: next }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || data.detail || 'Could not remove link')
+      return
+    }
+    await loadFeed()
+  }
+
+  async function decideReview(decision: 'approved' | 'rejected') {
+    if (!selectedTaskId) return
+    if (decision === 'rejected' && reviewNotes.trim().length < 2) {
+      alert('Add comments when rejecting')
+      return
+    }
+    const res = await fetch(`/api/tasks/${selectedTaskId}/review`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ decision, notes: reviewNotes }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || data.detail || 'Could not review')
+      return
+    }
+    setReviewNotes('')
+    await loadFeed()
+  }
+
   const channels = useMemo(() => {
     const byTask = new Map()
     for (const u of updates) {
@@ -153,8 +259,9 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
 
   const selectedTask = tasks.find((t) => t.id === selectedTaskId)
   const assigneeNames = (selectedTask?.assigned_to || [])
-    .map((id) => users.find((u) => sameUserId(u.id, id))?.name || 'Member')
+    .map((id: string) => users.find((u) => sameUserId(u.id, id))?.name)
     .filter(Boolean)
+  const canChangeStatus = Boolean(selectedTask && clockedIn && (isMgmt || isTaskAssignee(selectedTask, session.id)))
 
   if (loading) {
     return <div style={{ color: 'var(--sf-muted)', padding: 40, textAlign: 'center' }}>Loading chat…</div>
@@ -162,11 +269,11 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
 
   return (
     <PageShell fill>
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%', overflow: 'hidden', gap: '0.75rem' }}>
+      <div className="sf-updates">
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexShrink: 0, flexWrap: 'wrap' }}>
           <PageHeader
             title="Updates"
-            subtitle="Task channels — open a chat to message the people on that task"
+            subtitle="One chat per task — message the people on that work"
           />
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--sf-muted)', fontSize: 12, cursor: 'pointer', marginTop: 8 }}>
             <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} />
@@ -174,19 +281,8 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
           </label>
         </div>
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(260px, 340px) minmax(0, 1fr)',
-          gap: 0,
-          flex: 1,
-          minHeight: 0,
-          overflow: 'hidden',
-          border: '1px solid var(--sf-border)',
-          borderRadius: 14,
-          background: 'var(--sf-surface)',
-        }}>
-          {/* Channel list */}
-          <div style={{ borderRight: '1px solid var(--sf-border)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', background: 'var(--sf-surface-2)' }}>
+        <div className="sf-updates-board">
+          <div className="sf-updates-channels">
             <div style={{ padding: 12, borderBottom: '1px solid var(--sf-border)', flexShrink: 0 }}>
               <div style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
                 Task chats
@@ -212,7 +308,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                   <button
                     key={task.id}
                     type="button"
-                    onClick={() => loadThread(task.id)}
+                    onClick={() => { setMenuOpen(false); loadThread(task.id) }}
                     style={{
                       width: '100%',
                       textAlign: 'left',
@@ -225,7 +321,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                       fontFamily: "'DM Sans',sans-serif",
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 3 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 3, minWidth: 0 }}>
                       <span style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         # {task.title}
                       </span>
@@ -233,11 +329,13 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                         {new Date(lastAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                       </span>
                     </div>
-                    <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginBottom: 4 }}>
-                      {assignees} assignee{assignees === 1 ? '' : 's'}
-                      {msgCount ? ` · ${msgCount} msg` : ''}
-                      {task.updates_closed ? ' · Closed' : ''}
-                      {task.status === 'Completed' && !task.updates_closed ? ' · Done' : ''}
+                    <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginBottom: 4, display: 'flex', gap: 6, alignItems: 'center', minWidth: 0 }}>
+                      <StatusBadge status={task.status} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {assignees} assignee{assignees === 1 ? '' : 's'}
+                        {msgCount ? ` · ${msgCount} msg` : ''}
+                        {task.updates_closed ? ' · Closed' : ''}
+                      </span>
                     </div>
                     <div style={{ color: 'var(--sf-text-secondary)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {lastMessage ? `${lastSender || 'Someone'}: ${lastMessage}` : 'No messages yet'}
@@ -248,73 +346,120 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
             </div>
           </div>
 
-          {/* Thread pane */}
-          <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
+          <div className="sf-updates-thread">
             {!selectedTaskId || !selectedTask ? (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sf-muted)', fontSize: 14, padding: 32, textAlign: 'center' }}>
                 Select a task chat on the left to open the conversation.
               </div>
             ) : (
               <>
-                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--sf-border)', flexShrink: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 16, fontFamily: "'Space Grotesk',sans-serif" }}>
-                        # {selectedTask.title}
-                      </div>
-                      <div style={{ color: 'var(--sf-muted)', fontSize: 12, marginTop: 4 }}>
-                        {selectedTask.type || 'Task'} · {selectedTask.status}
+                <div className="sf-upd-head">
+                  <div className="sf-upd-head-row">
+                    <div className="sf-upd-head-copy">
+                      <h2 className="sf-upd-title" title={selectedTask.title}># {selectedTask.title}</h2>
+                      <p className="sf-upd-meta" title={`${selectedTask.type || 'Task'} · Due ${selectedTask.due_date || '—'}${selectedTask.assigned_by?.name ? ` · Assigned by ${selectedTask.assigned_by.name}` : ''}`}>
+                        {selectedTask.type || 'Task'}
                         {selectedTask.due_date ? ` · Due ${selectedTask.due_date}` : ''}
                         {selectedTask.assigned_by?.name ? ` · Assigned by ${selectedTask.assigned_by.name}` : ''}
-                      </div>
-                      <div style={{ color: 'var(--sf-text-secondary)', fontSize: 12, marginTop: 4 }}>
-                        Assigned: {assigneeNames.length ? assigneeNames.join(', ') : 'Nobody yet'}
-                        {selectedTask.updates_closed ? ' · Channel closed' : ''}
-                      </div>
+                        {selectedTask.updates_closed ? ' · Closed' : ''}
+                      </p>
+                      <p className="sf-upd-people" title={assigneeNames.join(', ')}>
+                        {assigneeNames.length ? assigneeNames.join(', ') : 'Nobody assigned yet'}
+                      </p>
                     </div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <span style={{
-                        background: STATUS_BG[selectedTask.status] || '#F3F4F6',
-                        color: STATUS_TEXT[selectedTask.status] || '#374151',
-                        fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 6, whiteSpace: 'nowrap',
-                      }}>
-                        {selectedTask.status}
-                      </span>
+                    <div className="sf-upd-head-tools">
+                      <StatusBadge status={selectedTask.status} />
+                      <Link href={`/tasks/${selectedTask.id}`} className="sf-btn sf-btn-ghost" style={{ fontSize: 12, padding: '6px 10px' }}>Open task</Link>
                       {isMgmt && (
-                        selectedTask.updates_closed ? (
-                          <button type="button" className="sf-btn sf-btn-ghost" disabled={closing} onClick={reopenChannel} style={{ fontSize: 11 }}>
-                            {closing ? '…' : 'Reopen'}
-                          </button>
-                        ) : (
+                        <div className="sf-upd-menu">
                           <button
                             type="button"
                             className="sf-btn sf-btn-ghost"
-                            disabled={closing}
-                            onClick={() => closeChannel(true)}
-                            style={{ fontSize: 11, color: 'var(--sf-danger)' }}
+                            style={{ fontSize: 12, padding: '6px 10px' }}
+                            onClick={() => setMenuOpen((v) => !v)}
+                            aria-label="More actions"
                           >
-                            {closing ? '…' : 'Close & purge'}
+                            More
                           </button>
-                        )
+                          {menuOpen && (
+                            <div className="sf-upd-menu-list">
+                              {selectedTask.updates_closed ? (
+                                <button type="button" disabled={closing} onClick={() => { setMenuOpen(false); reopenChannel() }}>
+                                  {closing ? '…' : 'Reopen channel'}
+                                </button>
+                              ) : (
+                                <button type="button" disabled={closing} onClick={() => { setMenuOpen(false); closeChannel(true) }} style={{ color: 'var(--sf-danger)' }}>
+                                  {closing ? '…' : 'Close & purge'}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
+                  <div className="sf-upd-toolbar">
+                    {canChangeStatus ? (
+                      <select
+                        value={selectedTask.status}
+                        onChange={(e) => updateStatus(e.target.value)}
+                        className="sf-input"
+                      >
+                        {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    ) : !clockedIn ? (
+                      <span className="sf-upd-hint">Clock in to change status</span>
+                    ) : (
+                      <span style={{ color: 'var(--sf-muted)', fontSize: 12 }}>Status is read-only</span>
+                    )}
+                    {(isMgmt || isTaskAssignee(selectedTask, session.id)) && (
+                      <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 12, padding: '6px 10px', marginLeft: 'auto' }} onClick={() => setShowDriveForm((v) => !v)}>
+                        {showDriveForm ? 'Hide Drive' : 'Add Drive'}
+                      </button>
+                    )}
+                  </div>
+                  {isMgmt && selectedTask.requires_review && (
+                    <div className="sf-upd-review">
+                      <div className="sf-upd-label">Review</div>
+                      <div className="sf-upd-review-row">
+                        <input
+                          value={reviewNotes}
+                          onChange={(e) => setReviewNotes(e.target.value)}
+                          placeholder="Comments required when rejecting"
+                          className="sf-input"
+                        />
+                        <button type="button" className="sf-btn sf-btn-primary" style={{ fontSize: 12, padding: '7px 12px', flexShrink: 0 }} onClick={() => decideReview('approved')}>Approve</button>
+                        <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 12, padding: '7px 12px', flexShrink: 0, color: 'var(--sf-danger)' }} onClick={() => decideReview('rejected')}>Reject</button>
+                      </div>
+                    </div>
+                  )}
+                  {((selectedTask.external_links || []).length > 0 || showDriveForm) && (
+                    <div className="sf-upd-drive">
+                      <div className="sf-upd-label">Google Drive</div>
+                      <div className="sf-upd-chips">
+                        {(selectedTask.external_links || []).map((lnk: any, i: number) => (
+                          <span key={`${lnk.url}-${i}`} className="sf-upd-chip">
+                            <a href={lnk.url} target="_blank" rel="noreferrer">{lnk.label || 'Drive folder'}</a>
+                            {(isMgmt || isTaskAssignee(selectedTask, session.id)) && (
+                              <button type="button" onClick={() => removeDriveLink(i)} style={{ background: 'none', border: 'none', color: 'var(--sf-muted)', cursor: 'pointer', fontSize: 12, padding: 0, lineHeight: 1 }}>×</button>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                      {showDriveForm && (
+                        <div className="sf-upd-review-row" style={{ marginTop: 8 }}>
+                          <input value={linkLabel} onChange={(e) => setLinkLabel(e.target.value)} placeholder="Label" className="sf-input" style={{ maxWidth: 140, flex: '0 0 140px' }} />
+                          <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://drive.google.com/…" className="sf-input" />
+                          <button type="button" className="sf-btn sf-btn-primary" style={{ fontSize: 12, padding: '7px 12px', flexShrink: 0 }} disabled={savingLink || !linkUrl.trim()} onClick={addDriveLink}>
+                            {savingLink ? '…' : 'Save'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                <div
-                  ref={chatScrollRef}
-                  style={{
-                    flex: 1,
-                    overflowY: 'auto',
-                    overflowX: 'hidden',
-                    padding: 16,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 12,
-                    minHeight: 0,
-                    WebkitOverflowScrolling: 'touch',
-                  }}
-                >
+                <div ref={chatScrollRef} className="sf-upd-messages">
                   {thread.length === 0 && (
                     <div style={{ color: 'var(--sf-muted-2)', fontSize: 13, textAlign: 'center', padding: 32 }}>
                       This is the start of #{selectedTask.title}. Post an update for the assigned team.
@@ -332,7 +477,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                         }}>
                           {m.sender?.avatar || m.sender?.name?.slice(0, 2) || '?'}
                         </div>
-                        <div style={{ maxWidth: '75%' }}>
+                        <div style={{ maxWidth: '75%', minWidth: 0 }}>
                           <div style={{ color: 'var(--sf-muted)', fontSize: 10, marginBottom: 3, textAlign: mine ? 'right' : 'left' }}>
                             {m.sender?.name || 'User'} · {new Date(m.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                           </div>
@@ -346,7 +491,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                             lineHeight: 1.5,
                             wordBreak: 'break-word',
                           }}>
-                            {m.message}
+                            <MessageText text={m.message || ''} />
                           </div>
                         </div>
                       </div>
@@ -354,33 +499,25 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                   })}
                 </div>
 
-                <div style={{
-                  padding: 12,
-                  borderTop: '1px solid var(--sf-border)',
-                  display: 'flex',
-                  gap: 8,
-                  background: 'var(--sf-surface)',
-                  flexShrink: 0,
-                }}>
+                <div className="sf-upd-composer">
                   {selectedTask.updates_closed ? (
-                    <div style={{ flex: 1, color: 'var(--sf-muted)', fontSize: 13, padding: '10px 4px' }}>
+                    <div style={{ color: 'var(--sf-muted)', fontSize: 13, padding: '6px 0' }}>
                       This channel is closed.
-                      {isMgmt ? ' Reopen to allow new messages.' : ''}
+                      {isMgmt ? ' Use More → Reopen channel to allow messages.' : ''}
                     </div>
                   ) : (
-                    <>
+                    <div className="sf-upd-composer-row">
                       <input
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
                         placeholder={`Message # ${selectedTask.title}`}
                         className="sf-input"
-                        style={{ flex: 1 }}
                       />
-                      <button type="button" onClick={send} disabled={sending || !message.trim()} className="sf-btn sf-btn-primary">
+                      <button type="button" onClick={send} disabled={sending || !message.trim()} className="sf-btn sf-btn-primary" style={{ flexShrink: 0 }}>
                         {sending ? '…' : 'Send'}
                       </button>
-                    </>
+                    </div>
                   )}
                 </div>
               </>

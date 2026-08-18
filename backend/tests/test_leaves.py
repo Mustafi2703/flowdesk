@@ -51,6 +51,18 @@ def test_hr_approval_increments_taken(client, users):
     assert bal["remaining"] == 19
 
 
+def test_rejection_requires_reason(client, users):
+    hr = users.create("hr")
+    team = users.create("team")
+    leave = _submit(client, users, team, days=2).json()
+    resp = client.patch(
+        f"/api/v1/leaves/{leave['id']}",
+        headers=users.auth_headers(hr),
+        json={"status": "Rejected"},
+    )
+    assert resp.status_code == 400
+
+
 def test_rejection_does_not_change_balance(client, users):
     hr = users.create("hr")
     team = users.create("team")

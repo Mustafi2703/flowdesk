@@ -55,6 +55,7 @@ def test_priority_lane_orders_flagged_and_urgent_first(client, users):
             "due_date": (date.today() - timedelta(days=1)).isoformat(),
         },
     ).json()
+    client.post("/api/v1/attendance/clockin", headers=users.auth_headers(owner))
     client.post(
         f"/api/v1/tasks/{flagged['id']}/status",
         headers=users.auth_headers(owner),
@@ -93,6 +94,7 @@ def test_performance_tier_excellent_for_full_completion(client, users):
             "due_date": (date.today() + timedelta(days=2)).isoformat(),
         },
     ).json()
+    client.post("/api/v1/attendance/clockin", headers=users.auth_headers(team))
     client.post(
         f"/api/v1/tasks/{task['id']}/status",
         headers=users.auth_headers(team),

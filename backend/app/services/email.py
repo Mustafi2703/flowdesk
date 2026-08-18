@@ -15,8 +15,15 @@ from app.core.config import settings
 
 
 def send_email(*, to: str, subject: str, html: str, text: str | None = None) -> None:
+    intended = (to or "").strip()
+    override = (settings.email_test_recipient or "").strip()
+    if override:
+        to = override
+        if intended and intended.lower() != override.lower():
+            subject = f"[TEST → {intended}] {subject}"
+
     if settings.email_provider == "console":
-        print(f"[email:console] to={to} subject={subject}\n{text or html}")  # noqa: T201
+        print(f"[email:console] to={to} intended={intended} subject={subject}\n{text or html}")  # noqa: T201
         return
 
     if settings.email_provider == "resend":
@@ -33,6 +40,8 @@ def send_email(*, to: str, subject: str, html: str, text: str | None = None) -> 
 
     if not settings.smtp_host:
         raise RuntimeError("SMTP_HOST is required")
+    if not (settings.smtp_password or "").strip():
+        raise RuntimeError("SMTP_PASSWORD is required (use a Gmail App Password, not the account password)")
     message = EmailMessage()
     message["From"] = settings.email_from
     message["To"] = to

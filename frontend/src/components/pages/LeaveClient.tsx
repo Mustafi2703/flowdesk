@@ -34,7 +34,20 @@ export default function LeaveClient({ session }: { session: SessionUser }) {
   const STAT: Record<string,{bg:string;c:string}> = { Pending:{bg:'#FBBF2420',c:'#FBBF24'}, Approved:{bg:'#10B98120',c:'#10B981'}, Rejected:{bg:'#EF444420',c:'#F87171'} }
 
   async function approve(id: string, status: string) {
-    await fetch(`/api/leave/${id}`, {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})})
+    let rejection_reason = undefined
+    if (status === 'Rejected') {
+      rejection_reason = window.prompt('Reason for rejecting this leave (required):') || ''
+      if (rejection_reason.trim().length < 2) {
+        alert('A rejection reason is required.')
+        return
+      }
+    }
+    const res = await fetch(`/api/leave/${id}`, {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status, rejection_reason})})
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || data.detail || 'Could not update leave')
+      return
+    }
     load()
   }
 
@@ -75,6 +88,9 @@ export default function LeaveClient({ session }: { session: SessionUser }) {
                 <div>
                   <div style={{color:'var(--sf-text)',fontSize:13,fontWeight:600}}>{u.name||'You'}</div>
                   <div style={{color:'var(--sf-muted)',fontSize:10}}>{(req.reason||'').slice(0,25)}{req.reason?.length>25?'…':''}</div>
+                  {req.status==='Rejected' && req.rejection_reason && (
+                    <div style={{color:'#F87171',fontSize:10,marginTop:2}}>Rejected: {req.rejection_reason}</div>
+                  )}
                 </div>
               </div>
               <div style={{color:'#A0A0C0',fontSize:13}}>{req.leave_type}</div>

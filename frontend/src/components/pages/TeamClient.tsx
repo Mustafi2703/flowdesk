@@ -62,7 +62,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   const canOnboard = ['owner', 'manager'].includes(role)
   const canManageDepartments = role === 'owner'
   const canViewDepartments = ['owner', 'manager', 'hr'].includes(role)
-  const canReset = ['owner', 'hr'].includes(role)
+  const canReset = ['owner', 'hr', 'manager'].includes(role)
 
   async function refresh() {
     setDeptError('')
@@ -265,11 +265,15 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   }
 
   async function resetPassword(id: string, name: string) {
+    if (!window.confirm(`Reset password for ${name}? A temporary password will be shown once.`)) return
     setError(''); setNotice('')
     const res = await fetch(`/api/team/${id}/reset-password`, { method: 'POST' })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) { setError(data.error || 'Could not reset password'); return }
-    setNotice(`${name}'s temporary password: ${data.temporary_password}`)
+    if (!res.ok) { setError(data.error || data.detail || 'Could not reset password'); return }
+    const temp = data.temporary_password
+    const msg = `${name}'s temporary password: ${temp}`
+    setNotice(msg)
+    window.alert(msg)
   }
 
   async function deactivateUser(id: string, name: string) {
@@ -661,7 +665,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                     </div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
                       {canEditUser(u) && <button type="button" onClick={() => startEditUser(u)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px' }}>Edit</button>}
-                      {canReset && u.id !== session.id && <button type="button" onClick={() => resetPassword(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px' }}>Reset</button>}
+                      {canReset && u.id !== session.id && (role !== 'manager' || u.role === 'team') && <button type="button" onClick={() => resetPassword(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px' }}>Reset</button>}
                       {role === 'owner' && u.id !== session.id && u.is_active && <button type="button" onClick={() => deactivateUser(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px', color: 'var(--sf-danger)' }}>Deactivate</button>}
                       {role === 'owner' && u.id !== session.id && <button type="button" onClick={() => hardDeleteUser(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px', color: '#F87171' }}>Delete</button>}
                     </div>

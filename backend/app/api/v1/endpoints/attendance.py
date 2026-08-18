@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -114,7 +115,11 @@ def clock_in(db: Session = Depends(get_db), user: Profile = Depends(get_current_
 
 @router.post("/clockout")
 @router.post("/clock-out")
-def clock_out(db: Session = Depends(get_db), user: Profile = Depends(get_current_user)) -> dict[str, Any]:
+def clock_out(
+    confirm_early: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    user: Profile = Depends(get_current_user),
+) -> Any:
     now = _now_ist()
     log = db.scalar(
         select(AttendanceLog).where(
@@ -123,9 +128,22 @@ def clock_out(db: Session = Depends(get_db), user: Profile = Depends(get_current
     )
     if not log or not log.login_time:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Clock in first")
+    minutes = (now - log.login_time).total_seconds() / 60
+    hours = round(minutes / 60, 2)
+    if hours < 9 and not confirm_early:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "error": f"You have worked {hours} hours (less than 9). Confirm to leave early.",
+                "needs_confirm": True,
+                "hours_worked": hours,
+            },
+        )
     log.logout_time = now
-    minutes = (log.logout_time - log.login_time).total_seconds() / 60
-    log.hours_worked = round(minutes / 60, 2)
+    log.hours_worked = hours
+    if hours < 9:
+        extra = f"Left early ({hours}h, confirmed)"
+        log.notes = f"{log.notes} · {extra}" if log.notes else extra
     db.commit()
     db.refresh(log)
     DASHBOARD_CACHE.invalidate()

@@ -12,7 +12,7 @@ export function resolveNotificationLink(link?: string | null, type?: string | nu
   if (taskMatch) {
     const id = taskMatch[1]
     if (type === 'chat') return `/updates?task=${id}`
-    return `/tasks`
+    return `/tasks/${id}`
   }
 
   // Already valid app paths

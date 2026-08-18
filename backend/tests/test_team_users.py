@@ -104,6 +104,25 @@ def test_owner_and_hr_can_reset_password(client, users):
     ).status_code == 200
 
 
+def test_manager_can_reset_team_password(client, users):
+    manager = users.create("manager")
+    target = users.create("team", email="mgr-reset@scrumfolks.io")
+    resp = client.post(
+        f"/api/v1/team/{target.id}/reset-password", headers=users.auth_headers(manager)
+    )
+    assert resp.status_code == 200
+    assert resp.json()["temporary_password"]
+
+
+def test_manager_cannot_reset_hr_password(client, users):
+    manager = users.create("manager")
+    hr = users.create("hr")
+    resp = client.post(
+        f"/api/v1/team/{hr.id}/reset-password", headers=users.auth_headers(manager)
+    )
+    assert resp.status_code == 403
+
+
 def test_hr_cannot_reset_privileged_account(client, users):
     hr = users.create("hr")
     manager = users.create("manager")

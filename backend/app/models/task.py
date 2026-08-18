@@ -94,6 +94,18 @@ class Task(UUIDPKMixin, TimestampsMixin, Base):
         JSONB, nullable=False, server_default=text("'[]'::jsonb")
     )
     recurring_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    external_links: Mapped[list[dict]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    review_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'none'")
+    )
+    review_version: Mapped[str] = mapped_column(
+        String(16), nullable=False, server_default=text("'1'")
+    )
+    review_history: Mapped[list[dict]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
 
     flagged: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("false"), index=True

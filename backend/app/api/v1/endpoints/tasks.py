@@ -23,14 +23,20 @@ from app.models.brand import Brand
 from app.models.notification import Notification
 from app.models.profile import Profile
 from app.models.task import Task, TaskChat
-from app.schemas.task import TaskChatSend, TaskCreate, TaskStatusUpdate, TaskUpdate
+from app.schemas.task import TaskChatSend, TaskCreate, TaskReviewDecision, TaskStatusUpdate, TaskUpdate
+from app.services.review import next_review_version, review_history_entry
+from app.services.task_brief_email import send_task_brief_emails
 from app.utils.queues import DASHBOARD_CACHE
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 dev_router = APIRouter(prefix="/dev-board", tags=["developer-board"])
 
 _IST = timezone(timedelta(hours=5, minutes=30))
-_ASSIGNEE_PROGRESS_FIELDS = frozenset({"status", "checklist", "sub_tasks", "description"})
+_ASSIGNEE_PROGRESS_FIELDS = frozenset(
+    {"status", "checklist", "sub_tasks", "description", "external_links"}
+)
+# Drive links are metadata — managers can attach folders without clocking in.
+_WORK_FIELDS = frozenset({"status", "checklist", "sub_tasks", "description"})
 
 
 def _serialize(
@@ -79,7 +85,12 @@ def _serialize(
         "billed_at": task.billed_at.isoformat() if task.billed_at else None,
         "checklist": task.checklist or [],
         "sub_tasks": task.sub_tasks or [],
+        "timeline": task.timeline or [],
         "recurring_config": task.recurring_config,
+        "external_links": getattr(task, "external_links", None) or [],
+        "review_status": getattr(task, "review_status", None) or "none",
+        "review_version": getattr(task, "review_version", None) or "1",
+        "review_history": getattr(task, "review_history", None) or [],
         "updates_closed": bool(getattr(task, "updates_closed", False)),
         "updates_closed_at": task.updates_closed_at.isoformat() if getattr(task, "updates_closed_at", None) else None,
         "created_at": task.created_at.isoformat(),
@@ -271,10 +282,11 @@ def create_task(
                 user_id=assignee_id,
                 message=f'Task "{task.title}" assigned to you by {user.name}',
                 type="task",
-                link="/tasks",
+                link=f"/tasks/{task.id}",
             )
         )
     db.commit()
+    send_task_brief_emails(db, task, assigner=user, assignee_ids=task.assigned_to or [])
     DASHBOARD_CACHE.invalidate()
     brands = _brand_map(db, [task.brand_id] if task.brand_id else [])
     people = _people_map(db, [task.created_by, task.assigned_by])
@@ -295,6 +307,21 @@ def get_task(
     return _serialize(task, brands, role=Role(user.role), creators=people, assigners=people)
 
 
+@router.post("/{task_id}/email-brief")
+def email_task_brief(
+    task_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: Profile = Depends(get_current_user),
+) -> dict[str, int | str | bool]:
+    if Role(user.role) not in {Role.OWNER, Role.MANAGER}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner/Manager only")
+    task = db.get(Task, task_id)
+    if not task or not _can_view_db(db, task, user):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    sent = send_task_brief_emails(db, task, assigner=user, assignee_ids=task.assigned_to or [])
+    return {"ok": True, "sent": sent, "task_id": str(task.id)}
+
+
 @router.patch("/{task_id}")
 def update_task(
     task_id: uuid.UUID,
@@ -308,21 +335,16 @@ def update_task(
     role = Role(user.role)
     allowed_manager = role in {Role.OWNER, Role.MANAGER}
     fields = set(payload.model_fields_set)
+    if fields & _WORK_FIELDS and not _is_clocked_in_today(db, user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Clock in for today before updating task progress or status",
+        )
     if not allowed_manager:
         if not _is_assignee(task, user):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not assigned to this task")
-        if not _is_clocked_in_today(db, user):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Clock in for today before updating task progress",
-            )
         if not fields.issubset(_ASSIGNEE_PROGRESS_FIELDS):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot edit task metadata")
-        if "status" in fields and not _is_parent_assignee(task, user):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only direct assignees can update task status",
-            )
         if "sub_tasks" in fields:
             new_subs = [
                 st.model_dump() if hasattr(st, "model_dump") else dict(st)
@@ -356,6 +378,12 @@ def update_task(
         task.updates_closed = True
         task.updates_closed_at = datetime.now(timezone.utc)
         task.updates_closed_by = user.id
+    if update.get("status") == "Under Review":
+        task.review_status = "pending"
+    if update.get("status") == "Revision Needed":
+        task.review_status = "rejected"
+    if update.get("status") == "Completed":
+        task.review_status = "approved"
     task.timeline = [
         *(task.timeline or []),
         {
@@ -376,11 +404,31 @@ def update_task(
                     user_id=uuid.UUID(assignee_id),
                     message=f'Task "{task.title}" assigned to you by {user.name}',
                     type="task",
-                    link="/tasks",
+                    link=f"/tasks/{task.id}",
                 )
             )
         if new_assignees:
             db.commit()
+            send_task_brief_emails(
+                db,
+                task,
+                assigner=user,
+                assignee_ids=[uuid.UUID(aid) for aid in new_assignees],
+            )
+    if task.status == "Under Review":
+        targets = {*(task.assigned_managers or []), *( [task.created_by] if task.created_by else [] )}
+        for manager_id in targets:
+            if not manager_id or manager_id == user.id:
+                continue
+            db.add(
+                Notification(
+                    user_id=manager_id,
+                    message=f'Task "{task.title}" is under review',
+                    type="task",
+                    link=f"/tasks/{task.id}",
+                )
+            )
+        db.commit()
     if task.status in {"Struggling", "Needs Attention"}:
         for manager_id in task.assigned_managers or []:
             db.add(
@@ -388,7 +436,7 @@ def update_task(
                     user_id=manager_id,
                     message=f'Task "{task.title}" flagged as {task.status}',
                     type="task",
-                    link="/tasks",
+                    link=f"/tasks/{task.id}",
                 )
             )
         db.commit()
@@ -406,6 +454,74 @@ def change_status(
     user: Profile = Depends(get_current_user),
 ) -> dict[str, Any]:
     return update_task(task_id, TaskUpdate(status=payload.status), db=db, user=user)
+
+
+@router.patch("/{task_id}/review")
+def review_task(
+    task_id: uuid.UUID,
+    payload: TaskReviewDecision,
+    db: Session = Depends(get_db),
+    user: Profile = Depends(get_current_user),
+) -> dict[str, Any]:
+    if Role(user.role) not in {Role.OWNER, Role.MANAGER}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner/Manager only")
+    if not _is_clocked_in_today(db, user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Clock in before reviewing tasks",
+        )
+    task = db.get(Task, task_id)
+    if not task or not _can_view_db(db, task, user):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    if not task.requires_review:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This task does not require review")
+    notes = (payload.notes or "").strip()
+    if payload.decision == "rejected" and len(notes) < 2:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Add comments when rejecting a review")
+    current_version = task.review_version or "1"
+    history = list(task.review_history or [])
+    history.append(
+        review_history_entry(
+            version=current_version,
+            status=payload.decision,
+            notes=notes,
+            by=user.id,
+            by_name=user.name,
+        )
+    )
+    task.review_history = history
+    task.review_status = payload.decision
+    if payload.decision == "rejected":
+        task.status = "Revision Needed"
+        task.review_version = next_review_version(current_version)
+        action = f"Review rejected (v{current_version})"
+    else:
+        action = f"Review approved (v{current_version})"
+    task.timeline = [
+        *(task.timeline or []),
+        {
+            "by": str(user.id),
+            "action": action,
+            "notes": notes,
+            "at": datetime.now(timezone.utc).isoformat(),
+        },
+    ]
+    for assignee_id in task.assigned_to or []:
+        db.add(
+            Notification(
+                user_id=assignee_id,
+                message=f'Task "{task.title}" {payload.decision} · v{current_version}'
+                + (f": {notes}" if notes else ""),
+                type="task",
+                link=f"/tasks/{task.id}",
+            )
+        )
+    db.commit()
+    db.refresh(task)
+    DASHBOARD_CACHE.invalidate()
+    brands = _brand_map(db, [task.brand_id] if task.brand_id else [])
+    people = _people_map(db, [task.created_by, task.assigned_by])
+    return _serialize(task, brands, role=Role(user.role), creators=people, assigners=people)
 
 
 @router.delete("/{task_id}")

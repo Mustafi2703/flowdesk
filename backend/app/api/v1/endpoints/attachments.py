@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -19,10 +19,13 @@ from app.api.v1.deps import get_current_user
 from app.core.roles import Role
 from app.db.session import get_db
 from app.models.attachment import FileAttachment
+from app.models.attendance import AttendanceLog
 from app.models.brand import Brand
+from app.models.notification import Notification
 from app.models.profile import Profile
 from app.models.task import Task
 from app.services import object_storage
+from app.services.review import next_review_version, review_history_entry
 from app.utils.queues import DASHBOARD_CACHE
 
 router = APIRouter(prefix="/attachments", tags=["attachments"])
@@ -57,6 +60,8 @@ def _serialize(row: FileAttachment) -> dict[str, Any]:
         "reviewed_by": str(row.reviewed_by) if row.reviewed_by else None,
         "reviewed_at": row.reviewed_at.isoformat() if row.reviewed_at else None,
         "review_notes": row.review_notes,
+        "review_version": getattr(row, "review_version", None),
+        "review_history": getattr(row, "review_history", None) or [],
         "url": f"/api/attachments/{row.id}",
     }
 
@@ -165,6 +170,28 @@ def store_attachment(
     return row
 
 
+def logo_attachment_id(logo_url: str | None) -> uuid.UUID | None:
+    """Parse `/api/attachments/{id}` from a brand logo_url."""
+    if not logo_url or "/api/attachments/" not in logo_url:
+        return None
+    token = logo_url.rstrip("/").rsplit("/", 1)[-1]
+    try:
+        return uuid.UUID(token)
+    except ValueError:
+        return None
+
+
+def remove_attachment_row(db: Session, row: FileAttachment) -> None:
+    """Delete attachment bytes + DB row (no auth — caller must authorize)."""
+    if getattr(row, "storage_backend", None) == "s3" and getattr(row, "storage_key", None):
+        if object_storage.storage_enabled():
+            object_storage.delete_object(row.storage_key)
+    path = UPLOAD_ROOT / row.file_path
+    if path.exists():
+        path.unlink()
+    db.delete(row)
+
+
 @router.get("")
 def list_attachments(
     entity_type: str,
@@ -221,6 +248,20 @@ class AttachmentReview(BaseModel):
     review_notes: str | None = None
 
 
+_IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def _is_clocked_in_today(db: Session, user: Profile) -> bool:
+    today = datetime.now(_IST).date()
+    log = db.scalar(
+        select(AttendanceLog).where(
+            AttendanceLog.user_id == user.id,
+            AttendanceLog.date == today,
+        )
+    )
+    return log is not None and log.login_time is not None and log.logout_time is None
+
+
 @router.patch("/{attachment_id}/review")
 def review_attachment(
     attachment_id: uuid.UUID,
@@ -230,15 +271,91 @@ def review_attachment(
 ) -> dict[str, Any]:
     if Role(user.role) not in {Role.OWNER, Role.MANAGER}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner/Manager only")
+    if not _is_clocked_in_today(db, user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Clock in before reviewing files",
+        )
     row = db.get(FileAttachment, attachment_id)
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+    notes = (payload.review_notes or "").strip()
+    if payload.review_status == "rejected" and len(notes) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Add comments / suggestions when rejecting",
+        )
+    current_version = row.review_version or "1"
+    history = list(row.review_history or [])
+    history.append(
+        review_history_entry(
+            version=current_version,
+            status=payload.review_status,
+            notes=notes,
+            by=user.id,
+            by_name=user.name,
+        )
+    )
+    row.review_history = history
     row.review_status = payload.review_status
-    row.review_notes = payload.review_notes
+    row.review_notes = notes or None
     row.reviewed_by = user.id
     row.reviewed_at = datetime.now(timezone.utc)
+    if payload.review_status == "rejected":
+        row.review_version = next_review_version(current_version)
+        if row.entity_type == "task":
+            task = db.get(Task, row.entity_id)
+            if task:
+                task.status = "Revision Needed"
+                task.review_status = "rejected"
+                task_history = list(task.review_history or [])
+                task_history.append(
+                    review_history_entry(
+                        version=task.review_version or current_version,
+                        status="rejected",
+                        notes=notes,
+                        by=user.id,
+                        by_name=user.name,
+                    )
+                )
+                task.review_history = task_history
+                task.review_version = next_review_version(task.review_version or "1")
+                for assignee_id in task.assigned_to or []:
+                    db.add(
+                        Notification(
+                            user_id=assignee_id,
+                            message=f'File "{row.file_name}" on "{task.title}" was rejected (v{current_version}): {notes}',
+                            type="task",
+                            link=f"/tasks/{task.id}",
+                        )
+                    )
+    elif payload.review_status == "approved" and row.entity_type == "task":
+        task = db.get(Task, row.entity_id)
+        if task:
+            task.review_status = "approved"
+            task_history = list(task.review_history or [])
+            task_history.append(
+                review_history_entry(
+                    version=task.review_version or current_version,
+                    status="approved",
+                    notes=notes,
+                    by=user.id,
+                    by_name=user.name,
+                )
+            )
+            task.review_history = task_history
+            for assignee_id in task.assigned_to or []:
+                db.add(
+                    Notification(
+                        user_id=assignee_id,
+                        message=f'File "{row.file_name}" on "{task.title}" was approved (v{current_version})',
+                        type="task",
+                        link=f"/tasks/{task.id}",
+                    )
+                )
     db.commit()
     db.refresh(row)
+    DASHBOARD_CACHE.invalidate()
     return _serialize(row)
 
 

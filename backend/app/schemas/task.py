@@ -47,6 +47,7 @@ class TaskCreate(BaseModel):
     checklist: list[ChecklistItem] = Field(default_factory=list)
     sub_tasks: list[SubTask] = Field(default_factory=list)
     recurring_config: dict[str, Any] | None = None
+    external_links: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class TaskUpdate(BaseModel):
@@ -68,6 +69,12 @@ class TaskUpdate(BaseModel):
     sub_tasks: list[SubTask] | None = None
     recurring_config: dict[str, Any] | None = None
     flagged: bool | None = None
+    external_links: list[dict[str, Any]] | None = None
+
+
+class TaskReviewDecision(BaseModel):
+    decision: str = Field(pattern="^(approved|rejected)$")
+    notes: str | None = None
 
 
 class TaskStatusUpdate(BaseModel):

@@ -8,11 +8,13 @@ export function FileAttachmentsPanel({
   entityId,
   canUpload = true,
   title = 'Files',
+  excludeIds = [],
 }: {
   entityType: 'task' | 'brand'
   entityId: string
   canUpload?: boolean
   title?: string
+  excludeIds?: string[]
 }) {
   const [files, setFiles] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -41,7 +43,8 @@ export function FileAttachmentsPanel({
   useEffect(() => {
     setLoading(true)
     load()
-  }, [entityType, entityId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entityType, entityId, excludeIds.join('|')])
 
   async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -93,6 +96,9 @@ export function FileAttachmentsPanel({
     return `${(n / (1024 * 1024)).toFixed(1)} MB`
   }
 
+  const hidden = new Set(excludeIds.map(String))
+  const visibleFiles = files.filter(f => !hidden.has(String(f.id)))
+
   if (!entityId) {
     return (
       <div style={{ background: 'var(--sf-surface-2)', border: '1px dashed var(--sf-border)', borderRadius: 10, padding: 14, color: 'var(--sf-muted)', fontSize: 12 }}>
@@ -107,7 +113,7 @@ export function FileAttachmentsPanel({
         <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{title}</div>
         {canUpload && (
           <label className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 10px', cursor: uploading ? 'wait' : 'pointer' }}>
-            {uploading ? 'Uploading…' : '+ Upload'}
+            {uploading ? 'Uploading…' : '+ Upload (any file)'}
             <input type="file" hidden disabled={uploading} onChange={onUpload} />
           </label>
         )}
@@ -115,21 +121,23 @@ export function FileAttachmentsPanel({
       {error && <div style={{ color: '#F87171', fontSize: 12, marginBottom: 8 }}>{error}</div>}
       {loading ? (
         <div style={{ color: 'var(--sf-muted)', fontSize: 12 }}>Loading files…</div>
-      ) : files.length === 0 ? (
+      ) : visibleFiles.length === 0 ? (
         <div style={{ color: 'var(--sf-muted-2)', fontSize: 12 }}>No files yet. Upload brand guidelines, logos, or briefs.</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {files.map((f) => (
-            <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--sf-border)' }}>
+          {visibleFiles.map((f) => (
+            <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--sf-border)', minWidth: 0 }}>
               <button
                 type="button"
                 onClick={() => setViewing(f)}
-                style={{ minWidth: 0, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                style={{ minWidth: 0, flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: 0, overflow: 'hidden' }}
               >
-                <div style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600 }}>{f.file_name}</div>
-                <div style={{ color: 'var(--sf-muted)', fontSize: 10 }}>
+                <div style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.file_name}>{f.file_name}</div>
+                <div style={{ color: 'var(--sf-muted)', fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {fmtSize(f.file_size || 0)}
                   {f.review_status ? ` · ${f.review_status}` : ''}
+                  {f.review_version ? ` · v${f.review_version}` : ''}
+                  {f.review_notes ? ` · ${f.review_notes}` : ''}
                   {' · click to view'}
                 </div>
               </button>

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import ForeignKey, String, Text, text
+from datetime import date
+
+from sqlalchemy import Date, ForeignKey, String, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -29,3 +31,6 @@ class Announcement(UUIDPKMixin, TimestampsMixin, Base):
         nullable=False,
         server_default=text("ARRAY[]::uuid[]"),
     )
+    event_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    link_url: Mapped[str | None] = mapped_column(Text, nullable=True)

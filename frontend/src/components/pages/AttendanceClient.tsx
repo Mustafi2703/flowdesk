@@ -2,7 +2,7 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import { SessionUser } from '@/types'
-import { PageHeader, PageShell, Section, StatCard, StatGrid } from '@/components/app/Section'
+import { clockOutWithConfirm } from '@/lib/clock'
 
 export default function AttendanceClient({ session }: { session: SessionUser }) {
   const canView = ['owner', 'hr', 'manager'].includes(session.role)
@@ -35,12 +35,16 @@ export default function AttendanceClient({ session }: { session: SessionUser }) 
 
   async function load() {
     if (isAdminReport && mode === 'report') {
-      const [r, u] = await Promise.all([
+      const [r, u, l] = await Promise.all([
         fetch('/api/attendance?report=true&days=14').then(res => res.json()),
         fetch('/api/users').then(res => res.json()),
+        fetch('/api/attendance').then(res => res.json()),
       ])
       setReport(Array.isArray(r) ? r : [])
       setUsers(Array.isArray(u) ? u : [])
+      const arr = Array.isArray(l) ? l : []
+      setLogs(arr)
+      setClocked(arr.some((x: any) => x.date === today && !x.logout_time))
       setLoading(false)
       return
     }
@@ -63,7 +67,12 @@ export default function AttendanceClient({ session }: { session: SessionUser }) 
   useEffect(() => { setLoading(true); load() }, [selectedUser, mode])
 
   async function clockIn() { setAction(true); await fetch('/api/attendance/clockin', { method: 'POST' }); setAction(false); load() }
-  async function clockOut() { setAction(true); await fetch('/api/attendance/clockout', { method: 'POST' }); setAction(false); load() }
+  async function clockOut() {
+    setAction(true)
+    await clockOutWithConfirm()
+    setAction(false)
+    load()
+  }
 
   const totalH = logs.reduce((s, l) => s + (l.hours_worked || 0), 0)
   const days = logs.filter(l => l.hours_worked > 0).length
@@ -112,8 +121,7 @@ export default function AttendanceClient({ session }: { session: SessionUser }) 
         </Section>
       )}
 
-      {!isAdminReport && (
-        <Section title="Today" subtitle={today} style={{ flexShrink: 0 }}>
+      <Section title="Today" subtitle={today} style={{ flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <div>
@@ -132,7 +140,6 @@ export default function AttendanceClient({ session }: { session: SessionUser }) 
             <button onClick={clocked ? clockOut : clockIn} disabled={action} className="sf-btn sf-btn-primary">{action ? '…' : clocked ? 'Clock out' : 'Clock in'}</button>
           </div>
         </Section>
-      )}
 
       {mode === 'report' && isAdminReport ? (
         <>

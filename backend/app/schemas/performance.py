@@ -19,6 +19,9 @@ class PerformanceCard(BaseModel):
     on_time_rate: float
     attendance_rate: float
     performance_tier: str
+    days_present: int = 0
+    avg_hours: float = 0
+    leaves_taken: int = 0
 
 
 class TeamPerformanceOverview(BaseModel):

@@ -56,3 +56,11 @@ def test_owner_can_update_brand(client, users):
     assert resp.status_code == 200
     assert resp.json()["priority"] == "P2"
     assert resp.json()["short_term_goals"] == ["Launch portal"]
+
+
+def test_owner_can_delete_brand(client, users):
+    owner = users.create("owner")
+    brand = _create_brand(client, users, owner).json()
+    resp = client.delete(f"/api/v1/brands/{brand['id']}", headers=users.auth_headers(owner))
+    assert resp.status_code == 200
+    assert client.get(f"/api/v1/brands/{brand['id']}", headers=users.auth_headers(owner)).status_code == 404

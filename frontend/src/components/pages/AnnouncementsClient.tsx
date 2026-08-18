@@ -36,6 +36,13 @@ export default function AnnouncementsClient({ session }: { session: SessionUser 
                 <span style={{background:p.c+'20',color:p.c,fontSize:10,padding:'3px 8px',borderRadius:5,fontWeight:700}}>{a.priority}</span>
               </div>
               <p style={{color:'#A0A0C0',fontSize:13,lineHeight:1.6,marginBottom:12}}>{a.body}</p>
+              {(a.event_date || a.image_url || a.link_url) && (
+                <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:12}}>
+                  {a.event_date && <div style={{color:'#FBBF24',fontSize:12,fontWeight:600}}>Date: {a.event_date}</div>}
+                  {a.image_url && <img src={a.image_url} alt="" style={{maxWidth:'100%',borderRadius:8,border:'1px solid var(--sf-border)'}} />}
+                  {a.link_url && <a href={a.link_url} target="_blank" rel="noreferrer" style={{color:'#60A5FA',fontSize:13}}>{a.link_url}</a>}
+                </div>
+              )}
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                 <div style={{display:'flex',gap:8,alignItems:'center'}}>
                   <div style={{width:22,height:22,borderRadius:5,background:'var(--sf-accent)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--sf-text)',fontWeight:700,fontSize:9}}>{c.avatar||'?'}</div>
@@ -58,12 +65,15 @@ function CreateForm({ onClose, onSaved }: any) {
   const [t, setT] = useState('')
   const [b, setB] = useState('')
   const [p, setP] = useState('Normal')
+  const [eventDate, setEventDate] = useState('')
+  const [imageUrl, setImageUrl] = useState('')
+  const [linkUrl, setLinkUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const sInp = { width:'100%',padding:'9px 12px',background:'var(--sf-surface-2)',border:'1px solid #2A2A45',borderRadius:8,color:'var(--sf-text)',fontSize:13,outline:'none',fontFamily:"'DM Sans',sans-serif" }
   async function save() {
     if (!t.trim()||!b.trim()) return
     setSaving(true)
-    await fetch('/api/announcements',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,body:b,priority:p})})
+    await fetch('/api/announcements',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,body:b,priority:p,event_date:eventDate||null,image_url:imageUrl||null,link_url:linkUrl||null})})
     setSaving(false); onSaved()
   }
   return (
@@ -79,6 +89,18 @@ function CreateForm({ onClose, onSaved }: any) {
             {m ? <textarea value={String(v)} onChange={e=>(s as any)(e.target.value)} rows={4} style={{...sInp,resize:'vertical' as const}} /> : <input value={String(v)} onChange={e=>(s as any)(e.target.value)} style={sInp} />}
           </div>
         ))}
+        <div style={{marginBottom:12}}>
+          <label style={{color:'var(--sf-muted)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:5,display:'block'}}>Date</label>
+          <input type="date" value={eventDate} onChange={e=>setEventDate(e.target.value)} style={sInp} />
+        </div>
+        <div style={{marginBottom:12}}>
+          <label style={{color:'var(--sf-muted)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:5,display:'block'}}>Image URL</label>
+          <input value={imageUrl} onChange={e=>setImageUrl(e.target.value)} placeholder="https://…" style={sInp} />
+        </div>
+        <div style={{marginBottom:12}}>
+          <label style={{color:'var(--sf-muted)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:5,display:'block'}}>Link</label>
+          <input value={linkUrl} onChange={e=>setLinkUrl(e.target.value)} placeholder="https://…" style={sInp} />
+        </div>
         <div style={{marginBottom:16}}>
           <label style={{color:'var(--sf-muted)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:5,display:'block'}}>Priority</label>
           <select value={p} onChange={e=>setP(e.target.value)} style={{...sInp,cursor:'pointer'}}>{['Normal','Important','Urgent'].map(o=><option key={o}>{o}</option>)}</select>

@@ -1,12 +1,13 @@
-import { redirect } from 'next/navigation'
+import { canAccessTasks } from '@/lib/auth'
+import { requireRole } from '@/lib/page-guard'
+import TaskDetailClient from '@/components/pages/TaskDetailClient'
 
-/** Legacy notification links pointed here; send people to the task board. */
-export default async function TaskDetailRedirect({
+export default async function TaskDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
+  const session = await requireRole(canAccessTasks)
   const { id } = await params
-  if (id) redirect(`/updates?task=${id}`)
-  redirect('/tasks')
+  return <TaskDetailClient session={session} taskId={id} />
 }

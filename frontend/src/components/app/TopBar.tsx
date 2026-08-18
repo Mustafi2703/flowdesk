@@ -1,8 +1,9 @@
 'use client'
 
+import { ClockBar } from '@/components/app/ClockBar'
 import { NotificationBell } from '@/components/app/NotificationBell'
 
-/** Slim top bar — notifications only, top-right. */
+/** Slim top bar — clock in/out for everyone + notifications. */
 export function TopBar() {
   return (
     <header
@@ -15,8 +16,10 @@ export function TopBar() {
         borderBottom: '1px solid var(--sf-border)',
         background: 'var(--sf-surface)',
         minHeight: 56,
+        gap: 8,
       }}
     >
+      <ClockBar />
       <NotificationBell />
     </header>
   )

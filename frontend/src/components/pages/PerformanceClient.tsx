@@ -5,43 +5,48 @@ import { SessionUser, ROLE_COLORS } from '@/types'
 import { PageHeader, PageShell, Section, StatCard, StatGrid } from '@/components/app/Section'
 
 export default function PerformanceClient({ session }: { session: SessionUser }) {
+  const [overview, setOverview] = useState<any>(null)
   const [users, setUsers] = useState<any[]>([])
-  const [tasks, setTasks] = useState<any[]>([])
-  const [attendance, setAttendance] = useState<any[]>([])
-  const [leaves, setLeaves] = useState<any[]>([])
   const [sel, setSel] = useState('all')
   const [period, setPeriod] = useState('monthly')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    setLoading(true)
     Promise.all([
+      fetch(`/api/performance?period=${period}`).then(r=>r.json()),
       fetch('/api/users').then(r=>r.json()),
-      fetch('/api/tasks').then(r=>r.json()),
-      fetch('/api/attendance').then(r=>r.json()),
-      fetch('/api/leave').then(r=>r.json()),
-    ]).then(([u,t,a,l]) => { setUsers(Array.isArray(u)?u:[]); setTasks(Array.isArray(t)?t:[]); setAttendance(Array.isArray(a)?a:[]); setLeaves(Array.isArray(l)?l:[]); setLoading(false) })
-  }, [])
+    ]).then(([perf, u]) => {
+      setOverview(perf && !perf.error ? perf : { members: [] })
+      setUsers(Array.isArray(u)?u:[])
+      setLoading(false)
+    })
+  }, [period])
 
   useEffect(() => {
     if (session.role === 'team') setSel(session.id)
   }, [session.role, session.id])
 
   function metrics(uid:string) {
-    const ut = tasks.filter(t => (t.assigned_to || []).some((id: string) => String(id) === String(uid)))
-    const total = ut.length
-    const done = ut.filter(t=>t.status==='Completed').length
-    const ip = ut.filter(t=>t.status==='In Progress').length
-    const today = new Date().toISOString().split('T')[0]
-    const overdue = ut.filter(t => t.due_date && t.due_date<today && t.status!=='Completed').length
-    const strug = ut.filter(t => ['Struggling','Needs Attention'].includes(t.status)).length
-    const ontime = total>0 ? Math.max(0, Math.round((done/Math.max(total,1))*100 - (overdue/Math.max(total,1))*30)) : 0
-    const rate = total>0 ? Math.round(done/total*100) : 0
-    const ua = attendance.filter(a => String(a.user_id)===String(uid) && a.hours_worked>0)
-    const days = ua.length
-    const avg = days>0 ? (ua.reduce((s,a) => s+(a.hours_worked||0), 0)/days).toFixed(1) : '0'
-    const taken = leaves.filter(l => String(l.user_id)===String(uid) && l.status==='Approved').reduce((s,l) => s+l.days, 0)
+    const card = (overview?.members || []).find((m: any) => String(m.user_id) === String(uid))
+    if (!card) {
+      return { total:0, done:0, ip:0, overdue:0, strug:0, ontime:0, rate:0, days:0, avg:'0', taken:0, perf:{label:'Needs Support',color:'#EF4444'} }
+    }
+    const rate = Math.round(card.completion_rate || 0)
     const perf = rate>=80?{label:'Excellent',color:'#10B981'}:rate>=60?{label:'Good',color:'#3B82F6'}:rate>=40?{label:'Average',color:'#FBBF24'}:{label:'Needs Support',color:'#EF4444'}
-    return { total, done, ip, overdue, strug, ontime, rate, days, avg, taken, perf }
+    return {
+      total: card.assigned || 0,
+      done: card.completed || 0,
+      ip: card.in_progress || 0,
+      overdue: card.overdue || 0,
+      strug: card.struggling || 0,
+      ontime: Math.round(card.on_time_rate || 0),
+      rate,
+      days: card.days_present || 0,
+      avg: (card.avg_hours ?? 0).toString(),
+      taken: card.leaves_taken || 0,
+      perf,
+    }
   }
 
   const teamU = users.filter(u => u.role === 'team')
@@ -54,7 +59,7 @@ export default function PerformanceClient({ session }: { session: SessionUser })
   if (loading) return <div style={{color:'var(--sf-muted)',padding:40,textAlign:'center'}}>Loading…</div>
 
   return (
-    <PageShell fill>
+    <PageShell>
       <PageHeader title="Performance" subtitle={isSelfOnly ? 'Your allocated, delayed, and on-time metrics' : 'Team metrics and individual drill-down'} />
       {!isSelfOnly && (
       <Section title="Filters" style={{ flexShrink: 0 }}>

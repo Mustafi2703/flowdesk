@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -18,6 +20,46 @@ from app.core.logging import configure_logging
 from app.core.rate_limit import limiter
 
 configure_logging()
+
+
+def _start_digest_scheduler():
+    if not settings.enable_scheduler:
+        return None
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from zoneinfo import ZoneInfo
+    except Exception:  # noqa: BLE001
+        return None
+
+    def _run() -> None:
+        from app.db.session import SessionLocal
+        from app.services.digests import send_daily_digests
+
+        db = SessionLocal()
+        try:
+            send_daily_digests(db)
+        finally:
+            db.close()
+
+    scheduler = BackgroundScheduler(timezone=ZoneInfo("Asia/Kolkata"))
+    scheduler.add_job(
+        _run,
+        "cron",
+        hour=settings.digest_hour,
+        minute=settings.digest_minute,
+        id="evening_digest",
+        replace_existing=True,
+    )
+    scheduler.start()
+    return scheduler
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    scheduler = _start_digest_scheduler()
+    yield
+    if scheduler is not None:
+        scheduler.shutdown(wait=False)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -51,6 +93,7 @@ app = FastAPI(
     default_response_class=ORJSONResponse,
     docs_url="/docs" if not settings.is_production else None,
     redoc_url="/redoc" if not settings.is_production else None,
+    lifespan=lifespan,
 )
 
 # Order matters: rate limiter and security headers wrap everything.

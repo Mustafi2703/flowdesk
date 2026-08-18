@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user
@@ -51,12 +51,34 @@ def _serialize(leave: LeaveRequest, profile: Profile | None) -> dict[str, Any]:
     }
 
 
+def _approved_days(db: Session, user_id) -> int:
+    total = db.scalar(
+        select(func.coalesce(func.sum(LeaveRequest.days), 0)).where(
+            LeaveRequest.user_id == user_id,
+            LeaveRequest.status == "Approved",
+        )
+    )
+    return int(total or 0)
+
+
+def _sync_taken(db: Session, profile: Profile) -> int:
+    taken = _approved_days(db, profile.id)
+    if profile.leaves_taken != taken:
+        profile.leaves_taken = taken
+    return taken
+
+
 @router.get("/balance", response_model=LeaveBalance)
-def leave_balance(user: Profile = Depends(get_current_user)) -> LeaveBalance:
+def leave_balance(
+    db: Session = Depends(get_db),
+    user: Profile = Depends(get_current_user),
+) -> LeaveBalance:
+    taken = _sync_taken(db, user)
+    db.commit()
     return LeaveBalance(
         total=user.leaves_total,
-        taken=user.leaves_taken,
-        remaining=max(user.leaves_total - user.leaves_taken, 0),
+        taken=taken,
+        remaining=max(user.leaves_total - taken, 0),
     )
 
 
@@ -123,23 +145,28 @@ def decide_leave(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only HR/owner can decide leaves")
     if payload.status not in {"Approved", "Rejected"}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Status must be Approved or Rejected")
+    if payload.status == "Rejected" and len((payload.rejection_reason or "").strip()) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please add a reason when rejecting leave",
+        )
     leave = db.get(LeaveRequest, leave_id)
     if not leave:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Leave not found")
     if leave.status != "Pending":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Leave already decided")
     leave.status = payload.status
-    leave.rejection_reason = payload.rejection_reason
+    leave.rejection_reason = (payload.rejection_reason or "").strip() or None
     leave.reviewed_by = user.id
     leave.reviewed_at = datetime.now(timezone.utc)
     applicant = db.get(Profile, leave.user_id)
-    if applicant and payload.status == "Approved":
-        applicant.leaves_taken += leave.days
     if applicant:
+        _sync_taken(db, applicant)
+        reason_bit = f": {leave.rejection_reason}" if leave.status == "Rejected" and leave.rejection_reason else ""
         db.add(
             Notification(
                 user_id=applicant.id,
-                message=f"Your {leave.leave_type} leave has been {payload.status.lower()}",
+                message=f"Your {leave.leave_type} leave has been {payload.status.lower()}{reason_bit}",
                 type="leave",
                 link="/leave",
             )

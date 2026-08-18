@@ -411,19 +411,20 @@ def reset_password(
     db: Session = Depends(get_db),
     user: Profile = Depends(get_current_user),
 ) -> ResetPasswordResponse:
-    """Generate a new random password for a user; only Owner or HR.
+    """Generate a new random password for a user; Owner, HR, or Manager (team only).
 
     Returns the password ONCE so the admin can share it out-of-band.
     """
     role = Role(user.role)
-    if role not in {Role.OWNER, Role.HR}:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner or HR only")
+    if role not in {Role.OWNER, Role.HR, Role.MANAGER}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner, Manager, or HR only")
     profile = db.get(Profile, profile_id)
     if not profile:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    # HR cannot reset privileged accounts.
     if role is Role.HR and Role(profile.role) in {Role.OWNER, Role.MANAGER}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="HR cannot reset privileged accounts")
+    if role is Role.MANAGER and Role(profile.role) not in {Role.TEAM}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers can only reset team member passwords")
     temp = _generate_temp_password()
     profile.password_hash = hash_password(temp)
     db.commit()

@@ -10,3 +10,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params
   return proxy(req, { to: `/api/v1/brands/${id}` })
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  return proxy(req, { to: `/api/v1/brands/${id}` })
+}

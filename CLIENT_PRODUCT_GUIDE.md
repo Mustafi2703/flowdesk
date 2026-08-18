@@ -22,7 +22,7 @@ Scrumfolks TMS is the office system for client brands, tasks, files, reviews, te
 | **HR** | Team directory, leave approvals, attendance reports, performance overview. Read-only on brands. |
 | **Accounts** | Billing and prices. Read-only on brands. No team management. |
 
-Everyone signs in with email and password. Morning (light) and Night (dark) modes are available.
+Everyone signs in with **email and password** (no one-click role buttons on the login screen). Morning (light) and Night (dark) modes are available.
 
 ---
 

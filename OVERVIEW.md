@@ -63,7 +63,7 @@ These are intentionally process-local for the 40-50 user target. If the app late
 
 ## Authentication
 
-The demo users are real seeded `profiles` rows with bcrypt password hashes. Set `SEED_PASSWORD` in the environment when `SEED_DEMO=true` — never commit passwords to git. Use the **Quick demo access** buttons on the login page (password stays server-side).
+The demo users are real seeded `profiles` rows with bcrypt password hashes. Set `SEED_PASSWORD` in the environment when `SEED_DEMO=true` — never commit passwords to the repository. Sign in at `/login` with email + password (no demo role buttons).
 
 Change all passwords and secrets before production deployment.
 

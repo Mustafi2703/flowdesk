@@ -41,10 +41,10 @@ def seed_full_demo() -> dict[str, bool]:
 
 
 @router.post("/cleanup-full-demo")
-def cleanup_full_demo() -> dict[str, bool]:
+def cleanup_full_demo() -> dict:
     """Delete only the demo content inserted by `seed()` (users preserved)."""
-    delete_full_demo_data()
-    return {"ok": True}
+    counts = delete_full_demo_data()
+    return {"ok": True, **counts}
 
 
 @router.post("/test-email")

@@ -5,6 +5,7 @@ import { SessionUser, ROLE_COLORS, ROLE_LABELS } from '@/types'
 import { PageHeader, PageShell, PageTabs, PageToolbar, Section, StatCard, StatGrid } from '@/components/app/Section'
 import { Modal } from '@/components/app/Modal'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
+import { todayIST } from '@/lib/clock'
 
 const TEAM_PANELS = [
   { id: 'members', label: 'Team members' },
@@ -58,7 +59,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   const [userForm, setUserForm] = useState({ name: '', email: '', role: 'team', department: '', department_id: '', designation: '', password: '', manager_id: '', manager_ids: [] as string[], is_active: true })
   const [deptForm, setDeptForm] = useState({ name: '', description: '', manager_id: '' })
   const CORE_ROLES = ['owner', 'manager', 'team', 'hr', 'accountant']
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayIST()
   const canOnboard = ['owner', 'manager'].includes(role)
   const canManageDepartments = role === 'owner'
   const canViewDepartments = ['owner', 'manager', 'hr'].includes(role)
@@ -267,11 +268,17 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   async function resetPassword(id: string, name: string) {
     if (!window.confirm(`Reset password for ${name}? A temporary password will be shown once.`)) return
     setError(''); setNotice('')
-    const res = await fetch(`/api/team/${id}/reset-password`, { method: 'POST' })
+    const res = await fetch(`/api/team/${id}/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) { setError(data.error || data.detail || 'Could not reset password'); return }
     const temp = data.temporary_password
-    const msg = `${name}'s temporary password: ${temp}`
+    if (!temp) { setError('Reset succeeded but no password was returned. Try again.'); return }
+    try { await navigator.clipboard.writeText(temp) } catch { /* ignore */ }
+    const msg = `${name}'s temporary password: ${temp}\n\nCopied to clipboard. Share it once — it will not be shown again.`
     setNotice(msg)
     window.alert(msg)
   }
@@ -665,7 +672,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                     </div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
                       {canEditUser(u) && <button type="button" onClick={() => startEditUser(u)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px' }}>Edit</button>}
-                      {canReset && u.id !== session.id && (role !== 'manager' || u.role === 'team') && <button type="button" onClick={() => resetPassword(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px' }}>Reset</button>}
+                      {canReset && u.id !== session.id && (role !== 'manager' || u.role === 'team') && <button type="button" onClick={() => resetPassword(u.id, u.name)} className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '6px 8px' }}>Reset password</button>}
                       {role === 'owner' && u.id !== session.id && u.is_active && <button type="button" onClick={() => deactivateUser(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px', color: 'var(--sf-danger)' }}>Deactivate</button>}
                       {role === 'owner' && u.id !== session.id && <button type="button" onClick={() => hardDeleteUser(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px', color: '#F87171' }}>Delete</button>}
                     </div>
@@ -687,6 +694,15 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                 width={640}
                 footer={
                   <>
+                    {viewingUser && canReset && viewingUser.id !== session.id && (role !== 'manager' || viewingUser.role === 'team') && (
+                      <button
+                        type="button"
+                        className="sf-btn sf-btn-ghost"
+                        onClick={() => resetPassword(viewingUser.id, viewingUser.name)}
+                      >
+                        Reset password
+                      </button>
+                    )}
                     {viewingUser && canEditUser(viewingUser) && (
                       <button
                         type="button"

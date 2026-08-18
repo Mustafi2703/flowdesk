@@ -30,7 +30,7 @@ export default function PerformanceClient({ session }: { session: SessionUser })
   function metrics(uid:string) {
     const card = (overview?.members || []).find((m: any) => String(m.user_id) === String(uid))
     if (!card) {
-      return { total:0, done:0, ip:0, overdue:0, strug:0, ontime:0, rate:0, days:0, avg:'0', taken:0, perf:{label:'Needs Support',color:'#EF4444'} }
+      return { total:0, done:0, ip:0, overdue:0, strug:0, ontime:0, rate:0, days:0, avg:'0', taken:0, monthly:[], perf:{label:'Needs Support',color:'#EF4444'} }
     }
     const rate = Math.round(card.completion_rate || 0)
     const perf = rate>=80?{label:'Excellent',color:'#10B981'}:rate>=60?{label:'Good',color:'#3B82F6'}:rate>=40?{label:'Average',color:'#FBBF24'}:{label:'Needs Support',color:'#EF4444'}
@@ -45,6 +45,7 @@ export default function PerformanceClient({ session }: { session: SessionUser })
       days: card.days_present || 0,
       avg: (card.avg_hours ?? 0).toString(),
       taken: card.leaves_taken || 0,
+      monthly: Array.isArray(card.monthly) ? card.monthly : [],
       perf,
     }
   }
@@ -97,8 +98,8 @@ export default function PerformanceClient({ session }: { session: SessionUser })
               ))}
             </div>
             <div style={{background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:12,padding:20}}>
-              <div style={{color:'var(--sf-muted)',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:14}}>Monthly Activity</div>
-              <Bars data={['Jan','Feb','Mar','Apr','May'].map((m,i)=>({label:m,value:Math.max(0,sm.done-(4-i)*2)}))} color="#10B981" />
+              <div style={{color:'var(--sf-muted)',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:14}}>Completed by month</div>
+              <Bars data={(sm.monthly || []).map((m: any) => ({ label: m.label, value: m.value }))} color="#10B981" />
             </div>
           </div>
           <div style={{background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:12,padding:20}}>
@@ -117,12 +118,12 @@ export default function PerformanceClient({ session }: { session: SessionUser })
         <>
           <StatGrid>
             <StatCard label="Team size" value={teamU.length} accent="var(--sf-accent)" />
-            <StatCard label="Total tasks" value={tasks.length} accent="#3B82F6" />
+            <StatCard label="Total tasks" value={overview?.total_tasks ?? tm.reduce((s, m) => s + m.total, 0)} accent="#3B82F6" />
             <StatCard label="Avg completion" value={`${Math.round(tm.reduce((s,m)=>s+m.rate,0)/Math.max(tm.length,1))}%`} accent="#10B981" />
             <StatCard label="Total overdue" value={tm.reduce((s,m)=>s+m.overdue,0)} accent="#EF4444" />
           </StatGrid>
-          <Section title="Team tasks" subtitle="Jan to May" style={{ flexShrink: 0 }}>
-            <Bars data={[{label:'Jan',value:18},{label:'Feb',value:22},{label:'Mar',value:19},{label:'Apr',value:28},{label:'May',value:24}]} color="#10B981" height={80} />
+          <Section title="Team tasks" subtitle="Completed work in the last 6 months" style={{ flexShrink: 0 }}>
+            <Bars data={(overview?.monthly_activity || []).map((m: any) => ({ label: m.label, value: m.value }))} color="#10B981" height={80} />
           </Section>
           <Section title="Team overview" subtitle="Click a row to drill into individual performance" flush flex={1}>
             <div style={{ minWidth: 900 }}>

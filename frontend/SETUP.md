@@ -80,7 +80,7 @@ git push -u origin main
 | `NEXT_PUBLIC_APP_URL` | `https://tasks.scrumfolks.com` |
 
 5. **Deploy** → wait ~2 minutes
-6. Test the URL Vercel gives you — use demo role buttons or admin-supplied credentials
+6. Test the URL — sign in with email + password (credentials supplied by your admin)
 
 ---
 

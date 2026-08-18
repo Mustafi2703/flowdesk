@@ -1,3 +1,12 @@
+export function todayIST(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
+
 export async function clockOutWithConfirm(): Promise<any | null> {
   const res = await fetch('/api/attendance/clockout', { method: 'POST' })
   const data = await res.json().catch(() => ({}))

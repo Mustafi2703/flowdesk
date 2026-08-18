@@ -22,7 +22,9 @@ bash demo-stop.sh
 
 ## Demo accounts
 
-Use the **Quick demo access** buttons on the login page (password is applied server-side via `SEED_PASSWORD`).
+Sign in at `/login` with **email + password** (no role buttons on the page).
+
+When `SEED_DEMO=true`, these accounts exist. The shared password is `SEED_PASSWORD` on the server — do not commit it.
 
 | Role | Email | What you'll see |
 |------|-------|-----------------|
@@ -31,9 +33,6 @@ Use the **Quick demo access** buttons on the login page (password is applied ser
 | **Team** | `team@scrumfolks.com` | **Personalized** — only assigned tasks + clock in/out |
 | **HR** | `hr@scrumfolks.com` | Leave approvals, staff count, performance |
 | **Accountant** | `accountant@scrumfolks.com` | Billable tasks, set prices, mark billed |
-| **Developer** | `dev@scrumfolks.com` | Dev Board, project sub-tasks |
-
-Use the **Quick demo access** buttons on the login page to switch personas instantly.
 
 ---
 

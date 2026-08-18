@@ -7,6 +7,11 @@ import uuid
 from pydantic import BaseModel
 
 
+class MonthPoint(BaseModel):
+    label: str
+    value: int
+
+
 class PerformanceCard(BaseModel):
     user_id: uuid.UUID
     name: str
@@ -22,6 +27,7 @@ class PerformanceCard(BaseModel):
     days_present: int = 0
     avg_hours: float = 0
     leaves_taken: int = 0
+    monthly: list[MonthPoint] = []
 
 
 class TeamPerformanceOverview(BaseModel):
@@ -30,3 +36,4 @@ class TeamPerformanceOverview(BaseModel):
     average_completion_rate: float
     total_overdue: int
     members: list[PerformanceCard]
+    monthly_activity: list[MonthPoint] = []

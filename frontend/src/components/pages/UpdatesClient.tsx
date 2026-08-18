@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { SessionUser, ROLE_COLORS } from '@/types'
 import { PageHeader, PageShell } from '@/components/app/Section'
-import { StatusBadge } from '@/components/app/StatusBadge'
+import { StatusBadge, statusTint } from '@/components/app/StatusBadge'
+import { todayIST } from '@/lib/clock'
 import { TASK_STATUSES, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
 
 const URL_RE = /(https?:\/\/[^\s]+)/g
@@ -53,11 +54,12 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
   const [savingLink, setSavingLink] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [showDriveForm, setShowDriveForm] = useState(false)
+  const [showTools, setShowTools] = useState(false)
   const channelScrollRef = useRef<HTMLDivElement | null>(null)
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
   const isMgmt = ['owner', 'manager'].includes(session.role)
   const deepLinkHandled = useRef(false)
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayIST()
   const clockedIn = isClockedInToday(attendance, session.id, today)
 
   async function loadFeed() {
@@ -75,7 +77,12 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
   }
 
   async function loadThread(taskId: string, soft = false) {
-    if (!soft) setSelectedTaskId(taskId)
+    if (!soft) {
+      setSelectedTaskId(taskId)
+      setShowTools(false)
+      setShowDriveForm(false)
+      setMenuOpen(false)
+    }
     const res = await fetch(`/api/tasks/${taskId}/chat`)
     const data = await res.json().catch(() => [])
     setThread(Array.isArray(data) ? data : [])
@@ -270,12 +277,12 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
   return (
     <PageShell fill>
       <div className="sf-updates">
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexShrink: 0, flexWrap: 'wrap' }}>
+        <div className="sf-upd-pagehead">
           <PageHeader
             title="Updates"
-            subtitle="One chat per task — message the people on that work"
+            subtitle="Slack-style chats, one per task"
           />
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--sf-muted)', fontSize: 12, cursor: 'pointer', marginTop: 8 }}>
+          <label className="sf-upd-closed-toggle">
             <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} />
             Show closed / done
           </label>
@@ -283,63 +290,37 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
 
         <div className="sf-updates-board">
           <div className="sf-updates-channels">
-            <div style={{ padding: 12, borderBottom: '1px solid var(--sf-border)', flexShrink: 0 }}>
-              <div style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
-                Task chats
-              </div>
+            <div className="sf-upd-channel-search">
+              <div className="sf-upd-channel-heading">Channels</div>
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search tasks…"
+                placeholder="Search tasks"
                 className="sf-input"
-                style={{ fontSize: 12, padding: '8px 10px' }}
               />
             </div>
-            <div ref={channelScrollRef} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0, WebkitOverflowScrolling: 'touch' }}>
+            <div ref={channelScrollRef} className="sf-upd-channel-list">
               {channels.length === 0 && (
-                <div style={{ padding: 24, color: 'var(--sf-muted-2)', fontSize: 12, textAlign: 'center' }}>
-                  No open task chats yet. Create a task to start one.
-                </div>
+                <div className="sf-upd-empty">No open task chats yet.</div>
               )}
               {channels.map(({ task, lastMessage, lastAt, lastSender, msgCount }) => {
                 const active = selectedTaskId === task.id
-                const assignees = (task.assigned_to || []).length
                 return (
                   <button
                     key={task.id}
                     type="button"
-                    onClick={() => { setMenuOpen(false); loadThread(task.id) }}
-                    style={{
-                      width: '100%',
-                      textAlign: 'left',
-                      padding: '12px 14px',
-                      border: 'none',
-                      borderBottom: '1px solid var(--sf-border)',
-                      background: active ? 'rgba(232,99,10,0.12)' : 'transparent',
-                      borderLeft: active ? '3px solid var(--sf-accent)' : '3px solid transparent',
-                      cursor: 'pointer',
-                      fontFamily: "'DM Sans',sans-serif",
-                    }}
+                    className={`sf-upd-channel${active ? ' is-active' : ''}`}
+                    onClick={() => loadThread(task.id)}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 3, minWidth: 0 }}>
-                      <span style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        # {task.title}
-                      </span>
-                      <span style={{ color: 'var(--sf-muted)', fontSize: 10, flexShrink: 0 }}>
-                        {new Date(lastAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                      </span>
-                    </div>
-                    <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginBottom: 4, display: 'flex', gap: 6, alignItems: 'center', minWidth: 0 }}>
+                    <span className="sf-upd-channel-name"># {task.title}</span>
+                    <span className="sf-upd-channel-meta">
                       <StatusBadge status={task.status} />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {assignees} assignee{assignees === 1 ? '' : 's'}
-                        {msgCount ? ` · ${msgCount} msg` : ''}
-                        {task.updates_closed ? ' · Closed' : ''}
-                      </span>
-                    </div>
-                    <div style={{ color: 'var(--sf-text-secondary)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span>{new Date(lastAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                    </span>
+                    <span className="sf-upd-channel-preview">
                       {lastMessage ? `${lastSender || 'Someone'}: ${lastMessage}` : 'No messages yet'}
-                    </div>
+                      {msgCount ? ` · ${msgCount}` : ''}
+                    </span>
                   </button>
                 )
               })}
@@ -348,39 +329,30 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
 
           <div className="sf-updates-thread">
             {!selectedTaskId || !selectedTask ? (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sf-muted)', fontSize: 14, padding: 32, textAlign: 'center' }}>
-                Select a task chat on the left to open the conversation.
+              <div className="sf-upd-empty sf-upd-empty-pane">
+                Pick a task channel to talk about that work.
               </div>
             ) : (
               <>
                 <div className="sf-upd-head">
                   <div className="sf-upd-head-row">
                     <div className="sf-upd-head-copy">
-                      <h2 className="sf-upd-title" title={selectedTask.title}># {selectedTask.title}</h2>
-                      <p className="sf-upd-meta" title={`${selectedTask.type || 'Task'} · Due ${selectedTask.due_date || '—'}${selectedTask.assigned_by?.name ? ` · Assigned by ${selectedTask.assigned_by.name}` : ''}`}>
-                        {selectedTask.type || 'Task'}
-                        {selectedTask.due_date ? ` · Due ${selectedTask.due_date}` : ''}
-                        {selectedTask.assigned_by?.name ? ` · Assigned by ${selectedTask.assigned_by.name}` : ''}
-                        {selectedTask.updates_closed ? ' · Closed' : ''}
-                      </p>
-                      <p className="sf-upd-people" title={assigneeNames.join(', ')}>
+                      <h2 className="sf-upd-title"># {selectedTask.title}</h2>
+                      <p className="sf-upd-people">
                         {assigneeNames.length ? assigneeNames.join(', ') : 'Nobody assigned yet'}
+                        {selectedTask.due_date ? ` · due ${selectedTask.due_date}` : ''}
+                        {selectedTask.updates_closed ? ' · closed' : ''}
                       </p>
                     </div>
                     <div className="sf-upd-head-tools">
                       <StatusBadge status={selectedTask.status} />
-                      <Link href={`/tasks/${selectedTask.id}`} className="sf-btn sf-btn-ghost" style={{ fontSize: 12, padding: '6px 10px' }}>Open task</Link>
+                      <Link href={`/tasks/${selectedTask.id}`} className="sf-btn sf-btn-ghost">Open</Link>
+                      <button type="button" className="sf-btn sf-btn-ghost" onClick={() => setShowTools((v) => !v)}>
+                        {showTools ? 'Hide tools' : 'Task tools'}
+                      </button>
                       {isMgmt && (
                         <div className="sf-upd-menu">
-                          <button
-                            type="button"
-                            className="sf-btn sf-btn-ghost"
-                            style={{ fontSize: 12, padding: '6px 10px' }}
-                            onClick={() => setMenuOpen((v) => !v)}
-                            aria-label="More actions"
-                          >
-                            More
-                          </button>
+                          <button type="button" className="sf-btn sf-btn-ghost" onClick={() => setMenuOpen((v) => !v)}>···</button>
                           {menuOpen && (
                             <div className="sf-upd-menu-list">
                               {selectedTask.updates_closed ? (
@@ -389,7 +361,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                                 </button>
                               ) : (
                                 <button type="button" disabled={closing} onClick={() => { setMenuOpen(false); closeChannel(true) }} style={{ color: 'var(--sf-danger)' }}>
-                                  {closing ? '…' : 'Close & purge'}
+                                  {closing ? '…' : 'Close channel'}
                                 </button>
                               )}
                             </div>
@@ -398,61 +370,71 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                       )}
                     </div>
                   </div>
-                  <div className="sf-upd-toolbar">
-                    {canChangeStatus ? (
-                      <select
-                        value={selectedTask.status}
-                        onChange={(e) => updateStatus(e.target.value)}
-                        className="sf-input"
-                      >
-                        {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    ) : !clockedIn ? (
-                      <span className="sf-upd-hint">Clock in to change status</span>
-                    ) : (
-                      <span style={{ color: 'var(--sf-muted)', fontSize: 12 }}>Status is read-only</span>
-                    )}
-                    {(isMgmt || isTaskAssignee(selectedTask, session.id)) && (
-                      <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 12, padding: '6px 10px', marginLeft: 'auto' }} onClick={() => setShowDriveForm((v) => !v)}>
-                        {showDriveForm ? 'Hide Drive' : 'Add Drive'}
-                      </button>
-                    )}
-                  </div>
-                  {isMgmt && selectedTask.requires_review && (
-                    <div className="sf-upd-review">
-                      <div className="sf-upd-label">Review</div>
-                      <div className="sf-upd-review-row">
-                        <input
-                          value={reviewNotes}
-                          onChange={(e) => setReviewNotes(e.target.value)}
-                          placeholder="Comments required when rejecting"
-                          className="sf-input"
-                        />
-                        <button type="button" className="sf-btn sf-btn-primary" style={{ fontSize: 12, padding: '7px 12px', flexShrink: 0 }} onClick={() => decideReview('approved')}>Approve</button>
-                        <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 12, padding: '7px 12px', flexShrink: 0, color: 'var(--sf-danger)' }} onClick={() => decideReview('rejected')}>Reject</button>
-                      </div>
-                    </div>
-                  )}
-                  {((selectedTask.external_links || []).length > 0 || showDriveForm) && (
-                    <div className="sf-upd-drive">
-                      <div className="sf-upd-label">Google Drive</div>
-                      <div className="sf-upd-chips">
-                        {(selectedTask.external_links || []).map((lnk: any, i: number) => (
-                          <span key={`${lnk.url}-${i}`} className="sf-upd-chip">
-                            <a href={lnk.url} target="_blank" rel="noreferrer">{lnk.label || 'Drive folder'}</a>
-                            {(isMgmt || isTaskAssignee(selectedTask, session.id)) && (
-                              <button type="button" onClick={() => removeDriveLink(i)} style={{ background: 'none', border: 'none', color: 'var(--sf-muted)', cursor: 'pointer', fontSize: 12, padding: 0, lineHeight: 1 }}>×</button>
-                            )}
-                          </span>
-                        ))}
-                      </div>
-                      {showDriveForm && (
-                        <div className="sf-upd-review-row" style={{ marginTop: 8 }}>
-                          <input value={linkLabel} onChange={(e) => setLinkLabel(e.target.value)} placeholder="Label" className="sf-input" style={{ maxWidth: 140, flex: '0 0 140px' }} />
-                          <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://drive.google.com/…" className="sf-input" />
-                          <button type="button" className="sf-btn sf-btn-primary" style={{ fontSize: 12, padding: '7px 12px', flexShrink: 0 }} disabled={savingLink || !linkUrl.trim()} onClick={addDriveLink}>
-                            {savingLink ? '…' : 'Save'}
+
+                  {showTools && (
+                    <div className="sf-upd-tools">
+                      <div className="sf-upd-tool-row">
+                        {canChangeStatus ? (
+                          <select
+                            value={selectedTask.status}
+                            onChange={(e) => updateStatus(e.target.value)}
+                            className="sf-input"
+                            style={statusTint(selectedTask.status)}
+                          >
+                            {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        ) : (
+                          <span className="sf-upd-hint">{clockedIn ? 'Status is read-only' : 'Clock in to change status'}</span>
+                        )}
+                        {(isMgmt || isTaskAssignee(selectedTask, session.id)) && (
+                          <button type="button" className="sf-btn sf-btn-ghost" onClick={() => setShowDriveForm((v) => !v)}>
+                            {showDriveForm ? 'Hide Drive' : 'Add Drive'}
                           </button>
+                        )}
+                      </div>
+
+                      {isMgmt && selectedTask.requires_review && (
+                        <div className="sf-upd-tool-block">
+                          <div className="sf-upd-label">Review · v{selectedTask.review_version || '1'} · {selectedTask.review_status && selectedTask.review_status !== 'none' ? selectedTask.review_status : 'pending'}</div>
+                          {clockedIn ? (
+                            <div className="sf-upd-tool-row">
+                              <input
+                                value={reviewNotes}
+                                onChange={(e) => setReviewNotes(e.target.value)}
+                                placeholder="Comment (required to reject)"
+                                className="sf-input"
+                              />
+                              <button type="button" className="sf-btn sf-btn-primary" onClick={() => decideReview('approved')}>Approve</button>
+                              <button type="button" className="sf-btn sf-btn-ghost" style={{ color: 'var(--sf-danger)' }} onClick={() => decideReview('rejected')}>Reject</button>
+                            </div>
+                          ) : (
+                            <div className="sf-upd-hint">Clock in to approve or reject.</div>
+                          )}
+                        </div>
+                      )}
+
+                      {((selectedTask.external_links || []).length > 0 || showDriveForm) && (
+                        <div className="sf-upd-tool-block">
+                          <div className="sf-upd-label">Google Drive</div>
+                          <div className="sf-upd-chips">
+                            {(selectedTask.external_links || []).map((lnk: any, i: number) => (
+                              <span key={`${lnk.url}-${i}`} className="sf-upd-chip">
+                                <a href={lnk.url} target="_blank" rel="noreferrer">{lnk.label || 'Drive folder'}</a>
+                                {(isMgmt || isTaskAssignee(selectedTask, session.id)) && (
+                                  <button type="button" onClick={() => removeDriveLink(i)}>×</button>
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                          {showDriveForm && (
+                            <div className="sf-upd-tool-row" style={{ marginTop: 8 }}>
+                              <input value={linkLabel} onChange={(e) => setLinkLabel(e.target.value)} placeholder="Label" className="sf-input sf-upd-link-label" />
+                              <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://drive.google.com/…" className="sf-input" />
+                              <button type="button" className="sf-btn sf-btn-primary" disabled={savingLink || !linkUrl.trim()} onClick={addDriveLink}>
+                                {savingLink ? '…' : 'Save'}
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -461,50 +443,32 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
 
                 <div ref={chatScrollRef} className="sf-upd-messages">
                   {thread.length === 0 && (
-                    <div style={{ color: 'var(--sf-muted-2)', fontSize: 13, textAlign: 'center', padding: 32 }}>
-                      This is the start of #{selectedTask.title}. Post an update for the assigned team.
-                    </div>
+                    <div className="sf-upd-empty">This is the start of #{selectedTask.title}.</div>
                   )}
-                  {thread.map((m) => {
-                    const mine = sameUserId(m.sender_id, session.id) || sameUserId(m.sender?.id, session.id)
-                    return (
-                      <div key={m.id} style={{ display: 'flex', gap: 10, flexDirection: mine ? 'row-reverse' : 'row', alignItems: 'flex-start' }}>
-                        <div style={{
-                          width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                          background: ROLE_COLORS[m.sender?.role] || 'var(--sf-accent)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          color: '#fff', fontSize: 11, fontWeight: 700,
-                        }}>
-                          {m.sender?.avatar || m.sender?.name?.slice(0, 2) || '?'}
+                  {thread.map((m) => (
+                    <div key={m.id} className="sf-upd-msg">
+                      <div
+                        className="sf-upd-msg-avatar"
+                        style={{ background: ROLE_COLORS[m.sender?.role] || 'var(--sf-accent)' }}
+                      >
+                        {m.sender?.avatar || m.sender?.name?.slice(0, 2) || '?'}
+                      </div>
+                      <div className="sf-upd-msg-body">
+                        <div className="sf-upd-msg-meta">
+                          <strong>{m.sender?.name || 'User'}</strong>
+                          <span>{new Date(m.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
-                        <div style={{ maxWidth: '75%', minWidth: 0 }}>
-                          <div style={{ color: 'var(--sf-muted)', fontSize: 10, marginBottom: 3, textAlign: mine ? 'right' : 'left' }}>
-                            {m.sender?.name || 'User'} · {new Date(m.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                          <div style={{
-                            background: mine ? 'rgba(232,99,10,0.2)' : 'var(--sf-surface-2)',
-                            border: `1px solid ${mine ? 'rgba(232,99,10,0.35)' : 'var(--sf-border)'}`,
-                            borderRadius: 12,
-                            padding: '10px 12px',
-                            color: 'var(--sf-text)',
-                            fontSize: 13,
-                            lineHeight: 1.5,
-                            wordBreak: 'break-word',
-                          }}>
-                            <MessageText text={m.message || ''} />
-                          </div>
+                        <div className="sf-upd-msg-text">
+                          <MessageText text={m.message || ''} />
                         </div>
                       </div>
-                    )
-                  })}
+                    </div>
+                  ))}
                 </div>
 
                 <div className="sf-upd-composer">
                   {selectedTask.updates_closed ? (
-                    <div style={{ color: 'var(--sf-muted)', fontSize: 13, padding: '6px 0' }}>
-                      This channel is closed.
-                      {isMgmt ? ' Use More → Reopen channel to allow messages.' : ''}
-                    </div>
+                    <div className="sf-upd-hint">This channel is closed.{isMgmt ? ' Reopen it from ···' : ''}</div>
                   ) : (
                     <div className="sf-upd-composer-row">
                       <input
@@ -514,7 +478,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                         placeholder={`Message # ${selectedTask.title}`}
                         className="sf-input"
                       />
-                      <button type="button" onClick={send} disabled={sending || !message.trim()} className="sf-btn sf-btn-primary" style={{ flexShrink: 0 }}>
+                      <button type="button" onClick={send} disabled={sending || !message.trim()} className="sf-btn sf-btn-primary">
                         {sending ? '…' : 'Send'}
                       </button>
                     </div>

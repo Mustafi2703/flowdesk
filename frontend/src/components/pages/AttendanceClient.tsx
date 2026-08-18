@@ -2,7 +2,7 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import { SessionUser } from '@/types'
-import { clockOutWithConfirm } from '@/lib/clock'
+import { clockOutWithConfirm, todayIST } from '@/lib/clock'
 
 export default function AttendanceClient({ session }: { session: SessionUser }) {
   const canView = ['owner', 'hr', 'manager'].includes(session.role)
@@ -16,7 +16,7 @@ export default function AttendanceClient({ session }: { session: SessionUser }) 
   const [loading, setLoading] = useState(true)
   const [action, setAction] = useState(false)
   const [nowTick, setNowTick] = useState(Date.now())
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayIST()
 
   useEffect(() => {
     const t = setInterval(() => setNowTick(Date.now()), 60000)

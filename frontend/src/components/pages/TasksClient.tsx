@@ -2,10 +2,11 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { SessionUser, TaskStatus } from '@/types'
+import { SessionUser, STATUS_TEXT, TaskStatus } from '@/types'
 import { Icon } from '@/components/app/Icons'
 import { PageHeader, PageShell, Section } from '@/components/app/Section'
-import { StatusBadge } from '@/components/app/StatusBadge'
+import { StatusBadge, statusTint } from '@/components/app/StatusBadge'
+import { todayIST } from '@/lib/clock'
 import { TASK_STATUSES, canManageTasks, canSetTaskPrice, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { TaskThreadBox } from '@/components/app/TaskThreadBox'
@@ -79,11 +80,9 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   const [sortBy, setSortBy] = useState<SortKey>('due_date')
   const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc')
   const [showCreate, setShowCreate] = useState(false)
-  const [editingTask, setEditingTask] = useState<any | null>(null)
-  const [progressTask, setProgressTask] = useState<any | null>(null)
   const [attendance, setAttendance] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayIST()
   const clockedIn = isClockedInToday(attendance, session.id, today)
 
   const canCreate = canManageTasks(session.role)
@@ -133,7 +132,6 @@ export default function TasksClient({ session }: { session: SessionUser }) {
       alert(data.error || data.detail || 'Could not delete task')
       return
     }
-    if (editingTask?.id === task.id) setEditingTask(null)
     load()
   }
 
@@ -253,6 +251,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                   <th>Assigned by</th>
                   <th>Type</th>
                   <th>Status</th>
+                  <th>Review</th>
                   <th>Priority</th>
                   <th>Due</th>
                   {canEdit && <th style={{ width:200 }}>Actions</th>}
@@ -296,13 +295,20 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                           <select
                             value={task.status}
                             onChange={e => updateTaskStatus(task.id, e.target.value)}
-                            style={{ ...toolbarSelect, padding: '4px 8px', fontSize: 11 }}
+                            style={{ ...toolbarSelect, padding: '4px 8px', fontSize: 11, ...statusTint(task.status) }}
                           >
                             {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                           </select>
                         ) : (
-                          <span className={statusClass(task.status)}><StatusBadge status={task.status} /></span>
+                          <StatusBadge status={task.status} />
                         )}
+                      </td>
+                      <td>
+                        {task.requires_review ? (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: task.review_status === 'approved' ? '#15803D' : task.review_status === 'rejected' ? '#C2410C' : '#7E22CE' }}>
+                            v{task.review_version || '1'} · {task.review_status && task.review_status !== 'none' ? task.review_status : 'pending'}
+                          </span>
+                        ) : <span style={{ color: 'var(--sf-muted)', fontSize: 11 }}>—</span>}
                       </td>
                       <td><PriorityBadge priority={task.priority} /></td>
                       <td style={{ color: late ? 'var(--sf-danger)' : 'var(--sf-text-secondary)' }}>
@@ -328,6 +334,9 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                       {!canEdit && (
                         <td onClick={e => e.stopPropagation()}>
                           <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px' }}>Open</button>
+                          {canUpdateStatus(task) && task.status === 'Not Started' && (
+                            <button type="button" onClick={() => updateTaskStatus(task.id, 'In Progress')} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px', marginLeft: 6 }}>Start</button>
+                          )}
                         </td>
                       )}
                     </tr>
@@ -348,7 +357,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
             return (
               <div key={col} style={{ minWidth:220, flex:'0 0 220px', background:'var(--sf-surface)', border:'1px solid var(--sf-border)', borderRadius:12, padding:10 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', marginBottom:10 }}>
-                  <span style={{ color:'#A0A0C0', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em' }}>{col}</span>
+                  <span style={{ color: STATUS_TEXT[col] || '#A0A0C0', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em' }}>{col}</span>
                   <span style={{ background:'var(--sf-surface-2)', color:'var(--sf-muted)', fontSize:10, padding:'1px 6px', borderRadius:4 }}>{colTasks.length}</span>
                 </div>
                 {colTasks.map(task => (
@@ -372,7 +381,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                       <select
                         value={task.status}
                         onChange={e => updateTaskStatus(task.id, e.target.value)}
-                        style={{ ...toolbarSelect, width:'100%', padding:'4px 6px', fontSize:10, marginBottom: 8 }}
+                        style={{ ...toolbarSelect, width:'100%', padding:'4px 6px', fontSize:10, marginBottom: 8, ...statusTint(task.status) }}
                       >
                         {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
@@ -396,29 +405,8 @@ export default function TasksClient({ session }: { session: SessionUser }) {
         </Section>
       )}
 
-      {progressTask && (
-        <TaskProgressModal
-          session={session}
-          task={progressTask}
-          onClose={() => setProgressTask(null)}
-          onSaved={() => { setProgressTask(null); load() }}
-        />
-      )}
       {showCreate && canCreate && (
         <TaskFormModal session={session} brands={brands} users={users} onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); load() }} canSeeBilling={canSeeBilling} canSetPrice={canSetPrice} canDelete={false} />
-      )}
-      {editingTask && canEdit && (
-        <TaskFormModal
-          session={session}
-          brands={brands}
-          users={users}
-          task={editingTask}
-          onClose={() => setEditingTask(null)}
-          onSaved={() => { setEditingTask(null); load() }}
-          canSeeBilling={canSeeBilling}
-          canSetPrice={canSetPrice}
-          canDelete={canDelete}
-        />
       )}
     </PageShell>
   )
@@ -553,8 +541,10 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
       type, task_mode:effectiveMode, priority, status, due_date:dueDate,
       requires_review:requiresReview, is_billable:isBillable,
       recurring_config: recurring ? { enabled:true, frequency:recurFreq, next_due:dueDate } : null,
-      sub_tasks: cleanedSubTasks,
       external_links: pendingLinks,
+    }
+    if (isEdit) {
+      body.sub_tasks = cleanedSubTasks
     }
     // Preserve existing managers on edit; on create set current user as manager.
     if (isEdit) {
@@ -725,47 +715,8 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
           </div>
         </div>
 
-        <div style={{ marginBottom:16 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-              <label style={{ color:'#06B6D4', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em' }}>Sub-tasks</label>
-              <button type="button" onClick={addSubTask} className="sf-btn sf-btn-ghost" style={{ fontSize:11, padding:'4px 10px' }}>+ Add sub-task</button>
-            </div>
-            {subTasks.length === 0 && (
-              <div style={{ background:'var(--sf-surface-2)', border:'1px dashed var(--sf-border)', borderRadius:9, padding:14, color:'var(--sf-muted)', fontSize:12, textAlign:'center' }}>
-                No sub-tasks yet. Add phases like Wireframes, Development, QA.
-              </div>
-            )}
-            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-              {subTasks.map((st, idx) => (
-                <div key={st.id} style={{ background:'var(--sf-surface-2)', border:'1px solid var(--sf-border)', borderRadius:9, padding:12 }}>
-                  <div style={{ display:'flex', gap:8, marginBottom:8 }}>
-                    <input
-                      value={st.title}
-                      onChange={(e) => updateSubTask(idx, { title: e.target.value })}
-                      placeholder="Sub-task title"
-                      style={{ ...sInp, flex:1 }}
-                    />
-                    <button type="button" onClick={() => removeSubTask(idx)} style={{ background:'none', border:'none', color:'var(--sf-danger)', cursor:'pointer', fontSize:18, lineHeight:1 }}>×</button>
-                  </div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
-                    <select value={st.status} onChange={(e) => updateSubTask(idx, { status: e.target.value })} style={sSel}>
-                      {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                    <input type="date" value={st.due_date || ''} onChange={(e) => updateSubTask(idx, { due_date: e.target.value })} style={sInp} />
-                  </div>
-                  <div style={{ marginBottom: 6 }}>
-                    <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:600, marginBottom:4, display:'block' }}>Assign sub-task</label>
-                    <PeoplePicker
-                      users={teamUsers}
-                      selectedIds={st.assigned_to || []}
-                      onChange={(ids) => updateSubTask(idx, { assigned_to: ids })}
-                      variant="dropdown"
-                      placeholder="Assign sub-task…"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+        <div style={{ background:'rgba(6,182,212,0.08)', border:'1px solid rgba(6,182,212,0.2)', borderRadius:9, padding:'8px 12px', marginBottom:14, color:'var(--sf-text-secondary)', fontSize:12 }}>
+          After creating, open the task page and use the <strong>Sub-tasks</strong> tab. Sub-tasks stay on this task — they are not a separate project.
         </div>
 
         <div style={{ background:'var(--sf-surface-2)', borderRadius:10, padding:14, marginBottom:16, display:'flex', flexDirection:'column', gap:10 }}>

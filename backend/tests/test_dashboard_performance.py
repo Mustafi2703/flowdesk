@@ -70,7 +70,7 @@ def test_performance_access_restricted(client, users):
         ("owner", True),
         ("manager", True),
         ("hr", True),
-        ("team", False),
+        ("team", True),
         ("developer", False),
         ("accountant", False),
     ]:
@@ -106,3 +106,6 @@ def test_performance_tier_excellent_for_full_completion(client, users):
     card = overview["members"][0]
     assert card["completion_rate"] == 100.0
     assert card["performance_tier"] == "Excellent"
+    assert "monthly_activity" in overview
+    assert isinstance(overview["monthly_activity"], list)
+    assert card["monthly"]

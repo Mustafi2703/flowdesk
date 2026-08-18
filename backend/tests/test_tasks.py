@@ -185,3 +185,43 @@ def test_dev_board_shows_dev_and_project_tasks(client, users):
     titles = {t["title"] for t in board}
     assert "Build API" in titles
     assert "Design poster" not in titles
+
+
+def test_review_reject_sets_revision_needed_and_versions(client, users):
+    owner = users.create("owner")
+    team = users.create("team")
+    task = _create_task(
+        client,
+        users.auth_headers(owner),
+        assigned_to=[str(team.id)],
+        requires_review=True,
+    ).json()
+    client.post("/api/v1/attendance/clockin", headers=users.auth_headers(owner))
+    resp = client.patch(
+        f"/api/v1/tasks/{task['id']}/review",
+        headers=users.auth_headers(owner),
+        json={"decision": "rejected", "notes": "Need tighter crop"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "Revision Needed"
+    assert body["review_status"] == "rejected"
+    assert body["review_version"] == "1.1"
+    assert body["review_history"][0]["version"] == "1"
+    assert "Need tighter crop" in body["review_history"][0]["notes"]
+
+
+def test_review_approve_marks_completed(client, users):
+    owner = users.create("owner")
+    task = _create_task(client, users.auth_headers(owner), requires_review=True).json()
+    client.post("/api/v1/attendance/clockin", headers=users.auth_headers(owner))
+    resp = client.patch(
+        f"/api/v1/tasks/{task['id']}/review",
+        headers=users.auth_headers(owner),
+        json={"decision": "approved", "notes": "Looks good"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "Completed"
+    assert body["review_status"] == "approved"
+    assert body["review_history"][0]["version"] == "1"

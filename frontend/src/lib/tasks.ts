@@ -1,4 +1,5 @@
 import type { TaskStatus } from '@/types'
+import { todayIST } from '@/lib/clock'
 
 export const TASK_STATUSES: TaskStatus[] = [
   'Not Started',
@@ -35,7 +36,7 @@ export function canMarkTaskBilled(role: string) {
 }
 
 export function isClockedInToday(attendance: any[], userId: string, today?: string) {
-  const day = today || new Date().toISOString().split('T')[0]
+  const day = today || todayIST()
   return attendance.some(
     (a) => sameUserId(a.user_id, userId) && a.date === day && a.login_time && !a.logout_time
   )

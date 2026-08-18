@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from calendar import month_abbr
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -16,7 +17,7 @@ from app.models.attendance import AttendanceLog
 from app.models.leave import LeaveRequest
 from app.models.profile import Profile
 from app.models.task import Task
-from app.schemas.performance import PerformanceCard, TeamPerformanceOverview
+from app.schemas.performance import MonthPoint, PerformanceCard, TeamPerformanceOverview
 
 router = APIRouter(prefix="/performance", tags=["performance"])
 
@@ -55,6 +56,44 @@ def _period_start(period: str) -> date:
     return date(today.year, today.month, 1)
 
 
+def _as_date(value) -> date | None:
+    if value is None:
+        return None
+    return value.date() if hasattr(value, "date") else value
+
+
+def _month_buckets(count: int = 6) -> list[tuple[int, int]]:
+    today = date.today()
+    y, m = today.year, today.month
+    buckets: list[tuple[int, int]] = []
+    for _ in range(count):
+        buckets.append((y, m))
+        m -= 1
+        if m == 0:
+            m, y = 12, y - 1
+    buckets.reverse()
+    return buckets
+
+
+def _month_points(tasks: list[Task], profile: Profile | None = None, months: int = 6) -> list[MonthPoint]:
+    points: list[MonthPoint] = []
+    for year, month in _month_buckets(months):
+        seen: set[uuid.UUID] = set()
+        for task in tasks:
+            if profile is not None and profile.id not in (task.assigned_to or []):
+                continue
+            if task.status != "Completed":
+                continue
+            done_on = _as_date(task.updated_at) or _as_date(getattr(task, "created_at", None))
+            if not done_on or done_on.year != year or done_on.month != month:
+                continue
+            if task.id in seen:
+                continue
+            seen.add(task.id)
+        points.append(MonthPoint(label=month_abbr[month], value=len(seen)))
+    return points
+
+
 def _card(
     profile: Profile,
     tasks: list[Task],
@@ -66,7 +105,12 @@ def _card(
         task
         for task in tasks
         if profile.id in (task.assigned_to or [])
-        and (not task.created_at or task.created_at.date() >= since or (task.due_date and task.due_date >= since))
+        and (
+            task.status not in {"Completed", "On Hold"}
+            or (not task.created_at or task.created_at.date() >= since)
+            or (task.due_date and task.due_date >= since)
+            or (task.updated_at and task.updated_at.date() >= since)
+        )
     ]
     completed = [task for task in assigned if task.status == "Completed"]
     overdue = [
@@ -98,6 +142,7 @@ def _card(
         days_present=len(user_logs),
         avg_hours=avg_hours,
         leaves_taken=taken,
+        monthly=_month_points(tasks, profile),
     )
 
 
@@ -128,4 +173,5 @@ def performance_overview(
         average_completion_rate=avg,
         total_overdue=sum(card.overdue for card in cards),
         members=cards,
+        monthly_activity=_month_points(tasks),
     )

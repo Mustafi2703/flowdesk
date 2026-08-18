@@ -90,15 +90,15 @@ function CreateForm({ onClose, onSaved }: any) {
           </div>
         ))}
         <div style={{marginBottom:12}}>
-          <label style={{color:'var(--sf-muted)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:5,display:'block'}}>Date</label>
+          <label style={{color:'var(--sf-muted)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:5,display:'block'}}>Event date</label>
           <input type="date" value={eventDate} onChange={e=>setEventDate(e.target.value)} style={sInp} />
         </div>
         <div style={{marginBottom:12}}>
           <label style={{color:'var(--sf-muted)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:5,display:'block'}}>Image URL</label>
-          <input value={imageUrl} onChange={e=>setImageUrl(e.target.value)} placeholder="https://…" style={sInp} />
+          <input value={imageUrl} onChange={e=>setImageUrl(e.target.value)} placeholder="https://…/image.jpg" style={sInp} />
         </div>
         <div style={{marginBottom:12}}>
-          <label style={{color:'var(--sf-muted)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:5,display:'block'}}>Link</label>
+          <label style={{color:'var(--sf-muted)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:5,display:'block'}}>Link URL</label>
           <input value={linkUrl} onChange={e=>setLinkUrl(e.target.value)} placeholder="https://…" style={sInp} />
         </div>
         <div style={{marginBottom:16}}>

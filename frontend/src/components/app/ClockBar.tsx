@@ -1,18 +1,18 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { clockOutWithConfirm } from '@/lib/clock'
+import { clockOutWithConfirm, todayIST } from '@/lib/clock'
 
 export function ClockBar() {
   const [clocked, setClocked] = useState(false)
   const [loginTime, setLoginTime] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const today = new Date().toISOString().split('T')[0]
 
   async function load() {
     const res = await fetch('/api/attendance')
     const logs = await res.json().catch(() => [])
-    const todays = Array.isArray(logs) ? logs.find((x: any) => x.date === today) : null
+    const day = todayIST()
+    const todays = Array.isArray(logs) ? logs.find((x: any) => x.date === day) : null
     setLoginTime(todays?.login_time || null)
     setClocked(Boolean(todays?.login_time && !todays?.logout_time))
   }
@@ -21,7 +21,11 @@ export function ClockBar() {
 
   async function clockIn() {
     setBusy(true)
-    await fetch('/api/attendance/clockin', { method: 'POST' })
+    const res = await fetch('/api/attendance/clockin', { method: 'POST' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || data.detail || 'Could not clock in')
+    }
     await load()
     setBusy(false)
   }

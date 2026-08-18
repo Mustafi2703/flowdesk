@@ -14,6 +14,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.api.v1.deps import get_current_user
 from app.core.roles import Role
@@ -490,13 +491,19 @@ def review_task(
         )
     )
     task.review_history = history
+    flag_modified(task, "review_history")
     task.review_status = payload.decision
     if payload.decision == "rejected":
         task.status = "Revision Needed"
         task.review_version = next_review_version(current_version)
         action = f"Review rejected (v{current_version})"
     else:
+        task.status = "Completed"
         action = f"Review approved (v{current_version})"
+        if not task.updates_closed:
+            task.updates_closed = True
+            task.updates_closed_at = datetime.now(timezone.utc)
+            task.updates_closed_by = user.id
     task.timeline = [
         *(task.timeline or []),
         {

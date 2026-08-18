@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation'
 import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
 import { EmptyState, Icon } from '@/components/app/Icons'
 import { PageHeader, PageShell, PageTabs, PageToolbar, Section } from '@/components/app/Section'
-import { TaskFormModal, TaskProgressModal } from '@/components/pages/TasksClient'
+import { TaskFormModal } from '@/components/pages/TasksClient'
 import { TASK_STATUSES, canManageTasks, canSetTaskPrice, isClockedInToday, isTaskAssignee } from '@/lib/tasks'
+import { todayIST } from '@/lib/clock'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
 
@@ -154,9 +155,12 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
           subtitle={`${visible.length} client${visible.length === 1 ? '' : 's'}${isReadOnlyRole ? ' · read-only' : ''}`}
         />
         {canEdit && selected && (
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button type="button" onClick={() => setShowCreate(true)} className="sf-btn sf-btn-primary">
               Add brand
+            </button>
+            <button type="button" className="sf-btn sf-btn-ghost" onClick={() => setSection('identity')}>
+              Edit identity
             </button>
             <button type="button" className="sf-btn sf-btn-ghost" style={{ color: 'var(--sf-danger)' }} onClick={async () => {
               if (!window.confirm(`Delete brand "${selected.name}"? Tasks stay but will be unlinked.`)) return
@@ -243,8 +247,6 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
 function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers, canAssignTeam, tab, onTabChange, onRefresh, onBrandUpdated, attendance }: any) {
   const router = useRouter()
   const [showTaskModal, setShowTaskModal] = useState(false)
-  const [editingTask, setEditingTask] = useState<any>(null)
-  const [progressTask, setProgressTask] = useState<any>(null)
   const [createAsProject, setCreateAsProject] = useState(false)
   const [managerIds, setManagerIds] = useState<string[]>(() => (brand.assigned_managers || []).map(String))
   const [memberIds, setMemberIds] = useState<string[]>(() => (brand.assigned_members || []).map(String))
@@ -269,7 +271,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
     client_type: brand.client_type || 'Retainer',
   })
   const [savingIdentity, setSavingIdentity] = useState(false)
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayIST()
   const clockedIn = isClockedInToday(attendance || [], session.id, today)
   const canSetPrice = canSetTaskPrice(session.role)
   const canSeeBilling = ['owner', 'manager', 'accountant'].includes(session.role)
@@ -401,7 +403,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
   function renderStatus(task: any) {
     if (canUpdateStatus(task)) {
       return (
-        <select value={task.status} onChange={e => updateTaskStatus(task.id, e.target.value)} style={statusSelectStyle}>
+        <select value={task.status} onChange={e => updateTaskStatus(task.id, e.target.value)} style={{ ...statusSelectStyle, background: STATUS_BG[task.status] || statusSelectStyle.background, color: STATUS_TEXT[task.status] || statusSelectStyle.color }}>
           {TASK_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       )
@@ -417,13 +419,11 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
   const done = tasks.filter((t: any) => t.status === 'Completed').length
 
   function openCreateProject() {
-    setEditingTask(null)
     setCreateAsProject(true)
     setShowTaskModal(true)
   }
 
   function openCreateTask() {
-    setEditingTask(null)
     setCreateAsProject(false)
     setShowTaskModal(true)
   }
@@ -498,6 +498,36 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
 
       {tab === 'overview' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div style={{ gridColumn: '1/-1', background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ color: 'var(--sf-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Brand identity</div>
+              {canEdit && (
+                <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => { setEditingIdentity(true); onTabChange('identity') }}>
+                  Edit identity
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 14, minWidth: 0 }}>
+              <BrandLogoMark brand={brand} size={56} />
+              <div style={{ minWidth: 0 }}>
+                <div className="sf-truncate" style={{ color: 'var(--sf-text)', fontWeight: 700 }} title={brand.name}>{brand.name}</div>
+                <div style={{ color: 'var(--sf-muted)', fontSize: 12 }}>{brand.client_type} · {brand.priority}</div>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+              {[
+                ['Fonts', brand.fonts],
+                ['Colors', brand.brand_colors],
+                ['Voice', brand.brand_voice],
+                ['Photography', brand.photography_style],
+              ].map(([label, value]) => (
+                <div key={String(label)} style={{ minWidth: 0 }}>
+                  <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{label}</div>
+                  <div style={{ color: 'var(--sf-text)', fontSize: 13, overflowWrap: 'anywhere' }}>{value || 'Not specified — add this on the Identity tab'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
           {fl.length > 0 && (
             <div style={{ gridColumn: '1/-1', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 12, padding: 16 }}>
               <div style={{ color: '#F87171', fontWeight: 700, fontSize: 13, marginBottom: 10 }}>⚠ Flagged Tasks ({fl.length})</div>
@@ -859,27 +889,18 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
         </div>
       )}
 
-      {progressTask && (
-        <TaskProgressModal
-          session={session}
-          task={progressTask}
-          onClose={() => setProgressTask(null)}
-          onSaved={() => { setProgressTask(null); onRefresh() }}
-        />
-      )}
-      {showTaskModal && (canEdit || editingTask) && (
+      {showTaskModal && canEdit && (
         <TaskFormModal
           session={session}
           brands={[brand]}
           users={users}
-          task={editingTask || undefined}
           initialBrandId={brand.id}
-          forceProjectMode={createAsProject && !editingTask}
-          onClose={() => { setShowTaskModal(false); setEditingTask(null); setCreateAsProject(false) }}
-          onSaved={() => { setShowTaskModal(false); setEditingTask(null); setCreateAsProject(false); onRefresh() }}
+          forceProjectMode={createAsProject}
+          onClose={() => { setShowTaskModal(false); setCreateAsProject(false) }}
+          onSaved={() => { setShowTaskModal(false); setCreateAsProject(false); onRefresh() }}
           canSeeBilling={canSeeBilling}
           canSetPrice={canSetPrice}
-          canDelete={canEdit}
+          canDelete={false}
         />
       )}
     </div>

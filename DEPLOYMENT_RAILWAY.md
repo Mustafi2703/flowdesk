@@ -118,7 +118,7 @@ After generating domains, update `ALLOWED_ORIGINS`, `APP_BASE_URL`, and
 After first successful deploy (`SEED_DEMO=true`):
 
 - URL: frontend Railway domain → `/login`
-- Use **Quick demo access** role buttons, or email `owner@scrumfolks.com` with the `SEED_PASSWORD` you set in Railway
+- Sign in with email + password (no role buttons). Example: `owner@scrumfolks.com` + the `SEED_PASSWORD` you set in Railway
 
 ## 6. Current project (live demo URLs)
 
@@ -126,4 +126,4 @@ After first successful deploy (`SEED_DEMO=true`):
 - Dashboard: https://railway.com/project/6d64c844-14e2-4cd0-b08e-b902c433c427
 - **Frontend (share with client):** https://frontend-production-c885.up.railway.app/login
 - Backend API: https://backend-production-d5dd9.up.railway.app
-- Login: use demo role buttons, or `owner@scrumfolks.com` + your configured `SEED_PASSWORD`
+- Login: `owner@scrumfolks.com` + your configured `SEED_PASSWORD` (email + password form only)

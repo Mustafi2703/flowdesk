@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
 import { PageHeader, PageShell, Section, StatCard, StatGrid } from '@/components/app/Section'
 import { EmptyState } from '@/components/app/Icons'
-import { clockOutWithConfirm } from '@/lib/clock'
+import { clockOutWithConfirm, todayIST } from '@/lib/clock'
 import { resolveNotificationLink } from '@/lib/notifications'
 
 function Chip({ status }: { status: string }) {
@@ -23,7 +23,7 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const [clocked, setClocked] = useState(false)
   const [loading, setLoading] = useState(true)
   const [nowTick, setNowTick] = useState(Date.now())
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayIST()
 
   useEffect(() => {
     const t = setInterval(() => setNowTick(Date.now()), 60000)

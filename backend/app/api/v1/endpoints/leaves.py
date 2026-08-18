@@ -105,6 +105,9 @@ def list_leaves(
         profile.id: profile
         for profile in db.scalars(select(Profile).where(Profile.id.in_(profile_ids))).all()
     }
+    for profile in profiles.values():
+        _sync_taken(db, profile)
+    db.commit()
     return [_serialize(leave, profiles.get(leave.user_id)) for leave in leaves]
 
 

@@ -621,73 +621,80 @@ def ensure_demo_documents() -> None:
     print("[seed] ensure_demo_documents complete")  # noqa: T201
 
 
-def delete_full_demo_data() -> None:
-    """Best-effort cleanup for the full sales demo.
+def delete_full_demo_data() -> dict[str, int]:
+    """Remove sales-demo sample rows only.
 
-    Removes only the specific demo brands/tasks/announcements/leaves/docs that
-    `seed()` inserts (fixed UUIDs + seeded titles/reasons). It does *not* wipe
-    users/profiles or the whole workspace.
+    Keeps every profile (demo logins and real people) and keeps brands/tasks
+    that real users created — even if they sit under a demo brand name.
     """
+    from sqlalchemy import delete, or_
+
     demo_brand_ids = {bid for bid, *_ in BRANDS}
+    seeded_titles = {row["title"] for row in _all_tasks()}
     seeded_announcement_titles = {t for t, *_rest in ANNOUNCEMENTS}
     seeded_announcement_bodies = {b for _t, b, *_rest in ANNOUNCEMENTS}
     seeded_leave = {(leave_type, reason) for _days_idx, leave_type, _days, reason in LEAVES}
+    counts = {"tasks": 0, "brands": 0, "announcements": 0, "leaves": 0, "files": 0}
 
     with db_session() as db:
-        # Delete tasks first so FK relations to tasks/chat resolve cleanly.
-        demo_task_ids = list(
-            db.scalars(select(Task.id).where(Task.brand_id.in_(demo_brand_ids))).all()
+        seed_tasks = list(
+            db.scalars(
+                select(Task).where(
+                    or_(
+                        Task.title.in_(seeded_titles),
+                        Task.description.ilike("%Demo task for Updates chat%"),
+                    )
+                )
+            ).all()
         )
-        if demo_task_ids:
-            # ORM cascade handles task chats.
-            for t in db.scalars(select(Task).where(Task.id.in_(demo_task_ids))).all():
-                db.delete(t)
+        for task in seed_tasks:
+            is_kickoff = "Demo task for Updates chat" in (task.description or "")
+            if task.title in seeded_titles and task.brand_id not in demo_brand_ids and not is_kickoff:
+                continue
+            db.delete(task)
+            counts["tasks"] += 1
 
-        # Delete demo brands.
-        for b in db.scalars(select(Brand).where(Brand.id.in_(demo_brand_ids))).all():
-            db.delete(b)
+        remaining_on_demo = set(
+            db.scalars(select(Task.brand_id).where(Task.brand_id.in_(demo_brand_ids))).all()
+        )
+        for brand in db.scalars(select(Brand).where(Brand.id.in_(demo_brand_ids))).all():
+            if brand.id in remaining_on_demo:
+                continue
+            db.delete(brand)
+            counts["brands"] += 1
 
-        # Delete demo announcements.
         demo_owners = {OWNER, MANAGER}
         if seeded_announcement_titles:
-            for a in db.scalars(
+            for announcement in db.scalars(
                 select(Announcement).where(
                     Announcement.created_by.in_(demo_owners),
                     Announcement.title.in_(seeded_announcement_titles),
                 )
             ).all():
-                # Defensive: if titles match but bodies differ, keep the row.
-                if a.body in seeded_announcement_bodies:
-                    db.delete(a)
+                if announcement.body in seeded_announcement_bodies:
+                    db.delete(announcement)
+                    counts["announcements"] += 1
 
-        # Delete demo leaves (team-only seeded record).
         if seeded_leave:
-            team_id = TEAM
-            # LEAVES: (user_idx, leave_type, days, reason)
             for leave_type, reason in seeded_leave:
-                for lr in db.scalars(
+                for leave in db.scalars(
                     select(LeaveRequest).where(
-                        LeaveRequest.user_id == team_id,
+                        LeaveRequest.user_id == TEAM,
                         LeaveRequest.leave_type == leave_type,
                         LeaveRequest.reason == reason,
                     )
                 ).all():
-                    db.delete(lr)
+                    db.delete(leave)
+                    counts["leaves"] += 1
 
-        # Delete demo documents (seed-created files only).
-        # The seed script prefixes with .../seed_{file_name}
-        from sqlalchemy import delete
-        from app.models.attachment import FileAttachment
-
-        db.execute(
-            delete(FileAttachment).where(
-                FileAttachment.entity_type.in_(["brand", "task"]),
-                FileAttachment.file_path.like("%/seed_%"),
-            )
+        file_result = db.execute(
+            delete(FileAttachment).where(FileAttachment.file_path.like("%/seed_%"))
         )
-
+        counts["files"] = int(file_result.rowcount or 0)
         db.flush()
-    print("[seed] full demo data deleted (users preserved)")  # noqa: T201
+
+    print(f"[seed] demo sample data deleted (users + real work kept): {counts}")  # noqa: T201
+    return counts
 
 
 if __name__ == "__main__":

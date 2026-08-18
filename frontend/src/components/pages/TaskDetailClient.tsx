@@ -6,9 +6,10 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { SessionUser } from '@/types'
 import { PageHeader, PageShell } from '@/components/app/Section'
-import { StatusBadge } from '@/components/app/StatusBadge'
+import { StatusBadge, statusTint } from '@/components/app/StatusBadge'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
+import { todayIST } from '@/lib/clock'
 import { TASK_STATUSES, canManageTasks, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
 
 const TABS = [
@@ -37,7 +38,7 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
   const [linkLabel, setLinkLabel] = useState('')
   const [reviewNotes, setReviewNotes] = useState('')
   const [emailing, setEmailing] = useState(false)
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayIST()
   const clockedIn = isClockedInToday(attendance, session.id, today)
   const canEdit = canManageTasks(session.role)
   const isAssignee = task ? isTaskAssignee(task, session.id) : false
@@ -149,14 +150,19 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
             <StatusBadge status={task.review_status === 'approved' ? 'Completed' : task.review_status === 'rejected' ? 'Revision Needed' : 'Under Review'} />
           )}
           {canWork ? (
-            <select
-              value={task.status}
-              onChange={(e) => patch({ status: e.target.value })}
-              className="sf-input"
-              style={{ fontSize: 12, padding: '6px 8px' }}
-            >
-              {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <>
+              {task.status === 'Not Started' && (
+                <button type="button" className="sf-btn sf-btn-primary" style={{ fontSize: 12 }} onClick={() => patch({ status: 'In Progress' })}>Start work</button>
+              )}
+              <select
+                value={task.status}
+                onChange={(e) => patch({ status: e.target.value })}
+                className="sf-input"
+                style={{ fontSize: 12, padding: '6px 8px', ...statusTint(task.status) }}
+              >
+                {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </>
           ) : (
             <span style={{ color: '#FBBF24', fontSize: 12 }}>{clockedIn ? '' : 'Clock in to update status'}</span>
           )}
@@ -256,7 +262,7 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <div>
               <div style={{ color: 'var(--sf-text)', fontWeight: 700 }}>Sub-tasks</div>
-              <div style={{ color: 'var(--sf-muted)', fontSize: 12 }}>Tracked on this task — not as a separate project.</div>
+              <div style={{ color: 'var(--sf-muted)', fontSize: 12 }}>Each row is a sub-task of this task — not a project.</div>
             </div>
             {canEdit && (
               <button type="button" className="sf-btn sf-btn-primary" style={{ fontSize: 12 }} onClick={() => {

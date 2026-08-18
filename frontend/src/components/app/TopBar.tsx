@@ -16,7 +16,7 @@ export function TopBar() {
         borderBottom: '1px solid var(--sf-border)',
         background: 'var(--sf-surface)',
         minHeight: 56,
-        gap: 8,
+        flexWrap: 'wrap',
       }}
     >
       <ClockBar />

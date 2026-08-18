@@ -54,26 +54,30 @@ export default function LeaveClient({ session }: { session: SessionUser }) {
   if (loading) return <div style={{color:'var(--sf-muted)',padding:40,textAlign:'center'}}>Loading…</div>
 
   const displayed = ['team','accountant'].includes(session.role) ? myLeaves : leaves
+  const pendingCount = displayed.filter((l: any) => l.status === 'Pending').length
   const total = balance?.total ?? 21
-  const taken = balance?.taken ?? myLeaves.filter(l => l.status === 'Approved').reduce((s, l) => s + l.days, 0)
-  const remaining = balance?.remaining ?? Math.max(0, total - taken)
+  const taken = ['team','accountant'].includes(session.role)
+    ? myLeaves.filter((l: any) => l.status === 'Approved').reduce((s: number, l: any) => s + (l.days || 0), 0)
+    : (balance?.taken ?? 0)
+  const remaining = Math.max(0, total - taken)
 
   return (
     <PageShell>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexShrink:0 }}>
-        <PageHeader title="Leave Management" subtitle={`${displayed.length} requests`} />
+        <PageHeader title="Leave Management" subtitle={`${pendingCount} pending · ${displayed.length} total`} />
         {canRequest && (
           <button onClick={()=>setShowCreate(true)} className="sf-btn sf-btn-primary" style={{ marginTop:4 }}>Request leave</button>
         )}
       </div>
       {(canRequest || canApprove) && (
         <StatGrid>
-          <StatCard label="Total" value={total} accent="#8B5CF6" />
-          <StatCard label="Taken" value={taken} accent="#EF4444" />
+          <StatCard label="Pending" value={pendingCount} accent="#FBBF24" />
+          <StatCard label="Total allowance" value={total} accent="#8B5CF6" />
+          <StatCard label="Taken (approved)" value={taken} accent="#EF4444" />
           <StatCard label="Remaining" value={remaining} accent="#10B981" />
         </StatGrid>
       )}
-      <Section title={canApprove ? 'Team leave requests' : 'Leave requests'} subtitle="All requests in this view" flush flex={1}>
+      <Section title={canApprove ? 'Team leave requests' : 'Leave requests'} subtitle="Rejected leave does not count as taken. Pending requests need a decision." flush flex={1}>
         <div style={{ minWidth: 720 }}>
         <div style={{display:'grid',gridTemplateColumns:canApprove?'1.5fr 1fr 1fr 1fr 1fr 1.2fr':'1.5fr 1fr 1fr 1fr 1fr',padding:'12px 20px',borderBottom:'1px solid var(--sf-border)',background:'var(--sf-surface-2)'}}>
           {['Employee','Type','Dates','Days','Status',...(canApprove?['Action']:[])].map(h=><div key={h} style={{color:'var(--sf-muted)',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>)}

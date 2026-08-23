@@ -31,19 +31,37 @@ def _start_digest_scheduler():
     except Exception:  # noqa: BLE001
         return None
 
-    def _run() -> None:
+    def _run_morning() -> None:
         from app.db.session import SessionLocal
-        from app.services.digests import send_daily_digests
+        from app.services.digests import send_morning_digests
 
         db = SessionLocal()
         try:
-            send_daily_digests(db)
+            send_morning_digests(db)
+        finally:
+            db.close()
+
+    def _run_evening() -> None:
+        from app.db.session import SessionLocal
+        from app.services.digests import send_evening_digests
+
+        db = SessionLocal()
+        try:
+            send_evening_digests(db)
         finally:
             db.close()
 
     scheduler = BackgroundScheduler(timezone=ZoneInfo("Asia/Kolkata"))
     scheduler.add_job(
-        _run,
+        _run_morning,
+        "cron",
+        hour=settings.morning_digest_hour,
+        minute=settings.morning_digest_minute,
+        id="morning_digest",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _run_evening,
         "cron",
         hour=settings.digest_hour,
         minute=settings.digest_minute,

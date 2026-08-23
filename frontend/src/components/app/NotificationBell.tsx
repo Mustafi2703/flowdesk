@@ -14,6 +14,14 @@ type Notif = {
   created_at: string
 }
 
+function typeLabel(type: string) {
+  if (type === 'chat') return 'Updates'
+  if (type === 'task') return 'Task'
+  if (type === 'review') return 'Review'
+  if (type === 'leave') return 'Leave'
+  return type || 'System'
+}
+
 /**
  * Top-right notification prompt: bell, dropdown panel, toast.
  */
@@ -94,17 +102,18 @@ export function NotificationBell() {
         aria-expanded={open}
         style={{
           position: 'relative',
-          width: 40,
-          height: 40,
-          borderRadius: 10,
+          width: 42,
+          height: 42,
+          borderRadius: 999,
           border: '1px solid var(--sf-border)',
-          background: open ? 'rgba(232,99,10,0.12)' : 'var(--sf-surface)',
-          color: 'var(--sf-text)',
+          background: open ? 'var(--sf-accent-soft)' : 'var(--sf-surface)',
+          color: open ? 'var(--sf-accent)' : 'var(--sf-text)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
           boxShadow: 'var(--sf-shadow)',
+          transition: 'background 0.15s, color 0.15s',
         }}
       >
         <Icon name="bell" size={18} />
@@ -112,13 +121,13 @@ export function NotificationBell() {
           <span
             style={{
               position: 'absolute',
-              top: -5,
-              right: -5,
+              top: -4,
+              right: -4,
               minWidth: 18,
               height: 18,
               padding: '0 5px',
               borderRadius: 999,
-              background: 'var(--sf-accent)',
+              background: 'linear-gradient(135deg, var(--sf-accent), var(--sf-accent-hover))',
               color: '#fff',
               fontSize: 10,
               fontWeight: 800,
@@ -127,6 +136,7 @@ export function NotificationBell() {
               justifyContent: 'center',
               lineHeight: 1,
               border: '2px solid var(--sf-bg)',
+              boxShadow: '0 4px 10px rgba(234, 88, 12, 0.4)',
             }}
           >
             {unreadCount > 9 ? '9+' : unreadCount}
@@ -139,47 +149,59 @@ export function NotificationBell() {
           style={{
             position: 'absolute',
             right: 0,
-            top: 'calc(100% + 8px)',
-            width: 360,
-            maxWidth: 'min(360px, calc(100vw - 24px))',
-            maxHeight: 440,
+            top: 'calc(100% + 10px)',
+            width: 380,
+            maxWidth: 'min(380px, calc(100vw - 24px))',
+            maxHeight: 480,
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
-            background: 'var(--sf-surface)',
+            background: 'color-mix(in srgb, var(--sf-surface) 96%, transparent)',
             border: '1px solid var(--sf-border)',
-            borderRadius: 14,
-            boxShadow: '0 18px 50px rgba(0,0,0,0.32)',
+            borderRadius: 18,
+            boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
+            backdropFilter: 'blur(14px)',
             zIndex: 200,
           }}
         >
-          <div style={{
-            padding: '12px 14px',
-            borderBottom: '1px solid var(--sf-border)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: 10,
-            background: 'var(--sf-surface-2)',
-          }}>
+          <div
+            style={{
+              padding: '14px 16px',
+              borderBottom: '1px solid var(--sf-border)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 10,
+              background: 'linear-gradient(180deg, var(--sf-accent-soft), transparent)',
+            }}
+          >
             <div>
-              <div style={{ color: 'var(--sf-text)', fontWeight: 750, fontSize: 14, fontFamily: "'Space Grotesk',sans-serif" }}>
+              <div
+                style={{
+                  color: 'var(--sf-text)',
+                  fontWeight: 750,
+                  fontSize: 15,
+                  fontFamily: "'Space Grotesk',sans-serif",
+                }}
+              >
                 Notifications
               </div>
-              <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 2 }}>
+              <div style={{ color: 'var(--sf-muted)', fontSize: 12, marginTop: 2 }}>
                 {unreadCount ? `${unreadCount} unread` : 'You are caught up'}
               </div>
             </div>
             {unreadCount > 0 && (
-              <button type="button" className="sf-link-btn" style={{ fontSize: 11 }} onClick={markAllRead}>
+              <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }} onClick={markAllRead}>
                 Mark all read
               </button>
             )}
           </div>
           <div style={{ overflowY: 'auto', flex: 1 }}>
             {items.length === 0 ? (
-              <div style={{ padding: 20, color: 'var(--sf-muted)', fontSize: 13, textAlign: 'center' }}>
-                No notifications yet — task updates will show here.
+              <div style={{ padding: 28, color: 'var(--sf-muted)', fontSize: 13, textAlign: 'center', lineHeight: 1.5 }}>
+                No notifications yet.
+                <br />
+                Task chats and reviews will appear here.
               </div>
             ) : (
               items.slice(0, 30).map((n) => (
@@ -192,29 +214,45 @@ export function NotificationBell() {
                     textAlign: 'left',
                     border: 'none',
                     borderBottom: '1px solid var(--sf-border)',
-                    background: n.is_read ? 'transparent' : 'rgba(232,99,10,0.08)',
-                    padding: '12px 14px',
+                    background: n.is_read ? 'transparent' : 'var(--sf-accent-soft)',
+                    padding: '13px 16px',
                     cursor: 'pointer',
                     fontFamily: "'DM Sans',sans-serif",
                     display: 'flex',
-                    gap: 10,
+                    gap: 12,
                     alignItems: 'flex-start',
                   }}
                 >
-                  <span style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    marginTop: 5,
-                    flexShrink: 0,
-                    background: n.is_read ? 'var(--sf-border)' : 'var(--sf-accent)',
-                  }} />
+                  <span
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 10,
+                      flexShrink: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: n.is_read ? 'var(--sf-surface-2)' : 'var(--sf-accent)',
+                      color: n.is_read ? 'var(--sf-muted)' : '#fff',
+                      fontSize: 11,
+                      fontWeight: 800,
+                    }}
+                  >
+                    {typeLabel(n.type).slice(0, 1).toUpperCase()}
+                  </span>
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ color: 'var(--sf-text)', fontSize: 13, fontWeight: n.is_read ? 500 : 650, lineHeight: 1.4 }}>
+                    <div
+                      style={{
+                        color: 'var(--sf-text)',
+                        fontSize: 13,
+                        fontWeight: n.is_read ? 500 : 650,
+                        lineHeight: 1.4,
+                      }}
+                    >
                       {n.message || 'Update'}
                     </div>
-                    <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 4 }}>
-                      {n.type === 'chat' ? 'Updates' : (n.type || 'system')} ·{' '}
+                    <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 5 }}>
+                      {typeLabel(n.type)} ·{' '}
                       {n.created_at
                         ? new Date(n.created_at).toLocaleString('en-IN', {
                             day: 'numeric',
@@ -225,6 +263,18 @@ export function NotificationBell() {
                         : ''}
                     </div>
                   </div>
+                  {!n.is_read && (
+                    <span
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        marginTop: 6,
+                        flexShrink: 0,
+                        background: 'var(--sf-accent)',
+                      }}
+                    />
+                  )}
                 </button>
               ))
             )}
@@ -239,24 +289,38 @@ export function NotificationBell() {
             position: 'fixed',
             right: 20,
             top: 72,
-            width: 360,
+            width: 380,
             maxWidth: 'calc(100vw - 40px)',
-            background: 'var(--sf-surface)',
+            background: 'color-mix(in srgb, var(--sf-surface) 96%, transparent)',
             border: '1px solid var(--sf-border)',
             borderLeft: '3px solid var(--sf-accent)',
-            borderRadius: 12,
-            padding: '12px 14px',
-            boxShadow: '0 16px 48px rgba(0,0,0,0.35)',
+            borderRadius: 14,
+            padding: '14px 16px',
+            boxShadow: '0 20px 56px rgba(0,0,0,0.42)',
+            backdropFilter: 'blur(12px)',
             zIndex: 1200,
             cursor: 'pointer',
           }}
           onClick={() => openNotif(toast)}
         >
-          <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-            New update
+          <div
+            style={{
+              color: 'var(--sf-accent)',
+              fontSize: 10,
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              marginBottom: 5,
+            }}
+          >
+            New · {typeLabel(toast.type)}
           </div>
-          <div style={{ color: 'var(--sf-text)', fontSize: 13, fontWeight: 650, lineHeight: 1.4 }}>{toast.message}</div>
-          <div style={{ color: 'var(--sf-accent)', fontSize: 11, marginTop: 8, fontWeight: 600 }}>Open →</div>
+          <div style={{ color: 'var(--sf-text)', fontSize: 13.5, fontWeight: 650, lineHeight: 1.45 }}>
+            {toast.message}
+          </div>
+          <div style={{ color: 'var(--sf-accent)', fontSize: 12, marginTop: 10, fontWeight: 650 }}>
+            Open conversation →
+          </div>
         </div>
       )}
     </div>

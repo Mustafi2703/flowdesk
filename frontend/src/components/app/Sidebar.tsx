@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { SessionUser, NAV_ITEMS, ROLE_COLORS, ROLE_LABELS } from '@/types'
 import { ThemeToggle } from '@/components/app/ThemeProvider'
 import { Icon } from '@/components/app/Icons'
+import { Modal } from '@/components/app/Modal'
 
 export default function Sidebar({ session }: { session: SessionUser }) {
   const router = useRouter()
@@ -89,8 +90,8 @@ export default function Sidebar({ session }: { session: SessionUser }) {
           style={{
             width: 36,
             height: 36,
-            background: 'var(--sf-accent)',
-            borderRadius: 10,
+            background: 'linear-gradient(135deg, var(--sf-accent), var(--sf-accent-hover))',
+            borderRadius: 12,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -99,6 +100,7 @@ export default function Sidebar({ session }: { session: SessionUser }) {
             fontSize: 15,
             flexShrink: 0,
             fontFamily: "'Space Grotesk', sans-serif",
+            boxShadow: '0 8px 18px rgba(234, 88, 12, 0.35)',
           }}
         >
           S
@@ -205,49 +207,35 @@ export default function Sidebar({ session }: { session: SessionUser }) {
         </button>
       </div>
 
-      {showPassword && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.55)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: 20,
-          }}
-          onClick={() => setShowPassword(false)}
-        >
-          <form
-            onSubmit={changePassword}
-            onClick={e => e.stopPropagation()}
-            style={{
-              width: '100%',
-              maxWidth: 380,
-              background: 'var(--sf-surface)',
-              border: '1px solid var(--sf-border)',
-              borderRadius: 14,
-              padding: 24,
-            }}
-          >
-            <div style={{ color: 'var(--sf-text)', fontWeight: 800, fontSize: 16, marginBottom: 4 }}>Change Password</div>
-            <div style={{ color: 'var(--sf-muted)', fontSize: 12, marginBottom: 16 }}>Set a new password for your account</div>
-            {pwError && <div style={{ color: 'var(--sf-danger)', fontSize: 12, marginBottom: 10 }}>{pwError}</div>}
-            {pwNotice && <div style={{ color: '#10B981', fontSize: 12, marginBottom: 10 }}>{pwNotice}</div>}
-            <label className="sf-label">Current password</label>
-            <input type="password" className="sf-input" required value={pwForm.current} onChange={e => setPwForm({ ...pwForm, current: e.target.value })} style={{ marginBottom: 10 }} />
-            <label className="sf-label">New password</label>
-            <input type="password" className="sf-input" required minLength={8} value={pwForm.next} onChange={e => setPwForm({ ...pwForm, next: e.target.value })} style={{ marginBottom: 10 }} />
-            <label className="sf-label">Confirm new password</label>
-            <input type="password" className="sf-input" required minLength={8} value={pwForm.confirm} onChange={e => setPwForm({ ...pwForm, confirm: e.target.value })} style={{ marginBottom: 16 }} />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button type="button" onClick={() => setShowPassword(false)} className="sf-btn" style={{ background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)' }}>Cancel</button>
-              <button type="submit" disabled={pwSaving} className="sf-btn sf-btn-primary">{pwSaving ? 'Saving…' : 'Update Password'}</button>
-            </div>
-          </form>
-        </div>
-      )}
+      <Modal
+        open={showPassword}
+        onClose={() => setShowPassword(false)}
+        title="Change password"
+        subtitle="Set a new password for your Scrumfolks account"
+        zIndex={1000}
+        width={420}
+        footer={
+          <>
+            <button type="button" onClick={() => setShowPassword(false)} className="sf-btn sf-btn-ghost">
+              Cancel
+            </button>
+            <button type="submit" form="sf-change-password" disabled={pwSaving} className="sf-btn sf-btn-primary">
+              {pwSaving ? 'Saving…' : 'Update password'}
+            </button>
+          </>
+        }
+      >
+        <form id="sf-change-password" onSubmit={changePassword}>
+          {pwError && <div style={{ color: 'var(--sf-danger)', fontSize: 13, marginBottom: 12 }}>{pwError}</div>}
+          {pwNotice && <div style={{ color: 'var(--sf-success)', fontSize: 13, marginBottom: 12 }}>{pwNotice}</div>}
+          <label className="sf-label">Current password</label>
+          <input type="password" className="sf-input" required value={pwForm.current} onChange={e => setPwForm({ ...pwForm, current: e.target.value })} style={{ marginBottom: 12 }} />
+          <label className="sf-label">New password</label>
+          <input type="password" className="sf-input" required minLength={8} value={pwForm.next} onChange={e => setPwForm({ ...pwForm, next: e.target.value })} style={{ marginBottom: 12 }} />
+          <label className="sf-label">Confirm new password</label>
+          <input type="password" className="sf-input" required minLength={8} value={pwForm.confirm} onChange={e => setPwForm({ ...pwForm, confirm: e.target.value })} />
+        </form>
+      </Modal>
     </aside>
   )
 }

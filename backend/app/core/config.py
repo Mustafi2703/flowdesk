@@ -84,10 +84,14 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-sonnet-4-20250514"
 
-    # ── Scheduler ────────────────────────────────────────────────────────
+    # ── Scheduler (Asia/Kolkata) ─────────────────────────────────────────
     enable_scheduler: bool = True
+    # Morning priority brief
+    morning_digest_hour: int = 9
+    morning_digest_minute: int = 0
+    # Evening wrap-up (legacy DIGEST_HOUR / DIGEST_MINUTE still map here)
     digest_hour: int = 18
-    digest_minute: int = 0
+    digest_minute: int = 30
     risk_scan_hour: int = 8
     risk_scan_minute: int = 0
 

@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { SessionUser, ROLE_COLORS } from '@/types'
 import { PageHeader, PageShell } from '@/components/app/Section'
 import { StatusBadge, statusTint } from '@/components/app/StatusBadge'
+import { Modal } from '@/components/app/Modal'
 import { todayIST } from '@/lib/clock'
 import { TASK_STATUSES, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
 
@@ -55,6 +56,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [showDriveForm, setShowDriveForm] = useState(false)
   const [showTools, setShowTools] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
   const channelScrollRef = useRef<HTMLDivElement | null>(null)
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
   const isMgmt = ['owner', 'manager'].includes(session.role)
@@ -125,7 +127,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     setSending(false)
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      alert(data.error || data.detail || 'Could not send')
+      setNotice(data.error || data.detail || 'Could not send')
       return
     }
     setMessage('')
@@ -144,7 +146,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     setClosing(false)
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      alert(data.error || data.detail || 'Could not close channel')
+      setNotice(data.error || data.detail || 'Could not close channel')
       return
     }
     if (purge) setThread([])
@@ -158,7 +160,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     setClosing(false)
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      alert(data.error || data.detail || 'Could not reopen')
+      setNotice(data.error || data.detail || 'Could not reopen')
       return
     }
     await loadFeed()
@@ -166,6 +168,10 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
 
   async function updateStatus(status: string) {
     if (!selectedTaskId) return
+    if (!clockedIn) {
+      setNotice('Clock in from the top bar before changing task status or progress.')
+      return
+    }
     const res = await fetch(`/api/tasks/${selectedTaskId}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
@@ -173,7 +179,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      alert(data.error || data.detail || 'Could not update status')
+      setNotice(data.error || data.detail || 'Could not update status')
       return
     }
     await loadFeed()
@@ -191,7 +197,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     setSavingLink(false)
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      alert(data.error || data.detail || 'Could not add Drive link')
+      setNotice(data.error || data.detail || 'Could not add Drive link')
       return
     }
     setLinkLabel('')
@@ -209,7 +215,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      alert(data.error || data.detail || 'Could not remove link')
+      setNotice(data.error || data.detail || 'Could not remove link')
       return
     }
     await loadFeed()
@@ -218,7 +224,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
   async function decideReview(decision: 'approved' | 'rejected') {
     if (!selectedTaskId) return
     if (decision === 'rejected' && reviewNotes.trim().length < 2) {
-      alert('Add comments when rejecting')
+      setNotice('Add comments when rejecting a review.')
       return
     }
     const res = await fetch(`/api/tasks/${selectedTaskId}/review`, {
@@ -228,7 +234,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      alert(data.error || data.detail || 'Could not review')
+      setNotice(data.error || data.detail || 'Could not review')
       return
     }
     setReviewNotes('')
@@ -280,13 +286,21 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
         <div className="sf-upd-pagehead">
           <PageHeader
             title="Updates"
-            subtitle="Slack-style chats, one per task"
+            subtitle="Slack-style chats, one channel per task"
           />
           <label className="sf-upd-closed-toggle">
             <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} />
             Show closed / done
           </label>
         </div>
+
+        {!clockedIn && (
+          <div className="sf-upd-banner">
+            <span>
+              <strong>Clock in required.</strong> Use the top bar to clock in before changing status, progress, or reviews.
+            </span>
+          </div>
+        )}
 
         <div className="sf-updates-board">
           <div className="sf-updates-channels">
@@ -330,7 +344,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
           <div className="sf-updates-thread">
             {!selectedTaskId || !selectedTask ? (
               <div className="sf-upd-empty sf-upd-empty-pane">
-                Pick a task channel to talk about that work.
+                Pick a task channel on the left to start talking about that work.
               </div>
             ) : (
               <>
@@ -489,6 +503,22 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
           </div>
         </div>
       </div>
+
+      <Modal
+        open={Boolean(notice)}
+        onClose={() => setNotice(null)}
+        title="Heads up"
+        width={420}
+        footer={
+          <button type="button" className="sf-btn sf-btn-primary" onClick={() => setNotice(null)}>
+            Got it
+          </button>
+        }
+      >
+        <p style={{ color: 'var(--sf-text-secondary)', fontSize: 14, lineHeight: 1.55, margin: 0 }}>
+          {notice}
+        </p>
+      </Modal>
     </PageShell>
   )
 }

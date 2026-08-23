@@ -12,11 +12,14 @@ export function TopBar() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'flex-end',
-        padding: '0.65rem 1.25rem',
+        gap: 12,
+        padding: '0.7rem 1.35rem',
         borderBottom: '1px solid var(--sf-border)',
-        background: 'var(--sf-surface)',
-        minHeight: 56,
+        background: 'color-mix(in srgb, var(--sf-surface) 88%, transparent)',
+        backdropFilter: 'blur(12px)',
+        minHeight: 58,
         flexWrap: 'wrap',
+        boxShadow: '0 1px 0 rgba(255,255,255,0.02)',
       }}
     >
       <ClockBar />

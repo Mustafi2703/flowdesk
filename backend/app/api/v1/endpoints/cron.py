@@ -13,7 +13,7 @@ from app.db.session import get_db
 from app.models.profile import Profile
 from app.models.task import Task
 from app.scripts.seed import seed_users_only, seed, delete_full_demo_data
-from app.services.digests import send_daily_digests
+from app.services.digests import send_daily_digests, send_evening_digests, send_morning_digests
 from app.services.email import send_email
 from app.services.task_brief_email import build_task_brief_email, send_task_brief_emails
 from app.core.config import settings
@@ -23,7 +23,18 @@ router = APIRouter(prefix="/cron", tags=["cron"], dependencies=[Depends(require_
 
 @router.post("/daily-digests")
 def daily_digests(db: Session = Depends(get_db)) -> dict[str, int]:
+    """Evening wrap-up (alias). Prefer /morning-digests and /evening-digests."""
     return {"sent": send_daily_digests(db)}
+
+
+@router.post("/morning-digests")
+def morning_digests(db: Session = Depends(get_db)) -> dict[str, int]:
+    return {"sent": send_morning_digests(db)}
+
+
+@router.post("/evening-digests")
+def evening_digests(db: Session = Depends(get_db)) -> dict[str, int]:
+    return {"sent": send_evening_digests(db)}
 
 
 @router.post("/repair-demo-users")

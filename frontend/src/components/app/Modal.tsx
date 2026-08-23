@@ -41,13 +41,14 @@ export function Modal({
   const panelStyle: CSSProperties = {
     width: typeof width === 'number' ? `min(${width}px, 100%)` : width,
     maxHeight: 'min(88vh, 820px)',
-    background: 'var(--sf-surface)',
+    background: 'color-mix(in srgb, var(--sf-surface) 96%, transparent)',
     border: '1px solid var(--sf-border)',
-    borderRadius: 16,
+    borderRadius: 20,
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
-    boxShadow: '0 24px 64px rgba(0,0,0,0.45)',
+    boxShadow: '0 28px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03)',
+    backdropFilter: 'blur(16px)',
   }
 
   return (
@@ -60,29 +61,72 @@ export function Modal({
         position: 'fixed',
         inset: 0,
         zIndex,
-        background: 'rgba(0,0,0,0.72)',
-        backdropFilter: 'blur(8px)',
+        background: 'rgba(6, 8, 14, 0.72)',
+        backdropFilter: 'blur(10px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         padding: 16,
+        animation: 'sf-modal-in 0.16s ease-out',
       }}
     >
       <div onClick={e => e.stopPropagation()} style={panelStyle}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--sf-border)', flexShrink: 0, display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+        <div
+          style={{
+            padding: '18px 22px',
+            borderBottom: '1px solid var(--sf-border)',
+            flexShrink: 0,
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 12,
+            alignItems: 'flex-start',
+            background: 'linear-gradient(180deg, var(--sf-accent-soft), transparent)',
+          }}
+        >
           <div style={{ minWidth: 0 }}>
-            <div style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 17, fontFamily: "'Space Grotesk',sans-serif" }}>{title}</div>
-            {subtitle && <div style={{ color: 'var(--sf-muted)', fontSize: 12, marginTop: 4 }}>{subtitle}</div>}
+            <div
+              style={{
+                color: 'var(--sf-text)',
+                fontWeight: 750,
+                fontSize: 18,
+                fontFamily: "'Space Grotesk',sans-serif",
+                letterSpacing: '-0.01em',
+              }}
+            >
+              {title}
+            </div>
+            {subtitle && (
+              <div style={{ color: 'var(--sf-muted)', fontSize: 13, marginTop: 5, lineHeight: 1.4 }}>
+                {subtitle}
+              </div>
+            )}
           </div>
-          <button type="button" onClick={onClose} className="sf-btn sf-btn-ghost" style={{ fontSize: 18, lineHeight: 1, padding: '4px 10px' }} aria-label="Close">
+          <button
+            type="button"
+            onClick={onClose}
+            className="sf-btn sf-btn-ghost"
+            style={{ fontSize: 18, lineHeight: 1, padding: '6px 12px', borderRadius: 999 }}
+            aria-label="Close"
+          >
             ×
           </button>
         </div>
-        <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
+        <div style={{ padding: '18px 22px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
           {children}
         </div>
         {footer && (
-          <div style={{ padding: '12px 20px', borderTop: '1px solid var(--sf-border)', flexShrink: 0, display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
+          <div
+            style={{
+              padding: '14px 22px',
+              borderTop: '1px solid var(--sf-border)',
+              flexShrink: 0,
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 10,
+              flexWrap: 'wrap',
+              background: 'var(--sf-surface-2)',
+            }}
+          >
             {footer}
           </div>
         )}

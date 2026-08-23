@@ -324,6 +324,9 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                         <td onClick={e => e.stopPropagation()}>
                           <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                             <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-ghost" style={{ fontSize:11, padding:'4px 8px' }}>Open</button>
+                            {canUpdateStatus(task) && task.status === 'Not Started' && (
+                              <button type="button" onClick={() => updateTaskStatus(task.id, 'In Progress')} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px' }}>Start</button>
+                            )}
                             {task.requires_review && (
                               <button type="button" onClick={() => router.push(`/tasks/${task.id}`)} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px' }}>Review</button>
                             )}
@@ -333,7 +336,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                       )}
                       {!canEdit && (
                         <td onClick={e => e.stopPropagation()}>
-                          <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px' }}>Open</button>
+                          <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-ghost" style={{ fontSize:11, padding:'4px 8px' }}>Open</button>
                           {canUpdateStatus(task) && task.status === 'Not Started' && (
                             <button type="button" onClick={() => updateTaskStatus(task.id, 'In Progress')} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px', marginLeft: 6 }}>Start</button>
                           )}

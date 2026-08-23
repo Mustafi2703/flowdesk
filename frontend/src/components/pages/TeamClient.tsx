@@ -56,6 +56,10 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [deptError, setDeptError] = useState('')
+  const [memberQuery, setMemberQuery] = useState('')
+  const [roleFilter, setRoleFilter] = useState('all')
+  const [deptFilter, setDeptFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('active')
   const [userForm, setUserForm] = useState({ name: '', email: '', role: 'team', department: '', department_id: '', designation: '', password: '', manager_id: '', manager_ids: [] as string[], is_active: true })
   const [deptForm, setDeptForm] = useState({ name: '', description: '', manager_id: '' })
   const CORE_ROLES = ['owner', 'manager', 'team', 'hr', 'accountant']
@@ -364,6 +368,27 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     if (a.is_active !== b.is_active) return a.is_active ? -1 : 1
     return byName(a, b)
   })
+  const deptOptions = (() => {
+    const names = new Set<string>()
+    for (const u of users) {
+      if (u.department) names.add(u.department)
+    }
+    for (const d of departments) {
+      if (d.name) names.add(d.name)
+    }
+    return [...names].sort((a, b) => a.localeCompare(b))
+  })()
+  const filteredTeam = team.filter((u) => {
+    if (statusFilter === 'active' && !u.is_active) return false
+    if (statusFilter === 'inactive' && u.is_active) return false
+    if (statusFilter === 'online' && !isOnline(u.id)) return false
+    if (roleFilter !== 'all' && u.role !== roleFilter) return false
+    if (deptFilter !== 'all' && (u.department || '') !== deptFilter) return false
+    const q = memberQuery.trim().toLowerCase()
+    if (!q) return true
+    const hay = `${u.name || ''} ${u.email || ''} ${u.designation || ''} ${u.department || ''} ${u.role || ''}`.toLowerCase()
+    return hay.includes(q)
+  })
   const sortedDepartments = [...departments].sort(byName)
   const sortedManagers = [...managers].sort(byName)
   const online = team.filter(u => isOnline(u.id)).length
@@ -621,64 +646,103 @@ export default function TeamClient({ session }: { session: SessionUser }) {
             <StatCard label="Delayed" value={tasks.filter(t => t.due_date && t.due_date < today && t.status !== 'Completed').length} accent="#EF4444" />
           </StatGrid>
 
-          <Section title="Team directory" subtitle="Uniform cards · open a member for full task & performance modal" style={{ marginTop: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 14, alignItems: 'stretch' }}>
-              {team.map((u: any) => {
-                const l = load(u.id)
-                const perf = memberPerf(u.id)
-                const active = perf.all.filter(t => !['Completed', 'On Hold'].includes(t.status))
-                const memberOnline = isOnline(u.id)
-                const mgrLabels = (u.manager_ids?.length ? u.manager_ids : (u.manager_id ? [u.manager_id] : []))
-                  .map((id: string) => managerName(id))
-                  .filter(Boolean)
-                return (
-                  <div
-                    key={u.id}
-                    onClick={() => setViewingUser(u)}
-                    style={{
-                      background: 'var(--sf-surface)',
-                      border: `1px solid ${viewingUser?.id === u.id ? 'var(--sf-accent)' : (u.is_active ? 'var(--sf-border)' : '#3A2430')}`,
-                      borderRadius: 14,
-                      padding: 18,
-                      opacity: u.is_active ? 1 : 0.65,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      minHeight: 210,
-                    }}
-                  >
-                    <div style={{ display: 'flex', gap: 11, marginBottom: 12, alignItems: 'center' }}>
-                      <div style={{ position: 'relative' }}>
-                        <div style={{ width: 42, height: 42, borderRadius: 10, background: ROLE_COLORS[u.role] || 'var(--sf-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sf-text)', fontWeight: 700, fontSize: 13 }}>{u.avatar || u.name?.slice(0, 2)}</div>
-                        <div style={{ position: 'absolute', bottom: -2, right: -2, width: 11, height: 11, borderRadius: '50%', background: memberOnline ? '#10B981' : 'var(--sf-muted-2)', border: '2px solid var(--sf-surface)' }} />
-                      </div>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 13 }}>{u.name}</div>
-                        <div style={{ color: 'var(--sf-muted)', fontSize: 11 }}>{u.designation || u.department || ROLE_LABELS[u.role]}</div>
-                        {mgrLabels.length > 0 && <div style={{ color: 'var(--sf-muted-2)', fontSize: 10, marginTop: 2 }}>Reports to {mgrLabels.join(', ')}</div>}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
-                      <span style={{ background: l.color + '20', color: l.color, fontSize: 10, padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>{l.label}</span>
-                      <span style={{ color: u.is_active ? 'var(--sf-muted)' : '#EF4444', fontSize: 11 }}>{u.is_active ? `${active.length} active` : 'Inactive'}</span>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6, marginBottom: 'auto' }}>
-                      {[['Alloc', perf.allocated, 'var(--sf-text)'], ['Done', perf.completed, '#10B981'], ['Late', perf.delayed, '#EF4444'], ['On-time', `${perf.onTimePct}%`, '#FBBF24']].map(([lbl, v, c]) => (
-                        <div key={String(lbl)} style={{ background: 'var(--sf-surface-2)', borderRadius: 7, padding: '7px', textAlign: 'center' }}>
-                          <div style={{ color: String(c), fontWeight: 700, fontSize: 12 }}>{v}</div>
-                          <div style={{ color: 'var(--sf-muted)', fontSize: 9 }}>{lbl}</div>
+          <Section title="Team directory" subtitle={`${filteredTeam.length} shown · scrollable list · search & filter · edit in place`} style={{ marginTop: 16 }} flush>
+            <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--sf-border)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', background: 'var(--sf-surface-2)' }}>
+              <input
+                value={memberQuery}
+                onChange={(e) => setMemberQuery(e.target.value)}
+                placeholder="Search name, email, role, designation…"
+                className="sf-input"
+                style={{ flex: '1 1 220px', minWidth: 180, maxWidth: 360 }}
+              />
+              <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="sf-input" style={{ width: 'auto', minWidth: 130 }}>
+                <option value="all">All roles</option>
+                {CORE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>)}
+              </select>
+              <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} className="sf-input" style={{ width: 'auto', minWidth: 140 }}>
+                <option value="all">All departments</option>
+                {deptOptions.map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="sf-input" style={{ width: 'auto', minWidth: 120 }}>
+                <option value="active">Active</option>
+                <option value="online">Online now</option>
+                <option value="inactive">Inactive</option>
+                <option value="all">All statuses</option>
+              </select>
+            </div>
+            <div style={{ maxHeight: 'min(62vh, 720px)', overflowY: 'auto', overflowX: 'auto' }}>
+              {filteredTeam.length === 0 ? (
+                <div style={{ padding: 28, textAlign: 'center', color: 'var(--sf-muted)', fontSize: 13 }}>No members match these filters.</div>
+              ) : (
+                <div style={{ minWidth: 720 }}>
+                {filteredTeam.map((u: any) => {
+                  const l = load(u.id)
+                  const perf = memberPerf(u.id)
+                  const active = perf.all.filter(t => !['Completed', 'On Hold'].includes(t.status))
+                  const memberOnline = isOnline(u.id)
+                  const mgrLabels = (u.manager_ids?.length ? u.manager_ids : (u.manager_id ? [u.manager_id] : []))
+                    .map((id: string) => managerName(id))
+                    .filter(Boolean)
+                  return (
+                    <div
+                      key={u.id}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(200px, 1.4fr) minmax(120px, 0.8fr) minmax(140px, 1fr) auto',
+                        gap: 12,
+                        alignItems: 'center',
+                        padding: '12px 16px',
+                        borderBottom: '1px solid var(--sf-border)',
+                        background: viewingUser?.id === u.id ? 'var(--sf-accent-soft)' : 'transparent',
+                        opacity: u.is_active ? 1 : 0.65,
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => setViewingUser(u)}
+                    >
+                      <div style={{ display: 'flex', gap: 12, alignItems: 'center', minWidth: 0 }}>
+                        <div style={{ position: 'relative', flexShrink: 0 }}>
+                          <div style={{ width: 40, height: 40, borderRadius: 10, background: ROLE_COLORS[u.role] || 'var(--sf-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 12 }}>
+                            {u.avatar || u.name?.slice(0, 2)}
+                          </div>
+                          <div style={{ position: 'absolute', bottom: -2, right: -2, width: 10, height: 10, borderRadius: '50%', background: memberOnline ? '#10B981' : 'var(--sf-muted-2)', border: '2px solid var(--sf-surface)' }} />
                         </div>
-                      ))}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 13 }}>{u.name}</div>
+                          <div style={{ color: 'var(--sf-muted)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email}</div>
+                          <div style={{ color: 'var(--sf-muted-2)', fontSize: 10, marginTop: 2 }}>
+                            {u.designation || ROLE_LABELS[u.role]}
+                            {u.department ? ` · ${u.department}` : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <span style={{ background: l.color + '20', color: l.color, fontSize: 10, padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>{l.label}</span>
+                        <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 6 }}>
+                          {u.is_active ? `${active.length} active · ${perf.delayed} late` : 'Inactive'}
+                        </div>
+                        {mgrLabels.length > 0 && (
+                          <div style={{ color: 'var(--sf-muted-2)', fontSize: 10, marginTop: 4 }}>→ {mgrLabels.join(', ')}</div>
+                        )}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6 }}>
+                        {[['Alloc', perf.allocated], ['Done', perf.completed], ['Late', perf.delayed], ['On-time', `${perf.onTimePct}%`]].map(([lbl, v]) => (
+                          <div key={String(lbl)} style={{ background: 'var(--sf-surface-2)', borderRadius: 8, padding: '6px 4px', textAlign: 'center' }}>
+                            <div style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 12 }}>{v}</div>
+                            <div style={{ color: 'var(--sf-muted)', fontSize: 9 }}>{lbl}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
+                        {canEditUser(u) && <button type="button" onClick={() => startEditUser(u)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 10px' }}>Edit</button>}
+                        {canReset && u.id !== session.id && (role !== 'manager' || u.role === 'team') && <button type="button" onClick={() => resetPassword(u.id, u.name)} className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '6px 10px' }}>Reset</button>}
+                        {role === 'owner' && u.id !== session.id && u.is_active && <button type="button" onClick={() => deactivateUser(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 10px', color: 'var(--sf-danger)' }}>Off</button>}
+                        {role === 'owner' && u.id !== session.id && <button type="button" onClick={() => hardDeleteUser(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 10px', color: '#F87171' }}>Delete</button>}
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
-                      {canEditUser(u) && <button type="button" onClick={() => startEditUser(u)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px' }}>Edit</button>}
-                      {canReset && u.id !== session.id && (role !== 'manager' || u.role === 'team') && <button type="button" onClick={() => resetPassword(u.id, u.name)} className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '6px 8px' }}>Reset password</button>}
-                      {role === 'owner' && u.id !== session.id && u.is_active && <button type="button" onClick={() => deactivateUser(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px', color: 'var(--sf-danger)' }}>Deactivate</button>}
-                      {role === 'owner' && u.id !== session.id && <button type="button" onClick={() => hardDeleteUser(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 8px', color: '#F87171' }}>Delete</button>}
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })
+                </div>
+              )}
             </div>
           </Section>
 

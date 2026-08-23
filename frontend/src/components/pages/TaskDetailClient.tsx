@@ -152,7 +152,9 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
           {canWork ? (
             <>
               {task.status === 'Not Started' && (
-                <button type="button" className="sf-btn sf-btn-primary" style={{ fontSize: 12 }} onClick={() => patch({ status: 'In Progress' })}>Start work</button>
+                <button type="button" className="sf-btn sf-btn-primary" style={{ fontSize: 12 }} onClick={() => patch({ status: 'In Progress' })}>
+                  Start work → In Progress
+                </button>
               )}
               <select
                 value={task.status}

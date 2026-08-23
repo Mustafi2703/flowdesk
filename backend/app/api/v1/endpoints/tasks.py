@@ -374,6 +374,12 @@ def update_task(
         update["assigned_by"] = user.id
     for key, value in update.items():
         setattr(task, key, value)
+    # Starting work (checklist / sub-tasks / description) auto-promotes Not Started → In Progress.
+    progress_touch = fields & {"checklist", "sub_tasks", "description"}
+    if task.status == "Not Started" and (update.get("status") == "In Progress" or progress_touch):
+        if "status" not in update:
+            task.status = "In Progress"
+            update["status"] = "In Progress"
     # Auto-close Updates when marked Completed (owner/manager can reopen or purge later).
     if update.get("status") == "Completed" and not task.updates_closed and allowed_manager:
         task.updates_closed = True
@@ -681,6 +687,20 @@ def send_chat(
         )
     chat = TaskChat(task_id=task_id, sender_id=user.id, **payload.model_dump())
     db.add(chat)
+    # First real message from an assignee / manager starts the task.
+    if task.status == "Not Started" and (
+        _is_assignee(task, user) or Role(user.role) in {Role.OWNER, Role.MANAGER}
+    ):
+        task.status = "In Progress"
+        task.timeline = [
+            *(task.timeline or []),
+            {
+                "by": str(user.id),
+                "action": "Started via Updates chat",
+                "fields": ["status"],
+                "at": datetime.now(timezone.utc).isoformat(),
+            },
+        ]
     db.commit()
     db.refresh(chat)
 

@@ -41,12 +41,12 @@ export function ClockBar() {
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 12 }}>
-      <div style={{ textAlign: 'right' }}>
-        <div style={{ color: clocked ? 'var(--sf-success)' : 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+    <div className="sf-topbar-clock">
+      <div className="sf-topbar-clock-copy">
+        <div className={`sf-topbar-clock-status${clocked ? ' is-on' : ''}`}>
           {clocked ? 'Clocked in' : 'Not clocked in'}
         </div>
-        <div style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600 }}>
+        <div className="sf-topbar-clock-detail">
           {loginTime ? `In ${loginTime}` : 'Clock in to start work'}
         </div>
       </div>
@@ -54,8 +54,7 @@ export function ClockBar() {
         type="button"
         onClick={clocked ? clockOut : clockIn}
         disabled={busy}
-        className="sf-btn sf-btn-primary"
-        style={{ fontSize: 12, padding: '6px 12px' }}
+        className="sf-btn sf-btn-primary sf-topbar-clock-btn"
       >
         {busy ? '…' : clocked ? 'Clock out' : 'Clock in'}
       </button>

@@ -1,3 +1,5 @@
+import type { IconName } from '@/components/app/Icons'
+
 /** Map stored notification links to real app routes (avoids 404 on /tasks/:id). */
 export function resolveNotificationLink(link?: string | null, type?: string | null): string {
   const raw = (link || '').trim()
@@ -36,18 +38,29 @@ export function notificationActionLabel(type?: string | null): string {
   return 'Open'
 }
 
-export function notificationEmoji(type?: string | null): string {
-  if (type === 'chat') return '💬'
-  if (type === 'task') return '📋'
-  if (type === 'leave') return '🏖️'
-  if (type === 'announcement') return '📣'
-  return '✨'
+export function notificationIcon(type?: string | null): IconName {
+  if (type === 'chat') return 'inbox'
+  if (type === 'task') return 'tasks'
+  if (type === 'leave') return 'leave'
+  if (type === 'announcement') return 'announcements'
+  if (type === 'review') return 'review'
+  return 'bell'
+}
+
+export function notificationNavId(type?: string | null): string {
+  if (type === 'chat') return 'updates'
+  if (type === 'task') return 'tasks'
+  if (type === 'leave') return 'leave'
+  if (type === 'announcement') return 'announcements'
+  if (type === 'review') return 'review'
+  return 'overview'
 }
 
 export function notificationAccent(type?: string | null): string {
-  if (type === 'chat') return 'var(--sf-info)'
-  if (type === 'task') return 'var(--sf-accent)'
-  if (type === 'leave') return '#a855f7'
-  if (type === 'announcement') return 'var(--sf-warning)'
+  if (type === 'chat') return '#0891b2'
+  if (type === 'task') return '#ea580c'
+  if (type === 'leave') return '#9333ea'
+  if (type === 'announcement') return '#d97706'
+  if (type === 'review') return '#7c3aed'
   return 'var(--sf-muted)'
 }

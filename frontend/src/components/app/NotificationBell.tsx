@@ -2,14 +2,16 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Icon } from '@/components/app/Icons'
+import { Icon, NavIconBadge } from '@/components/app/Icons'
 import { Modal } from '@/components/app/Modal'
 import {
   notificationAccent,
   notificationActionLabel,
-  notificationEmoji,
+  notificationIcon,
+  notificationNavId,
   resolveNotificationLink,
 } from '@/lib/notifications'
+import type { IconName } from '@/components/app/Icons'
 
 type Notif = {
   id: string
@@ -40,7 +42,7 @@ function timeAgo(iso: string) {
 }
 
 /**
- * Bell + full notification modal (Slack-style) + toast for new items.
+ * Bell + notification modal + bottom-right toast for new items.
  */
 export function NotificationBell() {
   const router = useRouter()
@@ -122,8 +124,8 @@ export function NotificationBell() {
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="What's happening"
-        subtitle={unreadCount ? `${unreadCount} fresh update${unreadCount === 1 ? '' : 's'} — jump in like Slack` : 'You are all caught up 🎉'}
+        title="Notifications"
+        subtitle={unreadCount ? `${unreadCount} unread update${unreadCount === 1 ? '' : 's'}` : 'You are all caught up'}
         size="wide"
         zIndex={1300}
         footer={
@@ -142,28 +144,28 @@ export function NotificationBell() {
       >
         {items.length === 0 ? (
           <div className="sf-notif-empty">
-            <div className="sf-notif-empty-emoji">🔔</div>
+            <NavIconBadge name="bell" navId="overview" className="sf-notif-empty-icon" />
             <div className="sf-notif-empty-title">Quiet for now</div>
-            <p>Task chats, reviews, and leave updates will land here with one-click links to Updates.</p>
+            <p>Task chats, reviews, and leave updates will appear here with one-click links.</p>
           </div>
         ) : (
           <div className="sf-notif-feed">
             {grouped.chat.length > 0 && (
-              <NotifGroup title="Updates & chat" emoji="💬" count={grouped.chat.filter((n) => !n.is_read).length}>
+              <NotifGroup title="Updates & chat" icon="inbox" navId="updates" count={grouped.chat.filter((n) => !n.is_read).length}>
                 {grouped.chat.map((n) => (
                   <NotifRow key={n.id} n={n} onOpen={() => openNotif(n)} />
                 ))}
               </NotifGroup>
             )}
             {grouped.task.length > 0 && (
-              <NotifGroup title="Tasks & reviews" emoji="📋" count={grouped.task.filter((n) => !n.is_read).length}>
+              <NotifGroup title="Tasks & reviews" icon="tasks" navId="tasks" count={grouped.task.filter((n) => !n.is_read).length}>
                 {grouped.task.map((n) => (
                   <NotifRow key={n.id} n={n} onOpen={() => openNotif(n)} />
                 ))}
               </NotifGroup>
             )}
             {grouped.other.length > 0 && (
-              <NotifGroup title="Everything else" emoji="✨" count={grouped.other.filter((n) => !n.is_read).length}>
+              <NotifGroup title="Everything else" icon="bell" navId="overview" count={grouped.other.filter((n) => !n.is_read).length}>
                 {grouped.other.map((n) => (
                   <NotifRow key={n.id} n={n} onOpen={() => openNotif(n)} />
                 ))}
@@ -173,17 +175,17 @@ export function NotificationBell() {
         )}
       </Modal>
 
-      {toast && (
-        <div className="sf-notif-toast" role="status">
+      {toast && !open && (
+        <div className="sf-notif-toast" role="status" style={{ borderLeftColor: notificationAccent(toast.type) }}>
           <div className="sf-notif-toast-head">
-            <span>{notificationEmoji(toast.type)}</span>
+            <NavIconBadge name={notificationIcon(toast.type)} navId={notificationNavId(toast.type)} />
             <span>New {typeLabel(toast.type)}</span>
             <button type="button" className="sf-notif-toast-close" onClick={() => setToast(null)} aria-label="Dismiss">×</button>
           </div>
           <p className="sf-notif-toast-msg">{toast.message}</p>
           <div className="sf-notif-toast-actions">
             <button type="button" className="sf-btn sf-btn-primary" style={{ fontSize: 12 }} onClick={() => openNotif(toast)}>
-              {notificationActionLabel(toast.type)} →
+              {notificationActionLabel(toast.type)}
             </button>
             <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 12 }} onClick={() => setToast(null)}>
               Later
@@ -195,11 +197,26 @@ export function NotificationBell() {
   )
 }
 
-function NotifGroup({ title, emoji, count, children }: { title: string; emoji: string; count: number; children: React.ReactNode }) {
+function NotifGroup({
+  title,
+  icon,
+  navId,
+  count,
+  children,
+}: {
+  title: string
+  icon: IconName
+  navId: string
+  count: number
+  children: React.ReactNode
+}) {
   return (
     <section className="sf-notif-group">
       <div className="sf-notif-group-head">
-        <span>{emoji} {title}</span>
+        <span className="sf-notif-group-title">
+          <NavIconBadge name={icon} navId={navId} size={14} className="sf-notif-group-icon" />
+          {title}
+        </span>
         {count > 0 && <span className="sf-notif-group-count">{count} new</span>}
       </div>
       {children}
@@ -211,8 +228,15 @@ function NotifRow({ n, onOpen }: { n: Notif; onOpen: () => void }) {
   const accent = notificationAccent(n.type)
   return (
     <article className={`sf-notif-row${n.is_read ? '' : ' sf-notif-row-unread'}`}>
-      <div className="sf-notif-row-icon" style={{ background: `color-mix(in srgb, ${accent} 18%, var(--sf-surface-2))`, color: accent }}>
-        {notificationEmoji(n.type)}
+      <div
+        className="sf-notif-row-icon"
+        style={{
+          background: `color-mix(in srgb, ${accent} 14%, var(--sf-surface-2))`,
+          border: `1px solid color-mix(in srgb, ${accent} 24%, var(--sf-border))`,
+          color: accent,
+        }}
+      >
+        <Icon name={notificationIcon(n.type)} size={16} />
       </div>
       <div className="sf-notif-row-body">
         <p className="sf-notif-row-msg">{n.message || 'Update'}</p>

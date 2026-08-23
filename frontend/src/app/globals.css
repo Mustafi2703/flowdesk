@@ -1189,6 +1189,51 @@ html[data-theme='morning'] body {
   flex-shrink: 0;
 }
 
+.sf-topbar-clock {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.sf-topbar-clock-copy {
+  min-width: 0;
+}
+
+.sf-topbar-clock-status {
+  color: var(--sf-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sf-topbar-clock-status.is-on {
+  color: var(--sf-success);
+}
+
+.sf-topbar-clock-detail {
+  color: var(--sf-text);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sf-topbar-clock-btn {
+  font-size: 12px !important;
+  padding: 6px 12px !important;
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .sf-topbar-clock-detail {
+    display: none;
+  }
+}
+
 .sf-theme-icon-btn {
   width: 38px;
   height: 38px;
@@ -1388,8 +1433,8 @@ html[data-theme='morning'] body {
 /* ── Notifications (Slack-style) ─────────────────────────────── */
 .sf-notif-bell {
   position: relative;
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
   border-radius: 999px;
   border: 1px solid var(--sf-border);
   background: var(--sf-surface);
@@ -1502,9 +1547,24 @@ html[data-theme='morning'] body {
   padding: 24px 12px;
   color: var(--sf-muted);
 }
-.sf-notif-empty-emoji {
-  font-size: 40px;
-  margin-bottom: 8px;
+.sf-notif-empty-emoji,
+.sf-notif-empty-icon {
+  display: flex;
+  justify-content: center;
+  margin: 0 auto 12px;
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 14px !important;
+}
+.sf-notif-group-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.sf-notif-group-icon {
+  width: 26px !important;
+  height: 26px !important;
+  border-radius: 8px !important;
 }
 .sf-notif-empty-title {
   font-size: 16px;
@@ -1515,8 +1575,9 @@ html[data-theme='morning'] body {
 .sf-notif-toast {
   position: fixed;
   right: 20px;
-  top: 72px;
-  width: 360px;
+  bottom: 20px;
+  top: auto;
+  width: min(360px, calc(100vw - 40px));
   max-width: calc(100vw - 40px);
   background: var(--sf-surface);
   border: 1px solid var(--sf-border);
@@ -1524,11 +1585,11 @@ html[data-theme='morning'] body {
   border-radius: 14px;
   padding: 14px 16px;
   box-shadow: var(--sf-shadow-lg);
-  z-index: 1400;
+  z-index: 1250;
   animation: sf-toast-in 0.25s ease;
 }
 @keyframes sf-toast-in {
-  from { opacity: 0; transform: translateY(-8px); }
+  from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
 .sf-notif-toast-head {
@@ -1539,8 +1600,13 @@ html[data-theme='morning'] body {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--sf-accent);
+  color: var(--sf-text-secondary);
   margin-bottom: 8px;
+}
+.sf-notif-toast-head .sf-nav-icon-badge {
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 8px !important;
 }
 .sf-notif-toast-close {
   margin-left: auto;

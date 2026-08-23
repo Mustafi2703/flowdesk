@@ -1,21 +1,37 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { SessionUser, NAV_ITEMS, ROLE_COLORS, ROLE_LABELS } from '@/types'
-import { ThemeToggle } from '@/components/app/ThemeProvider'
-import { Icon } from '@/components/app/Icons'
+import { Icon, NavIconBadge, navTone } from '@/components/app/Icons'
 import { Modal } from '@/components/app/Modal'
+
+const SIDEBAR_KEY = 'sf-sidebar-collapsed'
 
 export default function Sidebar({ session }: { session: SessionUser }) {
   const router = useRouter()
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
+  const [ready, setReady] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' })
   const [pwError, setPwError] = useState('')
   const [pwNotice, setPwNotice] = useState('')
   const [pwSaving, setPwSaving] = useState(false)
+
+  useEffect(() => {
+    const stored = localStorage.getItem(SIDEBAR_KEY)
+    if (stored === 'true') setCollapsed(true)
+    setReady(true)
+  }, [])
+
+  function toggleCollapsed() {
+    setCollapsed((c) => {
+      const next = !c
+      localStorage.setItem(SIDEBAR_KEY, String(next))
+      return next
+    })
+  }
 
   const nav = NAV_ITEMS.filter(n => (n.roles as readonly string[]).includes(session.role))
 
@@ -63,147 +79,74 @@ export default function Sidebar({ session }: { session: SessionUser }) {
 
   return (
     <aside
-      style={{
-        width: collapsed ? 64 : 240,
-        background: 'var(--sf-sidebar)',
-        borderRight: '1px solid var(--sf-sidebar-border)',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '1rem 0.625rem',
-        transition: 'width 0.2s ease',
-        flexShrink: 0,
-        overflow: 'hidden',
-        boxShadow: 'var(--sf-shadow)',
-      }}
+      className={`sf-sidebar${collapsed ? ' sf-sidebar--collapsed' : ''}${ready ? ' sf-sidebar--ready' : ''}`}
+      aria-label="Main navigation"
     >
-      {/* Brand */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '0 0.5rem',
-          marginBottom: '1.25rem',
-        }}
-      >
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            background: 'linear-gradient(135deg, var(--sf-accent), var(--sf-accent-hover))',
-            borderRadius: 12,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 700,
-            color: '#fff',
-            fontSize: 15,
-            flexShrink: 0,
-            fontFamily: "'Space Grotesk', sans-serif",
-            boxShadow: '0 8px 18px rgba(234, 88, 12, 0.35)',
-          }}
-        >
-          S
+      <div className="sf-sidebar-brand-row">
+        <div className="sf-sidebar-logo" aria-hidden>S</div>
+        <div className="sf-sidebar-brand-text">
+          <div className="sf-sidebar-brand-name">Scrumfolks</div>
+          <div className="sf-sidebar-brand-tag">CRM · TMS</div>
         </div>
-        {!collapsed && (
-          <div>
-            <div
-              style={{
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontWeight: 700,
-                color: 'var(--sf-text)',
-                fontSize: 15,
-                lineHeight: 1.2,
-              }}
-            >
-              Scrumfolks
-            </div>
-            <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 500 }}>CRM · TMS</div>
-          </div>
-        )}
+        <button
+          type="button"
+          className="sf-sidebar-collapse-btn"
+          onClick={toggleCollapsed}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          <Icon name={collapsed ? 'chevron-right' : 'panel-left'} size={16} />
+        </button>
       </div>
 
-      <div style={{ padding: collapsed ? '0 0.25rem' : '0 0.375rem', marginBottom: '1rem' }}>
-        <ThemeToggle compact />
-      </div>
-
-      {/* Navigation */}
-      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
+      <nav className="sf-sidebar-nav">
         {nav.map(item => {
           const active =
             pathname === `/${item.id}` ||
             (pathname.startsWith(`/${item.id}/`) && item.id !== 'overview')
+          const tone = navTone(item.id)
           return (
             <button
               key={item.id}
+              type="button"
               className={`sf-nav ${active ? 'active' : ''}`}
+              style={{ '--nav-fg': tone.fg } as CSSProperties}
               onClick={() => router.push(`/${item.id}`)}
               title={collapsed ? item.label : undefined}
             >
-              <span className="sf-icon"><Icon name={item.icon} size={16} /></span>
-              {!collapsed && <span>{item.label}</span>}
+              <NavIconBadge name={item.icon} navId={item.id} active={active} />
+              <span className="sf-nav-label">{item.label}</span>
             </button>
           )
         })}
       </nav>
 
-      {/* User footer */}
-      <div style={{ borderTop: '1px solid var(--sf-border)', paddingTop: '0.875rem', marginTop: 8 }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '0.375rem 0.5rem',
-            marginBottom: 8,
-          }}
-        >
-          <div
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 9,
-              background: roleColor,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              fontWeight: 700,
-              fontSize: 11,
-              flexShrink: 0,
-            }}
-          >
+      <div className="sf-sidebar-footer">
+        <div className="sf-sidebar-user">
+          <div className="sf-sidebar-avatar" style={{ background: roleColor }}>
             {session.avatar || session.name.slice(0, 2).toUpperCase()}
           </div>
-          {!collapsed && (
-            <div style={{ overflow: 'hidden', minWidth: 0 }}>
-              <div
-                style={{
-                  color: 'var(--sf-text)',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {session.name}
-              </div>
-              <div style={{ color: 'var(--sf-muted)', fontSize: 10 }}>{ROLE_LABELS[session.role]}</div>
-            </div>
-          )}
+          <div className="sf-sidebar-user-text">
+            <div className="sf-sidebar-user-name">{session.name}</div>
+            <div className="sf-sidebar-user-role">{ROLE_LABELS[session.role]}</div>
+          </div>
         </div>
-        <button className="sf-nav" onClick={() => { setShowPassword(true); setPwError(''); setPwNotice('') }} style={{ marginBottom: 2 }}>
-          <span className="sf-icon"><Icon name="key" size={16} /></span>
-          {!collapsed && 'Change Password'}
+        <button
+          type="button"
+          className="sf-nav sf-nav-footer"
+          onClick={() => { setShowPassword(true); setPwError(''); setPwNotice('') }}
+          title={collapsed ? 'Change password' : undefined}
+        >
+          <span className="sf-nav-icon-badge sf-nav-icon-badge--muted">
+            <Icon name="key" size={15} />
+          </span>
+          <span className="sf-nav-label">Change Password</span>
         </button>
-        <button className="sf-nav" onClick={() => setCollapsed(c => !c)} style={{ marginBottom: 2 }}>
-          <span className="sf-icon"><Icon name={collapsed ? 'chevron-right' : 'chevron-left'} size={16} /></span>
-          {!collapsed && 'Collapse'}
-        </button>
-        <button className="sf-nav" onClick={logout}>
-          <span className="sf-icon"><Icon name="log-out" size={16} /></span>
-          {!collapsed && 'Sign Out'}
+        <button type="button" className="sf-nav sf-nav-footer sf-nav-danger" onClick={logout} title={collapsed ? 'Sign out' : undefined}>
+          <span className="sf-nav-icon-badge sf-nav-icon-badge--danger">
+            <Icon name="log-out" size={15} />
+          </span>
+          <span className="sf-nav-label">Sign Out</span>
         </button>
       </div>
 

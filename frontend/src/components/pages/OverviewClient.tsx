@@ -4,25 +4,25 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
 import { PageShell, Section, StatCard, StatGrid } from '@/components/app/Section'
-import { EmptyState } from '@/components/app/Icons'
+import { EmptyState, DashTileIcon, NavIconBadge, type IconName } from '@/components/app/Icons'
 import { clockOutWithConfirm, todayIST } from '@/lib/clock'
 import { notifyAttendanceChanged } from '@/lib/attendance'
 import { resolveNotificationLink, notificationActionLabel } from '@/lib/notifications'
 import { BrandBadge } from '@/components/app/BrandBadge'
 
-const ROLE_DASH: Record<string, { tag: string; blurb: string; emoji: string }> = {
-  owner: { tag: 'Agency HQ', blurb: 'See delivery, people, and revenue at a glance — your marketing command center.', emoji: '🚀' },
-  manager: { tag: 'Delivery lead', blurb: 'Keep campaigns moving, reviews flowing, and the team unblocked.', emoji: '🎯' },
-  team: { tag: 'Creative desk', blurb: 'Your tasks, files, and Updates threads — everything to ship great work.', emoji: '✨' },
-  hr: { tag: 'People pulse', blurb: 'Leave, attendance, and team health in one friendly view.', emoji: '💜' },
-  accountant: { tag: 'Books & billing', blurb: 'Billable work, pending invoices, and open deliverables.', emoji: '📊' },
+const ROLE_DASH: Record<string, { tag: string; blurb: string; icon: IconName; navId: string }> = {
+  owner: { tag: 'Agency HQ', blurb: 'See delivery, people, and revenue at a glance — your marketing command center.', icon: 'sparkles', navId: 'overview' },
+  manager: { tag: 'Delivery lead', blurb: 'Keep campaigns moving, reviews flowing, and the team unblocked.', icon: 'performance', navId: 'tasks' },
+  team: { tag: 'Creative desk', blurb: 'Your tasks, files, and Updates threads — everything to ship great work.', icon: 'tasks', navId: 'tasks' },
+  hr: { tag: 'People pulse', blurb: 'Leave, attendance, and team health in one friendly view.', icon: 'team', navId: 'team' },
+  accountant: { tag: 'Books & billing', blurb: 'Billable work, pending invoices, and open deliverables.', icon: 'billing', navId: 'billing' },
 }
 
-const QUICK_TILES = [
-  { label: 'Task board', hint: 'Trello-style workflow', href: '/tasks', emoji: '📌' },
-  { label: 'Updates', hint: 'Slack-style threads', href: '/updates', emoji: '💬' },
-  { label: 'Calendar', hint: 'Due dates & leave', href: '/calendar', emoji: '📅' },
-  { label: 'Brands', hint: 'Client projects', href: '/brands', emoji: '🏷️' },
+const QUICK_TILES: { label: string; hint: string; href: string; icon: IconName; navId: string }[] = [
+  { label: 'Task board', hint: 'Trello-style workflow', href: '/tasks', icon: 'tasks', navId: 'tasks' },
+  { label: 'Updates', hint: 'Slack-style threads', href: '/updates', icon: 'inbox', navId: 'updates' },
+  { label: 'Calendar', hint: 'Due dates & leave', href: '/calendar', icon: 'calendar', navId: 'calendar' },
+  { label: 'Brands', hint: 'Client projects', href: '/brands', icon: 'brands', navId: 'brands' },
 ]
 
 function Chip({ status }: { status: string }) {
@@ -213,7 +213,8 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
       <div className="sf-dash-hero">
         <div className="sf-dash-hero-inner">
           <div>
-            <div className="sf-dash-hero-title">Good {greet}, {session.name.split(' ')[0]} {roleDash.emoji}</div>
+            <NavIconBadge name={roleDash.icon} navId={roleDash.navId} className="sf-dash-hero-icon" />
+            <div className="sf-dash-hero-title">Good {greet}, {session.name.split(' ')[0]}</div>
             <p className="sf-dash-hero-sub">{roleDash.blurb}</p>
             <span className="sf-dash-role-pill">{roleDash.tag} · {dateStr}</span>
           </div>
@@ -227,12 +228,12 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
       <div className="sf-dash-tiles">
         {[
           ...QUICK_TILES,
-          ...(session.role === 'accountant' ? [{ label: 'Billing', hint: 'Invoices & billable', href: '/billing', emoji: '💰' }] : []),
-          ...(isAdmin || session.role === 'hr' ? [{ label: 'Leave', hint: 'Requests & approvals', href: '/leave', emoji: '🏖️' }] : []),
-          ...(isAdmin ? [{ label: 'Review queue', hint: 'Approve deliverables', href: '/review', emoji: '✅' }] : []),
+          ...(session.role === 'accountant' ? [{ label: 'Billing', hint: 'Invoices & billable', href: '/billing', icon: 'billing' as IconName, navId: 'billing' }] : []),
+          ...(isAdmin || session.role === 'hr' ? [{ label: 'Leave', hint: 'Requests & approvals', href: '/leave', icon: 'leave' as IconName, navId: 'leave' }] : []),
+          ...(isAdmin ? [{ label: 'Review queue', hint: 'Approve deliverables', href: '/review', icon: 'review' as IconName, navId: 'review' }] : []),
         ].map((tile) => (
           <button key={tile.href} type="button" className="sf-dash-tile" onClick={() => router.push(tile.href)}>
-            <span className="sf-dash-tile-emoji">{tile.emoji}</span>
+            <DashTileIcon name={tile.icon} navId={tile.navId} />
             <span className="sf-dash-tile-label">{tile.label}</span>
             <span className="sf-dash-tile-hint">{tile.hint}</span>
           </button>

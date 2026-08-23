@@ -3,10 +3,25 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
-import { PageHeader, PageShell, Section, StatCard, StatGrid } from '@/components/app/Section'
+import { PageShell, Section, StatCard, StatGrid } from '@/components/app/Section'
 import { EmptyState } from '@/components/app/Icons'
 import { clockOutWithConfirm, todayIST } from '@/lib/clock'
-import { resolveNotificationLink } from '@/lib/notifications'
+import { resolveNotificationLink, notificationActionLabel } from '@/lib/notifications'
+
+const ROLE_DASH: Record<string, { tag: string; blurb: string; emoji: string }> = {
+  owner: { tag: 'Agency HQ', blurb: 'See delivery, people, and revenue at a glance — your marketing command center.', emoji: '🚀' },
+  manager: { tag: 'Delivery lead', blurb: 'Keep campaigns moving, reviews flowing, and the team unblocked.', emoji: '🎯' },
+  team: { tag: 'Creative desk', blurb: 'Your tasks, files, and Updates threads — everything to ship great work.', emoji: '✨' },
+  hr: { tag: 'People pulse', blurb: 'Leave, attendance, and team health in one friendly view.', emoji: '💜' },
+  accountant: { tag: 'Books & billing', blurb: 'Billable work, pending invoices, and open deliverables.', emoji: '📊' },
+}
+
+const QUICK_TILES = [
+  { label: 'Task board', hint: 'Trello-style workflow', href: '/tasks', emoji: '📌' },
+  { label: 'Updates', hint: 'Slack-style threads', href: '/updates', emoji: '💬' },
+  { label: 'Calendar', hint: 'Due dates & leave', href: '/calendar', emoji: '📅' },
+  { label: 'Brands', hint: 'Client projects', href: '/brands', emoji: '🏷️' },
+]
 
 function Chip({ status }: { status: string }) {
   return <span style={{ background: STATUS_BG[status]||'#F3F4F6', color: STATUS_TEXT[status]||'#374151', fontSize:10, fontWeight:700, padding:'3px 7px', borderRadius:5, whiteSpace:'nowrap' }}>{status}</span>
@@ -205,14 +220,42 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const completedCount = scopeTasks.filter(t => t.status === 'Completed').length
   const openCount = scopeTasks.filter(t => t.status !== 'Completed').length
 
+  const roleDash = ROLE_DASH[session.role] || ROLE_DASH.team
+  const heroMetric = isAdmin ? openCount : isTeam ? myTasks.filter(t => t.status !== 'Completed').length : unreadNotifs.length
+  const heroMetricLabel = isAdmin ? 'Open tasks' : isTeam ? 'Active assignments' : 'Unread pings'
+
   if (loading) return <div style={{ color:'var(--sf-muted)', padding:40, textAlign:'center' }}>Loading…</div>
 
   return (
     <PageShell>
-      <PageHeader
-        title={`Good ${greet}, ${session.name.split(' ')[0]}`}
-        subtitle={dateStr}
-      />
+      <div className="sf-dash-hero">
+        <div className="sf-dash-hero-inner">
+          <div>
+            <div className="sf-dash-hero-title">Good {greet}, {session.name.split(' ')[0]} {roleDash.emoji}</div>
+            <p className="sf-dash-hero-sub">{roleDash.blurb}</p>
+            <span className="sf-dash-role-pill">{roleDash.tag} · {dateStr}</span>
+          </div>
+          <div className="sf-dash-hero-metric">
+            <div className="sf-dash-hero-metric-val">{heroMetric}</div>
+            <div className="sf-dash-hero-metric-label">{heroMetricLabel}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="sf-dash-tiles">
+        {[
+          ...QUICK_TILES,
+          ...(session.role === 'accountant' ? [{ label: 'Billing', hint: 'Invoices & billable', href: '/billing', emoji: '💰' }] : []),
+          ...(isAdmin || session.role === 'hr' ? [{ label: 'Leave', hint: 'Requests & approvals', href: '/leave', emoji: '🏖️' }] : []),
+          ...(isAdmin ? [{ label: 'Review queue', hint: 'Approve deliverables', href: '/review', emoji: '✅' }] : []),
+        ].map((tile) => (
+          <button key={tile.href} type="button" className="sf-dash-tile" onClick={() => router.push(tile.href)}>
+            <span className="sf-dash-tile-emoji">{tile.emoji}</span>
+            <span className="sf-dash-tile-label">{tile.label}</span>
+            <span className="sf-dash-tile-hint">{tile.hint}</span>
+          </button>
+        ))}
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14, flexShrink: 0 }}>
         <Section title="Attendance" subtitle={clocked ? 'You are clocked in' : 'Not clocked in today'} flush>
@@ -228,7 +271,7 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
                 </div>
                 <div>
                   <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Hours today</div>
-                  <div style={{ color: '#10B981', fontSize: 16, fontWeight: 700 }}>{hoursTodayLabel}</div>
+                  <div style={{ color: 'var(--sf-success)', fontSize: 16, fontWeight: 700 }}>{hoursTodayLabel}</div>
                 </div>
               </div>
             </div>
@@ -241,7 +284,7 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
         <Section title="Quick links" subtitle="Jump into work" flush>
           <div style={{ padding: '12px 14px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {[
-              ['Tasks', '/tasks'],
+              ['Task board', '/tasks'],
               ['Updates', '/updates'],
               ['Calendar', '/calendar'],
               ['Team', '/team'],
@@ -255,6 +298,18 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
           </div>
         </Section>
       </div>
+
+      {isTeam && (
+        <div className="sf-dash-ring-wrap">
+          <div className="sf-dash-ring" style={{ '--pct': myOnTimePct } as React.CSSProperties}>
+            <span>{myOnTimePct}%</span>
+          </div>
+          <div>
+            <div style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 14 }}>On-time delivery</div>
+            <div style={{ color: 'var(--sf-muted)', fontSize: 12 }}>{myCompleted.length} completed · {myDelayed.length} delayed</div>
+          </div>
+        </div>
+      )}
 
       {isAdmin && (
         <Section
@@ -328,31 +383,47 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
       )}
 
       <StatGrid>
-        <StatCard label="Notifications" value={unreadNotifs.length} sub={`${notifications.length} total`} accent="#E8630A" />
+        <div className="sf-stat-card-clickable" onClick={() => router.push('/overview')} role="button" tabIndex={0}>
+          <StatCard label="Notifications" value={unreadNotifs.length} sub={`${notifications.length} total`} accent="var(--sf-accent)" />
+        </div>
         {isAdmin && <>
-          <StatCard label="Open tasks" value={openCount} sub={`${completedCount} completed`} accent="#3B82F6" />
-          <StatCard label="Overdue" value={overdue.length} accent="#EF4444" />
-          <StatCard label="Due today" value={dueToday.length} accent="#F59E0B" />
-          <StatCard label="Under review" value={underReview.length} accent="#8B5CF6" />
-          <StatCard label="Flagged" value={flagged.length} accent="#EF4444" />
-          <StatCard label="Leave Pending" value={pendingLeav.length} accent="#8B5CF6" />
+          <div className="sf-stat-card-clickable" onClick={() => router.push('/tasks')} role="button" tabIndex={0}>
+            <StatCard label="Open tasks" value={openCount} sub={`${completedCount} completed`} accent="var(--sf-info)" />
+          </div>
+          <div className="sf-stat-card-clickable" onClick={() => router.push('/tasks')} role="button" tabIndex={0}>
+            <StatCard label="Overdue" value={overdue.length} accent="var(--sf-danger)" />
+          </div>
+          <StatCard label="Due today" value={dueToday.length} accent="var(--sf-warning)" />
+          <div className="sf-stat-card-clickable" onClick={() => router.push('/review')} role="button" tabIndex={0}>
+            <StatCard label="Under review" value={underReview.length} accent="#8B5CF6" />
+          </div>
+          <StatCard label="Flagged" value={flagged.length} accent="var(--sf-danger)" />
+          <div className="sf-stat-card-clickable" onClick={() => router.push('/leave')} role="button" tabIndex={0}>
+            <StatCard label="Leave Pending" value={pendingLeav.length} accent="#8B5CF6" />
+          </div>
         </>}
         {isTeam && <>
-          <StatCard label="Allocated" value={myTasks.length} sub={`${myCompleted.length} completed`} accent="#E8630A" />
-          <StatCard label="Delayed" value={myDelayed.length} accent="#EF4444" />
-          <StatCard label="On-time %" value={`${myOnTimePct}%`} accent="#10B981" />
-          <StatCard label="In Progress" value={myTasks.filter(t=>t.status==='In Progress').length} accent="#3B82F6" />
-          <StatCard label="Due today" value={dueToday.length} accent="#F59E0B" />
+          <div className="sf-stat-card-clickable" onClick={() => router.push('/tasks')} role="button" tabIndex={0}>
+            <StatCard label="Allocated" value={myTasks.length} sub={`${myCompleted.length} completed`} accent="var(--sf-accent)" />
+          </div>
+          <StatCard label="Delayed" value={myDelayed.length} accent="var(--sf-danger)" />
+          <StatCard label="On-time %" value={`${myOnTimePct}%`} accent="var(--sf-success)" />
+          <StatCard label="In Progress" value={myTasks.filter(t=>t.status==='In Progress').length} accent="var(--sf-info)" />
+          <StatCard label="Due today" value={dueToday.length} accent="var(--sf-warning)" />
         </>}
         {session.role === 'hr' && <>
-          <StatCard label="Leave Pending" value={pendingLeav.length} accent="#8B5CF6" />
-          <StatCard label="Overdue tasks" value={overdue.length} accent="#EF4444" />
-          <StatCard label="Open tasks" value={openCount} accent="#3B82F6" />
+          <div className="sf-stat-card-clickable" onClick={() => router.push('/leave')} role="button" tabIndex={0}>
+            <StatCard label="Leave Pending" value={pendingLeav.length} accent="#8B5CF6" />
+          </div>
+          <StatCard label="Overdue tasks" value={overdue.length} accent="var(--sf-danger)" />
+          <StatCard label="Open tasks" value={openCount} accent="var(--sf-info)" />
         </>}
         {session.role === 'accountant' && <>
-          <StatCard label="Billable Tasks" value={tasks.filter(t=>t.is_billable).length} accent="#EC4899" />
-          <StatCard label="Pending Billing" value={tasks.filter(t=>t.is_billable&&!t.billed_at).length} accent="#F59E0B" />
-          <StatCard label="Open tasks" value={openCount} accent="#3B82F6" />
+          <div className="sf-stat-card-clickable" onClick={() => router.push('/billing')} role="button" tabIndex={0}>
+            <StatCard label="Billable Tasks" value={tasks.filter(t=>t.is_billable).length} accent="#EC4899" />
+          </div>
+          <StatCard label="Pending Billing" value={tasks.filter(t=>t.is_billable&&!t.billed_at).length} accent="var(--sf-warning)" />
+          <StatCard label="Open tasks" value={openCount} accent="var(--sf-info)" />
         </>}
       </StatGrid>
 
@@ -454,6 +525,18 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
                       <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 3 }}>
                         {n.type === 'chat' ? 'Updates' : (n.type || 'system')} · {n.created_at ? new Date(n.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
                       </div>
+                      <button
+                        type="button"
+                        className="sf-notif-row-link"
+                        style={{ marginTop: 6 }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (!n.is_read) markRead(n.id)
+                          router.push(resolveNotificationLink(n.link, n.type))
+                        }}
+                      >
+                        {notificationActionLabel(n.type)} →
+                      </button>
                     </div>
                   </div>
                 ))}

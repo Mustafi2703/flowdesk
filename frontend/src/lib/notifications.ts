@@ -27,3 +27,27 @@ export function resolveNotificationLink(link?: string | null, type?: string | nu
   if (raw === '/login') return '/overview'
   return '/overview'
 }
+
+export function notificationActionLabel(type?: string | null): string {
+  if (type === 'chat') return 'Open in Updates'
+  if (type === 'task') return 'View task'
+  if (type === 'leave') return 'Open leave'
+  if (type === 'announcement') return 'Read announcement'
+  return 'Open'
+}
+
+export function notificationEmoji(type?: string | null): string {
+  if (type === 'chat') return '💬'
+  if (type === 'task') return '📋'
+  if (type === 'leave') return '🏖️'
+  if (type === 'announcement') return '📣'
+  return '✨'
+}
+
+export function notificationAccent(type?: string | null): string {
+  if (type === 'chat') return 'var(--sf-info)'
+  if (type === 'task') return 'var(--sf-accent)'
+  if (type === 'leave') return '#a855f7'
+  if (type === 'announcement') return 'var(--sf-warning)'
+  return 'var(--sf-muted)'
+}

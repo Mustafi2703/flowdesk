@@ -47,7 +47,7 @@ export function Modal({
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
-    boxShadow: '0 28px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03)',
+    boxShadow: 'var(--sf-shadow-lg)',
     backdropFilter: 'blur(16px)',
   }
 
@@ -61,7 +61,7 @@ export function Modal({
         position: 'fixed',
         inset: 0,
         zIndex,
-        background: 'rgba(6, 8, 14, 0.72)',
+        background: 'color-mix(in srgb, var(--sf-bg) 55%, transparent)',
         backdropFilter: 'blur(10px)',
         display: 'flex',
         alignItems: 'center',

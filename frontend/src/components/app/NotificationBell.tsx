@@ -3,7 +3,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Icon } from '@/components/app/Icons'
-import { resolveNotificationLink } from '@/lib/notifications'
+import { Modal } from '@/components/app/Modal'
+import {
+  notificationAccent,
+  notificationActionLabel,
+  notificationEmoji,
+  resolveNotificationLink,
+} from '@/lib/notifications'
 
 type Notif = {
   id: string
@@ -19,11 +25,22 @@ function typeLabel(type: string) {
   if (type === 'task') return 'Task'
   if (type === 'review') return 'Review'
   if (type === 'leave') return 'Leave'
+  if (type === 'announcement') return 'Announcement'
   return type || 'System'
 }
 
+function timeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+}
+
 /**
- * Top-right notification prompt: bell, dropdown panel, toast.
+ * Bell + full notification modal (Slack-style) + toast for new items.
  */
 export function NotificationBell() {
   const router = useRouter()
@@ -32,7 +49,6 @@ export function NotificationBell() {
   const [toast, setToast] = useState<Notif | null>(null)
   const seenRef = useRef<Set<string>>(new Set())
   const primedRef = useRef(false)
-  const panelRef = useRef<HTMLDivElement | null>(null)
 
   async function load() {
     const res = await fetch('/api/notifications')
@@ -59,18 +75,9 @@ export function NotificationBell() {
 
   useEffect(() => {
     if (!toast) return
-    const t = setTimeout(() => setToast(null), 6000)
+    const t = setTimeout(() => setToast(null), 8000)
     return () => clearTimeout(t)
   }, [toast?.id])
-
-  useEffect(() => {
-    if (!open) return
-    function onDoc(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
-  }, [open])
 
   async function markRead(id: string) {
     await fetch(`/api/notifications/${id}/read`, { method: 'POST' })
@@ -91,238 +98,131 @@ export function NotificationBell() {
   }
 
   const unreadCount = items.filter((n) => !n.is_read).length
+  const grouped = {
+    chat: items.filter((n) => n.type === 'chat'),
+    task: items.filter((n) => n.type === 'task'),
+    other: items.filter((n) => n.type !== 'chat' && n.type !== 'task'),
+  }
 
   return (
-    <div ref={panelRef} style={{ position: 'relative' }}>
+    <>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(true)}
         title="Notifications"
         aria-label="Notifications"
-        aria-expanded={open}
-        style={{
-          position: 'relative',
-          width: 42,
-          height: 42,
-          borderRadius: 999,
-          border: '1px solid var(--sf-border)',
-          background: open ? 'var(--sf-accent-soft)' : 'var(--sf-surface)',
-          color: open ? 'var(--sf-accent)' : 'var(--sf-text)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          boxShadow: 'var(--sf-shadow)',
-          transition: 'background 0.15s, color 0.15s',
-        }}
+        className={`sf-notif-bell${unreadCount > 0 ? ' sf-notif-bell-active' : ''}`}
       >
         <Icon name="bell" size={18} />
         {unreadCount > 0 && (
-          <span
-            style={{
-              position: 'absolute',
-              top: -4,
-              right: -4,
-              minWidth: 18,
-              height: 18,
-              padding: '0 5px',
-              borderRadius: 999,
-              background: 'linear-gradient(135deg, var(--sf-accent), var(--sf-accent-hover))',
-              color: '#fff',
-              fontSize: 10,
-              fontWeight: 800,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              lineHeight: 1,
-              border: '2px solid var(--sf-bg)',
-              boxShadow: '0 4px 10px rgba(234, 88, 12, 0.4)',
-            }}
-          >
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
+          <span className="sf-notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
         )}
       </button>
 
-      {open && (
-        <div
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: 'calc(100% + 10px)',
-            width: 380,
-            maxWidth: 'min(380px, calc(100vw - 24px))',
-            maxHeight: 480,
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            background: 'color-mix(in srgb, var(--sf-surface) 96%, transparent)',
-            border: '1px solid var(--sf-border)',
-            borderRadius: 18,
-            boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
-            backdropFilter: 'blur(14px)',
-            zIndex: 200,
-          }}
-        >
-          <div
-            style={{
-              padding: '14px 16px',
-              borderBottom: '1px solid var(--sf-border)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: 10,
-              background: 'linear-gradient(180deg, var(--sf-accent-soft), transparent)',
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  color: 'var(--sf-text)',
-                  fontWeight: 750,
-                  fontSize: 15,
-                  fontFamily: "'Space Grotesk',sans-serif",
-                }}
-              >
-                Notifications
-              </div>
-              <div style={{ color: 'var(--sf-muted)', fontSize: 12, marginTop: 2 }}>
-                {unreadCount ? `${unreadCount} unread` : 'You are caught up'}
-              </div>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="What's happening"
+        subtitle={unreadCount ? `${unreadCount} fresh update${unreadCount === 1 ? '' : 's'} — jump in like Slack` : 'You are all caught up 🎉'}
+        width={520}
+        zIndex={1300}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" className="sf-btn sf-btn-ghost" onClick={() => { setOpen(false); router.push('/updates') }}>
+              Open Updates
+            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {unreadCount > 0 && (
+                <button type="button" className="sf-btn sf-btn-ghost" onClick={markAllRead}>Mark all read</button>
+              )}
+              <button type="button" className="sf-btn sf-btn-primary" onClick={() => setOpen(false)}>Done</button>
             </div>
-            {unreadCount > 0 && (
-              <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }} onClick={markAllRead}>
-                Mark all read
-              </button>
+          </div>
+        }
+      >
+        {items.length === 0 ? (
+          <div className="sf-notif-empty">
+            <div className="sf-notif-empty-emoji">🔔</div>
+            <div className="sf-notif-empty-title">Quiet for now</div>
+            <p>Task chats, reviews, and leave updates will land here with one-click links to Updates.</p>
+          </div>
+        ) : (
+          <div className="sf-notif-feed">
+            {grouped.chat.length > 0 && (
+              <NotifGroup title="Updates & chat" emoji="💬" count={grouped.chat.filter((n) => !n.is_read).length}>
+                {grouped.chat.map((n) => (
+                  <NotifRow key={n.id} n={n} onOpen={() => openNotif(n)} />
+                ))}
+              </NotifGroup>
+            )}
+            {grouped.task.length > 0 && (
+              <NotifGroup title="Tasks & reviews" emoji="📋" count={grouped.task.filter((n) => !n.is_read).length}>
+                {grouped.task.map((n) => (
+                  <NotifRow key={n.id} n={n} onOpen={() => openNotif(n)} />
+                ))}
+              </NotifGroup>
+            )}
+            {grouped.other.length > 0 && (
+              <NotifGroup title="Everything else" emoji="✨" count={grouped.other.filter((n) => !n.is_read).length}>
+                {grouped.other.map((n) => (
+                  <NotifRow key={n.id} n={n} onOpen={() => openNotif(n)} />
+                ))}
+              </NotifGroup>
             )}
           </div>
-          <div style={{ overflowY: 'auto', flex: 1 }}>
-            {items.length === 0 ? (
-              <div style={{ padding: 28, color: 'var(--sf-muted)', fontSize: 13, textAlign: 'center', lineHeight: 1.5 }}>
-                No notifications yet.
-                <br />
-                Task chats and reviews will appear here.
-              </div>
-            ) : (
-              items.slice(0, 30).map((n) => (
-                <button
-                  key={n.id}
-                  type="button"
-                  onClick={() => openNotif(n)}
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    border: 'none',
-                    borderBottom: '1px solid var(--sf-border)',
-                    background: n.is_read ? 'transparent' : 'var(--sf-accent-soft)',
-                    padding: '13px 16px',
-                    cursor: 'pointer',
-                    fontFamily: "'DM Sans',sans-serif",
-                    display: 'flex',
-                    gap: 12,
-                    alignItems: 'flex-start',
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 34,
-                      height: 34,
-                      borderRadius: 10,
-                      flexShrink: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: n.is_read ? 'var(--sf-surface-2)' : 'var(--sf-accent)',
-                      color: n.is_read ? 'var(--sf-muted)' : '#fff',
-                      fontSize: 11,
-                      fontWeight: 800,
-                    }}
-                  >
-                    {typeLabel(n.type).slice(0, 1).toUpperCase()}
-                  </span>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div
-                      style={{
-                        color: 'var(--sf-text)',
-                        fontSize: 13,
-                        fontWeight: n.is_read ? 500 : 650,
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      {n.message || 'Update'}
-                    </div>
-                    <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 5 }}>
-                      {typeLabel(n.type)} ·{' '}
-                      {n.created_at
-                        ? new Date(n.created_at).toLocaleString('en-IN', {
-                            day: 'numeric',
-                            month: 'short',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                        : ''}
-                    </div>
-                  </div>
-                  {!n.is_read && (
-                    <span
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        marginTop: 6,
-                        flexShrink: 0,
-                        background: 'var(--sf-accent)',
-                      }}
-                    />
-                  )}
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {toast && (
-        <div
-          role="status"
-          style={{
-            position: 'fixed',
-            right: 20,
-            top: 72,
-            width: 380,
-            maxWidth: 'calc(100vw - 40px)',
-            background: 'color-mix(in srgb, var(--sf-surface) 96%, transparent)',
-            border: '1px solid var(--sf-border)',
-            borderLeft: '3px solid var(--sf-accent)',
-            borderRadius: 14,
-            padding: '14px 16px',
-            boxShadow: '0 20px 56px rgba(0,0,0,0.42)',
-            backdropFilter: 'blur(12px)',
-            zIndex: 1200,
-            cursor: 'pointer',
-          }}
-          onClick={() => openNotif(toast)}
-        >
-          <div
-            style={{
-              color: 'var(--sf-accent)',
-              fontSize: 10,
-              fontWeight: 800,
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              marginBottom: 5,
-            }}
-          >
-            New · {typeLabel(toast.type)}
+        <div className="sf-notif-toast" role="status">
+          <div className="sf-notif-toast-head">
+            <span>{notificationEmoji(toast.type)}</span>
+            <span>New {typeLabel(toast.type)}</span>
+            <button type="button" className="sf-notif-toast-close" onClick={() => setToast(null)} aria-label="Dismiss">×</button>
           </div>
-          <div style={{ color: 'var(--sf-text)', fontSize: 13.5, fontWeight: 650, lineHeight: 1.45 }}>
-            {toast.message}
-          </div>
-          <div style={{ color: 'var(--sf-accent)', fontSize: 12, marginTop: 10, fontWeight: 650 }}>
-            Open conversation →
+          <p className="sf-notif-toast-msg">{toast.message}</p>
+          <div className="sf-notif-toast-actions">
+            <button type="button" className="sf-btn sf-btn-primary" style={{ fontSize: 12 }} onClick={() => openNotif(toast)}>
+              {notificationActionLabel(toast.type)} →
+            </button>
+            <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 12 }} onClick={() => setToast(null)}>
+              Later
+            </button>
           </div>
         </div>
       )}
-    </div>
+    </>
+  )
+}
+
+function NotifGroup({ title, emoji, count, children }: { title: string; emoji: string; count: number; children: React.ReactNode }) {
+  return (
+    <section className="sf-notif-group">
+      <div className="sf-notif-group-head">
+        <span>{emoji} {title}</span>
+        {count > 0 && <span className="sf-notif-group-count">{count} new</span>}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function NotifRow({ n, onOpen }: { n: Notif; onOpen: () => void }) {
+  const accent = notificationAccent(n.type)
+  return (
+    <article className={`sf-notif-row${n.is_read ? '' : ' sf-notif-row-unread'}`}>
+      <div className="sf-notif-row-icon" style={{ background: `color-mix(in srgb, ${accent} 18%, var(--sf-surface-2))`, color: accent }}>
+        {notificationEmoji(n.type)}
+      </div>
+      <div className="sf-notif-row-body">
+        <p className="sf-notif-row-msg">{n.message || 'Update'}</p>
+        <div className="sf-notif-row-meta">
+          {typeLabel(n.type)} · {n.created_at ? timeAgo(n.created_at) : ''}
+        </div>
+        <button type="button" className="sf-notif-row-link" onClick={onOpen}>
+          {notificationActionLabel(n.type)} →
+        </button>
+      </div>
+    </article>
   )
 }

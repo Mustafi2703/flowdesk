@@ -1170,7 +1170,7 @@ html[data-theme='morning'] body {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 10px;
   padding: 0.65rem 1.25rem;
   border-bottom: 1px solid var(--sf-border);
@@ -1181,9 +1181,38 @@ html[data-theme='morning'] body {
   box-shadow: var(--sf-shadow);
 }
 
-.sf-topbar .sf-theme-toggle {
-  width: auto;
-  margin-right: auto;
+.sf-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.sf-theme-icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid var(--sf-border);
+  background: var(--sf-surface);
+  color: var(--sf-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+  box-shadow: var(--sf-shadow);
+}
+
+.sf-theme-icon-btn:hover {
+  color: var(--sf-accent);
+  border-color: color-mix(in srgb, var(--sf-accent) 35%, var(--sf-border));
+  background: var(--sf-accent-soft);
+}
+
+.sf-theme-icon-btn:active {
+  transform: scale(0.96);
 }
 
 /* ── Dashboard (marketing agency vibe) ─────────────────────────── */

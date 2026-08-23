@@ -43,26 +43,23 @@ export function useTheme() {
   return useContext(ThemeContext)
 }
 
-export function ThemeToggle({ compact = false }: { compact?: boolean }) {
+export function ThemeIconButton() {
   const { theme, setTheme } = useTheme()
+  const isMorning = theme === 'morning'
   return (
-    <div className="sf-theme-toggle" style={compact ? { width: '100%' } : undefined}>
-      <button
-        type="button"
-        className={`sf-theme-btn ${theme === 'morning' ? 'active' : ''}`}
-        onClick={() => setTheme('morning')}
-        title="Morning mode (light)"
-      >
-        <Icon name="sun" size={14} /> Morning
-      </button>
-      <button
-        type="button"
-        className={`sf-theme-btn ${theme === 'night' ? 'active' : ''}`}
-        onClick={() => setTheme('night')}
-        title="Night mode (dark)"
-      >
-        <Icon name="moon" size={14} /> Night
-      </button>
-    </div>
+    <button
+      type="button"
+      className="sf-theme-icon-btn"
+      onClick={() => setTheme(isMorning ? 'night' : 'morning')}
+      title={isMorning ? 'Switch to night mode' : 'Switch to morning mode'}
+      aria-label={isMorning ? 'Switch to night mode' : 'Switch to morning mode'}
+    >
+      <Icon name={isMorning ? 'moon' : 'sun'} size={16} />
+    </button>
   )
+}
+
+/** @deprecated Use ThemeIconButton in the top bar */
+export function ThemeToggle({ compact = false }: { compact?: boolean }) {
+  return <ThemeIconButton />
 }

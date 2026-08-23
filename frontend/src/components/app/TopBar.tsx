@@ -2,15 +2,17 @@
 
 import { ClockBar } from '@/components/app/ClockBar'
 import { NotificationBell } from '@/components/app/NotificationBell'
-import { ThemeToggle } from '@/components/app/ThemeProvider'
+import { ThemeIconButton } from '@/components/app/ThemeProvider'
 
-/** Slim top bar — clock in/out for everyone + notifications + theme. */
+/** Slim top bar — clock + notifications + theme icon. */
 export function TopBar() {
   return (
     <header className="sf-topbar">
-      <ThemeToggle compact />
       <ClockBar />
-      <NotificationBell />
+      <div className="sf-topbar-actions">
+        <NotificationBell />
+        <ThemeIconButton />
+      </div>
     </header>
   )
 }

@@ -7,7 +7,7 @@ export function FileAttachmentsPanel({
   entityType,
   entityId,
   canUpload = true,
-  title = 'Files',
+  title = 'Documents',
   excludeIds = [],
   onUploadComplete,
 }: {
@@ -109,48 +109,51 @@ export function FileAttachmentsPanel({
 
   if (!entityId) {
     return (
-      <div style={{ background: 'var(--sf-surface-2)', border: '1px dashed var(--sf-border)', borderRadius: 10, padding: 14, color: 'var(--sf-muted)', fontSize: 12 }}>
-        Save the brand first to upload and view documents.
+      <div className="sf-files-panel" style={{ borderStyle: 'dashed' }}>
+        <p className="sf-files-panel-sub" style={{ margin: 0 }}>Save the brand first to upload and view documents.</p>
       </div>
     )
   }
 
   return (
-    <div style={{ background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 10, padding: 14 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{title}</div>
+    <div className="sf-files-panel">
+      <div className="sf-files-panel-head">
+        <div>
+          <h3 className="sf-files-panel-title">{title}</h3>
+          <p className="sf-files-panel-sub">Secure cloud storage — your existing files are kept safe.</p>
+        </div>
         {canUpload && (
-          <label className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 10px', cursor: uploading ? 'wait' : 'pointer' }}>
-            {uploading ? 'Uploading…' : '+ Upload (any file)'}
+          <label className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '6px 12px', cursor: uploading ? 'wait' : 'pointer', flexShrink: 0 }}>
+            {uploading ? 'Uploading…' : '+ Upload'}
             <input type="file" hidden disabled={uploading} onChange={onUpload} />
           </label>
         )}
+      </div>
+      <div className="sf-files-trust">
+        <span aria-hidden>☁️</span>
+        <span>Files are stored in secure cloud storage (R2). Upload, preview, and download anytime.</span>
       </div>
       {error && <div style={{ color: '#F87171', fontSize: 12, marginBottom: 8 }}>{error}</div>}
       {notice && <div style={{ color: 'var(--sf-success)', fontSize: 12, marginBottom: 8 }}>{notice}</div>}
       {loading ? (
         <div style={{ color: 'var(--sf-muted)', fontSize: 12 }}>Loading files…</div>
       ) : visibleFiles.length === 0 ? (
-        <div style={{ color: 'var(--sf-muted-2)', fontSize: 12 }}>No files yet. Upload brand guidelines, logos, or briefs.</div>
+        <div style={{ color: 'var(--sf-muted-2)', fontSize: 12, padding: '8px 0' }}>
+          No files yet. Upload briefs, designs, exports, or any deliverable.
+        </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div>
           {visibleFiles.map((f) => (
-            <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--sf-border)', minWidth: 0 }}>
-              <button
-                type="button"
-                onClick={() => setViewing(f)}
-                style={{ minWidth: 0, flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: 0, overflow: 'hidden' }}
-              >
-                <div style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.file_name}>{f.file_name}</div>
-                <div style={{ color: 'var(--sf-muted)', fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div key={f.id} className="sf-files-row">
+              <button type="button" className="sf-files-row-btn" onClick={() => setViewing(f)}>
+                <div className="sf-files-row-name" title={f.file_name}>{f.file_name}</div>
+                <div className="sf-files-row-meta">
                   {fmtSize(f.file_size || 0)}
                   {f.review_status ? ` · ${f.review_status}` : ''}
                   {f.review_version ? ` · v${f.review_version}` : ''}
-                  {f.review_notes ? ` · ${f.review_notes}` : ''}
-                  {' · click to view'}
                 </div>
               </button>
-              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+              <div className="sf-doc-actions">
                 <button type="button" onClick={() => setViewing(f)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px' }}>View</button>
                 <a
                   href={`/api/attachments/${f.id}/download`}

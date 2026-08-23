@@ -51,11 +51,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
   const [showClosed, setShowClosed] = useState(false)
   const [closing, setClosing] = useState(false)
   const [reviewNotes, setReviewNotes] = useState('')
-  const [linkLabel, setLinkLabel] = useState('')
-  const [linkUrl, setLinkUrl] = useState('')
-  const [savingLink, setSavingLink] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [showDriveForm, setShowDriveForm] = useState(false)
   const [showTools, setShowTools] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const channelScrollRef = useRef<HTMLDivElement | null>(null)
@@ -83,7 +79,6 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     if (!soft) {
       setSelectedTaskId(taskId)
       setShowTools(false)
-      setShowDriveForm(false)
       setMenuOpen(false)
     }
     const res = await fetch(`/api/tasks/${taskId}/chat`)
@@ -189,42 +184,6 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       setNotice(data.error || data.detail || 'Could not update status')
-      return
-    }
-    await loadFeed()
-  }
-
-  async function addDriveLink() {
-    if (!selectedTaskId || !selectedTask || !linkUrl.trim()) return
-    setSavingLink(true)
-    const next = [...(selectedTask.external_links || []), { label: linkLabel.trim() || 'Drive folder', url: linkUrl.trim() }]
-    const res = await fetch(`/api/tasks/${selectedTaskId}`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ external_links: next }),
-    })
-    setSavingLink(false)
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      setNotice(data.error || data.detail || 'Could not add Drive link')
-      return
-    }
-    setLinkLabel('')
-    setLinkUrl('')
-    await loadFeed()
-  }
-
-  async function removeDriveLink(idx: number) {
-    if (!selectedTaskId || !selectedTask) return
-    const next = (selectedTask.external_links || []).filter((_: any, i: number) => i !== idx)
-    const res = await fetch(`/api/tasks/${selectedTaskId}`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ external_links: next }),
-    })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      setNotice(data.error || data.detail || 'Could not remove link')
       return
     }
     await loadFeed()
@@ -409,11 +368,6 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                         ) : (
                           <span className="sf-upd-hint">{clockedIn ? 'Status is read-only' : 'Clock in to change status'}</span>
                         )}
-                        {(isMgmt || isTaskAssignee(selectedTask, session.id)) && (
-                          <button type="button" className="sf-btn sf-btn-ghost" onClick={() => setShowDriveForm((v) => !v)}>
-                            {showDriveForm ? 'Hide Drive' : 'Add Drive'}
-                          </button>
-                        )}
                       </div>
 
                       {isMgmt && selectedTask.requires_review && selectedTask.status === 'Under Review' && (
@@ -432,31 +386,6 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                             </div>
                           ) : (
                             <div className="sf-upd-hint">Clock in to approve or reject.</div>
-                          )}
-                        </div>
-                      )}
-
-                      {((selectedTask.external_links || []).length > 0 || showDriveForm) && (
-                        <div className="sf-upd-tool-block">
-                          <div className="sf-upd-label">Google Drive</div>
-                          <div className="sf-upd-chips">
-                            {(selectedTask.external_links || []).map((lnk: any, i: number) => (
-                              <span key={`${lnk.url}-${i}`} className="sf-upd-chip">
-                                <a href={lnk.url} target="_blank" rel="noreferrer">{lnk.label || 'Drive folder'}</a>
-                                {(isMgmt || isTaskAssignee(selectedTask, session.id)) && (
-                                  <button type="button" onClick={() => removeDriveLink(i)}>×</button>
-                                )}
-                              </span>
-                            ))}
-                          </div>
-                          {showDriveForm && (
-                            <div className="sf-upd-tool-row" style={{ marginTop: 8 }}>
-                              <input value={linkLabel} onChange={(e) => setLinkLabel(e.target.value)} placeholder="Label" className="sf-input sf-upd-link-label" />
-                              <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://drive.google.com/…" className="sf-input" />
-                              <button type="button" className="sf-btn sf-btn-primary" disabled={savingLink || !linkUrl.trim()} onClick={addDriveLink}>
-                                {savingLink ? '…' : 'Save'}
-                              </button>
-                            </div>
                           )}
                         </div>
                       )}

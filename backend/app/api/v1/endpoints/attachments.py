@@ -285,6 +285,39 @@ def review_queue(
     return out
 
 
+@router.get("/recent")
+def recent_attachments(
+    limit: int = Query(default=24, ge=1, le=50),
+    db: Session = Depends(get_db),
+    user: Profile = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    """Recent files the user can access — stored in R2 / disk, metadata in Postgres."""
+    rows = db.scalars(
+        select(FileAttachment).order_by(FileAttachment.created_at.desc()).limit(300)
+    ).all()
+    task_ids = {r.entity_id for r in rows if r.entity_type == "task"}
+    brand_ids = {r.entity_id for r in rows if r.entity_type == "brand"}
+    tasks = {t.id: t for t in db.scalars(select(Task).where(Task.id.in_(task_ids))).all()} if task_ids else {}
+    brands = {b.id: b for b in db.scalars(select(Brand).where(Brand.id.in_(brand_ids))).all()} if brand_ids else {}
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        if not _can_access_entity(db, row.entity_type, row.entity_id, user):
+            continue
+        item = _serialize(row)
+        item["entity_type"] = row.entity_type
+        item["entity_id"] = str(row.entity_id)
+        if row.entity_type == "task" and row.entity_id in tasks:
+            t = tasks[row.entity_id]
+            item["task_title"] = t.title
+            item["task_id"] = str(t.id)
+        if row.entity_type == "brand" and row.entity_id in brands:
+            item["brand_name"] = brands[row.entity_id].name
+        out.append(item)
+        if len(out) >= limit:
+            break
+    return out
+
+
 class AttachmentReview(BaseModel):
     review_status: str = Field(pattern="^(pending|approved|rejected)$")
     review_notes: str | None = None

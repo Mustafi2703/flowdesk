@@ -539,9 +539,6 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
-  const [driveLinks, setDriveLinks] = useState<any[]>(() => Array.isArray(task?.external_links) ? task.external_links : [])
-  const [driveLabel, setDriveLabel] = useState('')
-  const [driveUrl, setDriveUrl] = useState('')
 
   // Assignable people: Team department only (Developer is not a department).
   const teamUsers = users.filter((u:any) => u.role === 'team' && u.is_active !== false)
@@ -628,16 +625,11 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
           due_date: st.due_date || null,
         }))
     const effectiveMode = forceProjectMode || needsBrandName ? 'project' : 'standard'
-    const pendingLinks = [...driveLinks]
-    if (driveUrl.trim()) {
-      pendingLinks.push({ label: driveLabel.trim() || 'Drive folder', url: driveUrl.trim() })
-    }
     const body: any = {
       title, description:desc, brand_id:resolvedBrandId, assigned_to:assignedTo,
       type, task_mode:effectiveMode, priority, status, due_date:dueDate,
       requires_review:requiresReview, is_billable:isBillable,
       recurring_config: recurring ? { enabled:true, frequency:recurFreq, next_due:dueDate } : null,
-      external_links: pendingLinks,
     }
     if (isEdit) {
       body.sub_tasks = cleanedSubTasks
@@ -789,26 +781,6 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
             placeholder="Assign team members…"
             emptyLabel="No Team members found. Owner/Manager: add people under Team first."
           />
-        </div>
-
-        <div style={{ marginBottom:12 }}>
-          <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:7, display:'block' }}>Google Drive / file links</label>
-          <div style={{ color:'var(--sf-muted)', fontSize:11, marginBottom:8 }}>These go in the assignment email so the team can open the folder immediately.</div>
-          {driveLinks.map((lnk: any, i: number) => (
-            <div key={`${lnk.url}-${i}`} style={{ display:'flex', justifyContent:'space-between', gap:8, padding:'6px 0', borderBottom:'1px solid var(--sf-border)' }}>
-              <span style={{ color:'#60A5FA', fontSize:12, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{lnk.label || lnk.url}</span>
-              <button type="button" onClick={() => setDriveLinks(prev => prev.filter((_, idx) => idx !== i))} style={{ background:'none', border:'none', color:'var(--sf-danger)', cursor:'pointer', fontSize:12 }}>Remove</button>
-            </div>
-          ))}
-          <div style={{ display:'flex', flexDirection:'column', gap:8, marginTop:8 }}>
-            <input value={driveLabel} onChange={e => setDriveLabel(e.target.value)} placeholder="Label (optional)" style={sInp} />
-            <input value={driveUrl} onChange={e => setDriveUrl(e.target.value)} placeholder="https://drive.google.com/…" style={sInp} />
-            <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize:12 }} onClick={() => {
-              if (!driveUrl.trim()) return
-              setDriveLinks(prev => [...prev, { label: driveLabel.trim() || 'Drive folder', url: driveUrl.trim() }])
-              setDriveLabel(''); setDriveUrl('')
-            }}>+ Add Drive link</button>
-          </div>
         </div>
 
         <div style={{ background:'rgba(6,182,212,0.08)', border:'1px solid rgba(6,182,212,0.2)', borderRadius:9, padding:'8px 12px', marginBottom:14, color:'var(--sf-text-secondary)', fontSize:12 }}>

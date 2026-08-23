@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 
 /** Fixed overlay dialog — keeps page scroll stable while forms/summaries are open. */
 export function Modal({
@@ -12,6 +12,7 @@ export function Modal({
   footer,
   width = 560,
   zIndex = 100,
+  size = 'default',
 }: {
   open: boolean
   onClose: () => void
@@ -21,6 +22,7 @@ export function Modal({
   footer?: ReactNode
   width?: number | string
   zIndex?: number
+  size?: 'default' | 'wide' | 'full'
 }) {
   useEffect(() => {
     if (!open) return
@@ -38,98 +40,42 @@ export function Modal({
 
   if (!open) return null
 
-  const panelStyle: CSSProperties = {
-    width: typeof width === 'number' ? `min(${width}px, 100%)` : width,
-    maxHeight: 'min(88vh, 820px)',
-    background: 'color-mix(in srgb, var(--sf-surface) 96%, transparent)',
-    border: '1px solid var(--sf-border)',
-    borderRadius: 20,
-    display: 'flex',
-    flexDirection: 'column',
-    overflow: 'hidden',
-    boxShadow: 'var(--sf-shadow-lg)',
-    backdropFilter: 'blur(16px)',
-  }
+  const panelClass = [
+    'sf-modal-panel',
+    size === 'wide' ? 'sf-modal-panel-wide' : '',
+    size === 'full' ? 'sf-modal-panel-full' : '',
+  ].filter(Boolean).join(' ')
+
+  const panelStyle = size === 'default' && width !== 560
+    ? { width: typeof width === 'number' ? `min(${width}px, 100%)` : width }
+    : undefined
 
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label={title}
+      className="sf-modal-overlay"
+      style={{ zIndex }}
       onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex,
-        background: 'color-mix(in srgb, var(--sf-bg) 55%, transparent)',
-        backdropFilter: 'blur(10px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-        animation: 'sf-modal-in 0.16s ease-out',
-      }}
     >
-      <div onClick={e => e.stopPropagation()} style={panelStyle}>
-        <div
-          style={{
-            padding: '18px 22px',
-            borderBottom: '1px solid var(--sf-border)',
-            flexShrink: 0,
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 12,
-            alignItems: 'flex-start',
-            background: 'linear-gradient(180deg, var(--sf-accent-soft), transparent)',
-          }}
-        >
-          <div style={{ minWidth: 0 }}>
-            <div
-              style={{
-                color: 'var(--sf-text)',
-                fontWeight: 750,
-                fontSize: 18,
-                fontFamily: "'Space Grotesk',sans-serif",
-                letterSpacing: '-0.01em',
-              }}
-            >
-              {title}
-            </div>
-            {subtitle && (
-              <div style={{ color: 'var(--sf-muted)', fontSize: 13, marginTop: 5, lineHeight: 1.4 }}>
-                {subtitle}
-              </div>
-            )}
+      <div className={panelClass} style={panelStyle} onClick={e => e.stopPropagation()}>
+        <div className="sf-modal-header">
+          <div className="sf-modal-header-copy">
+            <div className="sf-modal-title">{title}</div>
+            {subtitle && <div className="sf-modal-subtitle">{subtitle}</div>}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="sf-btn sf-btn-ghost"
-            style={{ fontSize: 18, lineHeight: 1, padding: '6px 12px', borderRadius: 999 }}
+            className="sf-btn sf-btn-ghost sf-modal-close"
             aria-label="Close"
           >
             ×
           </button>
         </div>
-        <div style={{ padding: '18px 22px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
-          {children}
-        </div>
-        {footer && (
-          <div
-            style={{
-              padding: '14px 22px',
-              borderTop: '1px solid var(--sf-border)',
-              flexShrink: 0,
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: 10,
-              flexWrap: 'wrap',
-              background: 'var(--sf-surface-2)',
-            }}
-          >
-            {footer}
-          </div>
-        )}
+        <div className="sf-modal-body">{children}</div>
+        {footer && <div className="sf-modal-footer">{footer}</div>}
       </div>
     </div>
   )

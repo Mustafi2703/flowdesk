@@ -36,11 +36,8 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [linkUrl, setLinkUrl] = useState('')
-  const [linkLabel, setLinkLabel] = useState('')
   const [reviewNotes, setReviewNotes] = useState('')
   const [emailing, setEmailing] = useState(false)
-  const [driveFolderBusy, setDriveFolderBusy] = useState(false)
   const today = todayIST()
   const clockedIn = isClockedInToday(attendance, session.id, today)
   const canEdit = canManageTasks(session.role)
@@ -132,20 +129,6 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
       return
     }
     alert(data.sent ? `Task email sent (${data.sent}).` : 'No assignees to email.')
-  }
-
-  async function createDriveFolder() {
-    setDriveFolderBusy(true)
-    setError('')
-    const res = await fetch(`/api/drive/tasks/${taskId}/folder`, { method: 'POST' })
-    const data = await res.json().catch(() => ({}))
-    setDriveFolderBusy(false)
-    if (!res.ok) {
-      setError(data.detail || data.error || 'Could not create Drive folder')
-      return
-    }
-    if (data.external_links) setTask((prev: any) => ({ ...prev, external_links: data.external_links }))
-    else await load()
   }
 
   const assignees = useMemo(() => {
@@ -379,47 +362,13 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
       )}
 
       {tab === 'files' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <FileAttachmentsPanel entityType="task" entityId={task.id} canUpload={canWork} title="Uploads (any file type)" onUploadComplete={() => load()} />
-          <div style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, padding: 18 }}>
-            <div style={{ color: 'var(--sf-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', marginBottom: 10 }}>Google Drive / external links</div>
-            {canEdit && (
-              <button
-                type="button"
-                className="sf-btn sf-btn-primary"
-                style={{ fontSize: 12, marginBottom: 12 }}
-                disabled={driveFolderBusy}
-                onClick={createDriveFolder}
-              >
-                {driveFolderBusy ? 'Creating…' : 'Create Drive folder'}
-              </button>
-            )}
-            {(task.external_links || []).length === 0 && <div style={{ color: 'var(--sf-muted)', fontSize: 12, marginBottom: 10 }}>No links yet. Create a folder in the connected Drive, or paste a Drive / Dropbox / Figma URL.</div>}
-            {(task.external_links || []).map((lnk: any, i: number) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--sf-border)' }}>
-                <a href={lnk.url} target="_blank" rel="noreferrer" style={{ color: '#60A5FA', fontSize: 13 }}>{lnk.label || lnk.url}</a>
-                {canWork && (
-                  <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 11, color: 'var(--sf-danger)' }} onClick={() => {
-                    const next = (task.external_links || []).filter((_: any, idx: number) => idx !== i)
-                    patch({ external_links: next })
-                  }}>Remove</button>
-                )}
-              </div>
-            ))}
-            {canWork && (
-              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <input value={linkLabel} onChange={(e) => setLinkLabel(e.target.value)} placeholder="Label (optional)" className="sf-input" />
-                <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://drive.google.com/…" className="sf-input" />
-                <button type="button" className="sf-btn sf-btn-primary" style={{ fontSize: 12 }} onClick={() => {
-                  if (!linkUrl.trim()) return
-                  const next = [...(task.external_links || []), { label: linkLabel.trim() || 'Drive link', url: linkUrl.trim() }]
-                  patch({ external_links: next })
-                  setLinkUrl(''); setLinkLabel('')
-                }}>Add link</button>
-              </div>
-            )}
-          </div>
-        </div>
+        <FileAttachmentsPanel
+          entityType="task"
+          entityId={task.id}
+          canUpload={canWork}
+          title="Task documents"
+          onUploadComplete={() => load()}
+        />
       )}
 
       {tab === 'review' && task.requires_review && (

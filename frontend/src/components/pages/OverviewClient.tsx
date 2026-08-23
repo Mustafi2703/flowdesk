@@ -43,6 +43,17 @@ function BarRow({ label, value, total, color }: { label: string; value: number; 
   )
 }
 
+function fmtSize(n: number) {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function fileExt(name: string) {
+  const i = name.lastIndexOf('.')
+  return i >= 0 ? name.slice(i + 1).toUpperCase().slice(0, 4) : 'FILE'
+}
+
 export default function OverviewClient({ session }: { session: SessionUser }) {
   const router = useRouter()
   const [tasks, setTasks] = useState<any[]>([])
@@ -56,8 +67,7 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const [nowTick, setNowTick] = useState(Date.now())
   const [emailBusy, setEmailBusy] = useState('')
   const [emailNotice, setEmailNotice] = useState('')
-  const [driveStatus, setDriveStatus] = useState<any>(null)
-  const [driveBusy, setDriveBusy] = useState(false)
+  const [recentFiles, setRecentFiles] = useState<any[]>([])
   const today = todayIST()
 
   async function runEmailAction(kind: 'test' | 'morning' | 'evening') {
@@ -78,34 +88,6 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
     else setEmailNotice(`${kind === 'morning' ? 'Morning' : 'Evening'} brief sent to ${data.sent} people`)
   }
 
-  async function loadDriveStatus() {
-    if (!['owner', 'manager'].includes(session.role)) return
-    const res = await fetch('/api/drive/status')
-    const data = await res.json().catch(() => null)
-    if (res.ok) setDriveStatus(data)
-  }
-
-  async function connectDrive() {
-    setDriveBusy(true)
-    setEmailNotice('')
-    const res = await fetch('/api/drive/connect')
-    const data = await res.json().catch(() => ({}))
-    setDriveBusy(false)
-    if (!res.ok) {
-      setEmailNotice(data.detail || data.error || 'Could not start Google Drive connect')
-      return
-    }
-    if (data.url) window.location.href = data.url
-  }
-
-  async function disconnectDrive() {
-    if (!window.confirm('Disconnect Google Drive from Scrumfolks?')) return
-    setDriveBusy(true)
-    await fetch('/api/drive/disconnect', { method: 'POST' })
-    setDriveBusy(false)
-    loadDriveStatus()
-  }
-
   useEffect(() => {
     const t = setInterval(() => setNowTick(Date.now()), 60000)
     return () => clearInterval(t)
@@ -119,24 +101,20 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
       fetch('/api/updates').then(r => r.json()).catch(() => []),
       fetch('/api/attendance').then(r => r.json()).catch(() => []),
       fetch('/api/notifications').then(r => r.json()).catch(() => []),
-    ]).then(([t, a, l, u, att, n]) => {
+      fetch('/api/attachments/recent').then(r => r.json()).catch(() => []),
+    ]).then(([t, a, l, u, att, n, files]) => {
       setTasks(Array.isArray(t) ? t : [])
       setAnnouncements(Array.isArray(a) ? a : [])
       setLeaves(Array.isArray(l) ? l : [])
       setUpdates(Array.isArray(u) ? u : [])
       setNotifications(Array.isArray(n) ? n : [])
+      setRecentFiles(Array.isArray(files) ? files : [])
       const logs = Array.isArray(att) ? att : []
       const todays = logs.find((x: any) => x.date === today)
       setTodayLog(todays || null)
       setClocked(Boolean(todays?.login_time && !todays?.logout_time))
       setLoading(false)
     })
-    loadDriveStatus()
-    if (typeof window !== 'undefined') {
-      const q = new URLSearchParams(window.location.search)
-      if (q.get('drive') === 'connected') setEmailNotice('Google Drive connected. You can create task folders from any task.')
-      if (q.get('drive') === 'error') setEmailNotice(`Google Drive connect failed: ${q.get('msg') || 'unknown'}`)
-    }
   }, [])
 
   async function markRead(id: string) {
@@ -260,46 +238,76 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14, flexShrink: 0 }}>
-        <Section title="Attendance" subtitle={clocked ? 'You are clocked in' : 'Not clocked in today'} flush>
-          <div style={{ padding:'1rem 1.125rem', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
+      <div className="sf-bento">
+        <div className="sf-flow-card sf-bento-4">
+          <div className="sf-clock-card">
             <div>
-              <div style={{ color: clocked ? 'var(--sf-success)' : 'var(--sf-muted)', fontSize:13, fontWeight:600, marginBottom: 6 }}>
-                {clocked ? 'Active work session' : 'Clock in to update task status and progress'}
+              <div className={`sf-clock-status ${clocked ? 'on' : 'off'}`}>
+                {clocked ? '● Active work session' : 'Clock in to update tasks & reviews'}
               </div>
-              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              <div className="sf-clock-metrics" style={{ marginTop: 14 }}>
                 <div>
-                  <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>In time</div>
-                  <div style={{ color: 'var(--sf-text)', fontSize: 16, fontWeight: 700 }}>{todayInTime || '—'}</div>
+                  <div className="sf-clock-metric-label">In time</div>
+                  <div className="sf-clock-metric-val">{todayInTime || '—'}</div>
                 </div>
                 <div>
-                  <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Hours today</div>
-                  <div style={{ color: 'var(--sf-success)', fontSize: 16, fontWeight: 700 }}>{hoursTodayLabel}</div>
+                  <div className="sf-clock-metric-label">Hours today</div>
+                  <div className="sf-clock-metric-val" style={{ color: clocked ? 'var(--sf-success)' : undefined }}>{hoursTodayLabel}</div>
                 </div>
               </div>
             </div>
-            <button onClick={clocked?clockOut:clockIn} className="sf-btn sf-btn-primary" style={{ padding:'0.625rem 1.25rem' }}>
+            <button onClick={clocked ? clockOut : clockIn} className="sf-btn sf-btn-primary" style={{ width: '100%' }}>
               {clocked ? 'Clock out' : 'Clock in'}
             </button>
           </div>
-        </Section>
+        </div>
 
-        <Section title="Quick links" subtitle="Jump into work" flush>
-          <div style={{ padding: '12px 14px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {[
-              ['Task board', '/tasks'],
-              ['Updates', '/updates'],
-              ['Calendar', '/calendar'],
-              ['Team', '/team'],
-              ...(session.role === 'accountant' ? [['Billing', '/billing']] : []),
-              ...(isAdmin || session.role === 'hr' ? [['Leave', '/leave']] : []),
-            ].map(([label, href]) => (
-              <button key={href} type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 12 }} onClick={() => router.push(href)}>
-                {label}
-              </button>
+        <div className="sf-flow-card sf-bento-8">
+          <div className="sf-flow-card-head">
+            <div>
+              <h3 className="sf-flow-card-title">Documents hub</h3>
+              <p className="sf-flow-card-sub">All uploads from tasks & brands — stored securely in cloud (R2). Nothing is lost.</p>
+            </div>
+            <button type="button" className="sf-link-btn" onClick={() => router.push('/tasks')}>Open tasks →</button>
+          </div>
+          <div className="sf-docs-banner">
+            <span aria-hidden style={{ fontSize: 20 }}>📁</span>
+            <span><strong>{recentFiles.length} recent file{recentFiles.length === 1 ? '' : 's'}</strong> — view inline or download. Upload from any task or brand page.</span>
+          </div>
+          <div className="sf-flow-card-body-flush">
+            {recentFiles.length === 0 ? (
+              <div style={{ padding: '20px 16px', color: 'var(--sf-muted)', fontSize: 13, textAlign: 'center' }}>
+                No documents yet. Upload files on a task or brand — they appear here automatically.
+              </div>
+            ) : recentFiles.slice(0, 8).map((f: any) => (
+              <div
+                key={f.id}
+                className="sf-doc-row"
+                onClick={() => {
+                  if (f.task_id) router.push(`/tasks/${f.task_id}?tab=files`)
+                  else if (f.entity_type === 'brand') router.push(`/brands`)
+                }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' && f.task_id) router.push(`/tasks/${f.task_id}?tab=files`) }}
+              >
+                <div className="sf-doc-badge">{fileExt(f.file_name || '')}</div>
+                <div className="sf-doc-copy">
+                  <div className="sf-doc-name" title={f.file_name}>{f.file_name}</div>
+                  <div className="sf-doc-meta">
+                    {f.task_title || f.brand_name || f.entity_type}
+                    {' · '}{fmtSize(f.file_size || 0)}
+                    {f.created_at ? ` · ${new Date(f.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}
+                  </div>
+                </div>
+                <div className="sf-doc-actions" onClick={(e) => e.stopPropagation()}>
+                  <a href={`/api/attachments/${f.id}`} target="_blank" rel="noreferrer" className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px', textDecoration: 'none' }}>View</a>
+                  <a href={`/api/attachments/${f.id}/download`} download={f.file_name} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px', textDecoration: 'none' }}>Download</a>
+                </div>
+              </div>
             ))}
           </div>
-        </Section>
+        </div>
       </div>
 
       {isTeam && (
@@ -312,48 +320,6 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
             <div style={{ color: 'var(--sf-muted)', fontSize: 12 }}>{myCompleted.length} completed · {myDelayed.length} delayed</div>
           </div>
         </div>
-      )}
-
-      {isAdmin && (
-        <Section
-          title="Google Drive"
-          subtitle="Connect the agency Drive so tasks can get real folders (not just pasted links)"
-          flush
-          style={{ flexShrink: 0 }}
-        >
-          <div style={{ padding: '12px 14px', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-            {driveStatus?.connected ? (
-              <>
-                <span style={{ color: 'var(--sf-success)', fontSize: 13, fontWeight: 650 }}>
-                  Connected{driveStatus.account_email ? ` · ${driveStatus.account_email}` : ''}
-                </span>
-                {driveStatus.root_folder_url && (
-                  <a href={driveStatus.root_folder_url} target="_blank" rel="noreferrer" className="sf-link-btn" style={{ fontSize: 12 }}>
-                    Open Scrumfolks TMS folder
-                  </a>
-                )}
-                {session.role === 'owner' && (
-                  <button type="button" className="sf-btn sf-btn-ghost" disabled={driveBusy} onClick={disconnectDrive}>
-                    Disconnect
-                  </button>
-                )}
-              </>
-            ) : (
-              <>
-                <span style={{ color: 'var(--sf-muted)', fontSize: 13 }}>
-                  {driveStatus?.configured
-                    ? 'Not connected yet — Owner can link Google Drive.'
-                    : 'Add Google OAuth vars on Railway backend, then connect here.'}
-                </span>
-                {session.role === 'owner' && (
-                  <button type="button" className="sf-btn sf-btn-primary" disabled={driveBusy || driveStatus?.configured === false} onClick={connectDrive}>
-                    {driveBusy ? 'Opening Google…' : 'Connect Google Drive'}
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        </Section>
       )}
 
       {isAdmin && (

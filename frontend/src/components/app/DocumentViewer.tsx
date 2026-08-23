@@ -58,7 +58,7 @@ export function DocumentViewer({
       onClose={onClose}
       title={file.file_name}
       subtitle={file.mime_type || 'Document'}
-      width={860}
+      size="full"
       zIndex={1200}
       footer={
         <>

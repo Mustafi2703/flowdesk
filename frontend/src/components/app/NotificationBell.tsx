@@ -124,7 +124,7 @@ export function NotificationBell() {
         onClose={() => setOpen(false)}
         title="What's happening"
         subtitle={unreadCount ? `${unreadCount} fresh update${unreadCount === 1 ? '' : 's'} — jump in like Slack` : 'You are all caught up 🎉'}
-        width={520}
+        size="wide"
         zIndex={1300}
         footer={
           <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 8, flexWrap: 'wrap' }}>

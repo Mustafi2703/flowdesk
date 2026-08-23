@@ -72,6 +72,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   const [section, setSection] = useState('overview')
   const [showCreate, setShowCreate] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [identityEditNonce, setIdentityEditNonce] = useState(0)
   const canEdit = ['owner', 'manager'].includes(session.role)
   const isOwner = session.role === 'owner'
   const isReadOnlyRole = ['hr', 'accountant'].includes(session.role)
@@ -159,7 +160,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
             <button type="button" onClick={() => setShowCreate(true)} className="sf-btn sf-btn-primary">
               Add brand
             </button>
-            <button type="button" className="sf-btn sf-btn-ghost" onClick={() => setSection('identity')}>
+            <button type="button" className="sf-btn sf-btn-ghost" onClick={() => { setSection('identity'); setIdentityEditNonce((n) => n + 1) }}>
               Edit identity
             </button>
             <button type="button" className="sf-btn sf-btn-ghost" style={{ color: 'var(--sf-danger)' }} onClick={async () => {
@@ -229,6 +230,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                 onRefresh={load}
                 onBrandUpdated={patchBrand}
                 attendance={attendance}
+                identityEditNonce={identityEditNonce}
               />
             </>
           ) : (
@@ -244,7 +246,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   )
 }
 
-function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers, canAssignTeam, tab, onTabChange, onRefresh, onBrandUpdated, attendance }: any) {
+function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers, canAssignTeam, tab, onTabChange, onRefresh, onBrandUpdated, attendance, identityEditNonce = 0 }: any) {
   const router = useRouter()
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [createAsProject, setCreateAsProject] = useState(false)
@@ -255,6 +257,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
   const [logoError, setLogoError] = useState('')
   const [editingIdentity, setEditingIdentity] = useState(false)
   const [identityDraft, setIdentityDraft] = useState({
+    name: brand.name || '',
     logo: brand.logo || '',
     description: brand.description || '',
     short_term_goals: (brand.short_term_goals || []).join('\n'),
@@ -287,6 +290,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
     setManagerIds((brand.assigned_managers || []).map(String))
     setMemberIds((brand.assigned_members || []).map(String))
     setIdentityDraft({
+      name: brand.name || '',
       logo: brand.logo || '',
       description: brand.description || '',
       short_term_goals: (brand.short_term_goals || []).join('\n'),
@@ -303,7 +307,11 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
       client_type: brand.client_type || 'Retainer',
     })
     setLogoError('')
-  }, [brand.id, brand.assigned_members, brand.assigned_managers, brand.logo, brand.logo_url, brand.description, brand.workflow_stage, brand.priority, brand.client_type, brand.short_term_goals, brand.long_term_goals, brand.journey, brand.responsibilities, brand.fonts, brand.logo_variants, brand.brand_colors, brand.photography_style, brand.brand_voice])
+  }, [brand.id, brand.assigned_members, brand.assigned_managers, brand.name, brand.logo, brand.logo_url, brand.description, brand.workflow_stage, brand.priority, brand.client_type, brand.short_term_goals, brand.long_term_goals, brand.journey, brand.responsibilities, brand.fonts, brand.logo_variants, brand.brand_colors, brand.photography_style, brand.brand_voice])
+
+  useEffect(() => {
+    if (identityEditNonce > 0) setEditingIdentity(true)
+  }, [identityEditNonce])
 
   async function saveMembers() {
     setSavingMembers(true)
@@ -350,6 +358,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        name: identityDraft.name?.trim() || brand.name,
         logo: (identityDraft.logo || brand.name.slice(0, 2)).toUpperCase().slice(0, 8),
         description: identityDraft.description || null,
         short_term_goals: lines(identityDraft.short_term_goals),
@@ -808,6 +817,9 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
               </>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Brand name
+                  <input value={identityDraft.name} onChange={e => setIdentityDraft(d => ({ ...d, name: e.target.value }))} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)' }} />
+                </label>
                 <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Initials fallback
                   <input value={identityDraft.logo} onChange={e => setIdentityDraft(d => ({ ...d, logo: e.target.value.slice(0, 8) }))} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)' }} />
                 </label>

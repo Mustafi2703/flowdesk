@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { clockOutWithConfirm, todayIST } from '@/lib/clock'
+import { notifyAttendanceChanged } from '@/lib/attendance'
 
 export function ClockBar() {
   const [clocked, setClocked] = useState(false)
@@ -27,6 +28,7 @@ export function ClockBar() {
       alert(data.error || data.detail || 'Could not clock in')
     }
     await load()
+    notifyAttendanceChanged()
     setBusy(false)
   }
 
@@ -34,13 +36,14 @@ export function ClockBar() {
     setBusy(true)
     await clockOutWithConfirm()
     await load()
+    notifyAttendanceChanged()
     setBusy(false)
   }
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 12 }}>
       <div style={{ textAlign: 'right' }}>
-        <div style={{ color: clocked ? '#10B981' : 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        <div style={{ color: clocked ? 'var(--sf-success)' : 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           {clocked ? 'Clocked in' : 'Not clocked in'}
         </div>
         <div style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600 }}>

@@ -161,11 +161,10 @@ html[data-theme='morning'] body {
 .sf-page {
   display: flex;
   flex-direction: column;
-  /* Grow with content so the main pane scrolls — avoid nested page traps */
   min-height: min-content;
   width: 100%;
   gap: 1rem;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
 }
 
 /* Full-height pages (Updates chat, task board, overview widgets) */
@@ -362,7 +361,7 @@ html[data-theme='morning'] body {
 
 .sf-brand-identity-grid > * {
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .sf-truncate {
@@ -1026,6 +1025,56 @@ html[data-theme='morning'] body {
 .sf-status-warning { background: rgba(217, 119, 6, 0.12); color: var(--sf-warning); }
 .sf-status-done { background: rgba(5, 150, 105, 0.12); color: var(--sf-success); }
 .sf-status-danger { background: rgba(220, 38, 38, 0.12); color: var(--sf-danger); }
+
+/* Strong status pills (list, board, updates) */
+.sf-status-pill {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 4px 9px;
+  border-radius: 6px;
+  white-space: nowrap;
+  display: inline-block;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+}
+.sf-status-pill-neutral {
+  background: var(--sf-surface-2);
+  color: var(--sf-text-secondary);
+  border-color: var(--sf-border);
+}
+.sf-status-pill-progress {
+  background: rgba(37, 99, 235, 0.16);
+  color: #2563eb;
+  border-color: rgba(37, 99, 235, 0.28);
+}
+[data-theme='night'] .sf-status-pill-progress { color: #60a5fa; }
+.sf-status-pill-review {
+  background: rgba(124, 58, 237, 0.16);
+  color: #7c3aed;
+  border-color: rgba(124, 58, 237, 0.28);
+}
+[data-theme='night'] .sf-status-pill-review { color: #c084fc; }
+.sf-status-pill-revision {
+  background: rgba(234, 88, 12, 0.14);
+  color: #c2410c;
+  border-color: rgba(234, 88, 12, 0.28);
+}
+.sf-status-pill-done {
+  background: rgba(5, 150, 105, 0.14);
+  color: #059669;
+  border-color: rgba(5, 150, 105, 0.28);
+}
+.sf-status-pill-warning {
+  background: rgba(217, 119, 6, 0.14);
+  color: #b45309;
+  border-color: rgba(217, 119, 6, 0.28);
+}
+.sf-status-pill-danger {
+  background: rgba(220, 38, 38, 0.14);
+  color: #dc2626;
+  border-color: rgba(220, 38, 38, 0.28);
+}
+[data-theme='night'] .sf-status-pill-danger { color: #f87171; }
 
 /* Sidebar nav */
 .sf-nav {

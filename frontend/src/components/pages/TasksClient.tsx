@@ -8,6 +8,7 @@ import { PageHeader, PageShell, Section } from '@/components/app/Section'
 import { StatusBadge, statusTint } from '@/components/app/StatusBadge'
 import { todayIST } from '@/lib/clock'
 import { TASK_STATUSES, allowedTaskStatuses, canManageTasks, canSetTaskPrice, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
+import { ATTENDANCE_CHANGED } from '@/lib/attendance'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { TaskThreadBox } from '@/components/app/TaskThreadBox'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
@@ -150,13 +151,17 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   }
 
   async function updateTaskStatus(taskId: string, status: string) {
+    if (!clockedIn) {
+      alert('Clock in from the top bar before starting or updating tasks.')
+      return
+    }
     const res = await fetch(`/api/tasks/${taskId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     })
+    const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
       alert(data.error || data.detail || 'Could not update status')
       return
     }
@@ -194,6 +199,17 @@ export default function TasksClient({ session }: { session: SessionUser }) {
     })
   }
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    function refreshAttendance() {
+      fetch('/api/attendance')
+        .then((r) => r.json())
+        .then((a) => setAttendance(Array.isArray(a) ? a : []))
+        .catch(() => {})
+    }
+    window.addEventListener(ATTENDANCE_CHANGED, refreshAttendance)
+    return () => window.removeEventListener(ATTENDANCE_CHANGED, refreshAttendance)
+  }, [])
 
   const filtered = useMemo(() => {
     const rows = tasks.filter(t =>
@@ -381,8 +397,8 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                             >
                               {emailingId === task.id ? '…' : 'Email'}
                             </button>
-                            {task.requires_review && (
-                              <button type="button" onClick={() => router.push(`/tasks/${task.id}`)} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px' }}>Review</button>
+                            {canEdit && task.requires_review && task.status === 'Under Review' && (
+                              <button type="button" onClick={() => router.push(`/tasks/${task.id}?tab=review`)} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px' }}>Review</button>
                             )}
                             <button type="button" onClick={() => deleteTask(task)} className="sf-btn sf-btn-ghost" style={{ fontSize:11, padding:'4px 8px', color:'var(--sf-danger)' }}>Delete</button>
                           </div>

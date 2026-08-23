@@ -1,0 +1,17 @@
+---
+description: FastAPI backend conventions and RBAC
+globs: backend/**/*.py
+alwaysApply: false
+---
+
+# Backend
+
+- Routes live in `backend/app/api/v1/endpoints/`. Enforce RBAC in the endpoint.
+- Auth: `get_current_user` in `deps.py`. Cookie `sf_sess`, Bearer, or `x-access-token`.
+- Do not add `from __future__ import annotations` in `auth.py` (slowapi / FastAPI body bug).
+- Task create/assign calls `send_task_brief_emails`. Catch mail errors; do not fail the request.
+- `EMAIL_TEST_RECIPIENT` redirects all outbound mail when set.
+- Schema change = new Alembic file under `backend/alembic/versions/`. Do not rewrite applied migrations.
+- Seed in `app/scripts/seed.py` must stay idempotent (match by id then email).
+- Clock-in gate: `_WORK_FIELDS` (status, checklist, sub_tasks, description). Drive `external_links` is not a work field.
+- Manager must not write `billable_amount`.

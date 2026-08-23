@@ -143,6 +143,8 @@ def send_evening_digests(db: Session, *, force: bool = False) -> int:
           <ul>{''.join(_li(t) for t in bags['critical'][:20]) or '<li>None</li>'}</ul>
           <h3>Pending overall ({len(bags['pending'])})</h3>
           <ul>{''.join(_li(t) for t in bags['pending'][:30]) or '<li>None</li>'}</ul>
+          <h3>Upcoming (next 7 days) ({len(bags['due_soon'])})</h3>
+          <ul>{''.join(_li(t) for t in bags['due_soon'][:20]) or '<li>Nothing due this week</li>'}</ul>
           <h3 style="color:#b91c1c">Overdue ({len(bags['overdue'])})</h3>
           <ul>{''.join(_li(t) for t in bags['overdue'][:15]) or '<li>None</li>'}</ul>
           <h3>Under review ({len(bags['under_review'])})</h3>

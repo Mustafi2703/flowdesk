@@ -64,7 +64,7 @@ export default function LeaveClient({ session }: { session: SessionUser }) {
   return (
     <PageShell>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexShrink:0 }}>
-        <PageHeader title="Leave Management" subtitle={`${pendingCount} pending · ${displayed.length} total`} />
+        <PageHeader title="Leave Management" subtitle={`${pendingCount} pending approval${pendingCount === 1 ? '' : 's'} · ${displayed.length} on record`} />
         {canRequest && (
           <button onClick={()=>setShowCreate(true)} className="sf-btn sf-btn-primary" style={{ marginTop:4 }}>Request leave</button>
         )}
@@ -86,7 +86,7 @@ export default function LeaveClient({ session }: { session: SessionUser }) {
           const u = req.user||{}
           const s = STAT[req.status]||STAT.Pending
           return (
-            <div key={req.id} style={{display:'grid',gridTemplateColumns:canApprove?'1.5fr 1fr 1fr 1fr 1fr 1.2fr':'1.5fr 1fr 1fr 1fr 1fr',padding:'12px 20px',borderBottom:'1px solid #1A1A2E',alignItems:'center'}}>
+            <div key={req.id} style={{display:'grid',gridTemplateColumns:canApprove?'1.5fr 1fr 1fr 1fr 1fr 1.2fr':'1.5fr 1fr 1fr 1fr 1fr',padding:'12px 20px',borderBottom:'1px solid var(--sf-border)',alignItems:'center'}}>
               <div style={{display:'flex',gap:10,alignItems:'center'}}>
                 <div style={{width:30,height:30,borderRadius:7,background:'var(--sf-accent)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--sf-text)',fontWeight:700,fontSize:11}}>{u.avatar||(u.name||'U').slice(0,2)}</div>
                 <div>
@@ -97,9 +97,9 @@ export default function LeaveClient({ session }: { session: SessionUser }) {
                   )}
                 </div>
               </div>
-              <div style={{color:'#A0A0C0',fontSize:13}}>{req.leave_type}</div>
-              <div style={{color:'#A0A0C0',fontSize:11}}>{req.start_date}{req.end_date!==req.start_date && ` → ${req.end_date}`}</div>
-              <div style={{color:'#A0A0C0',fontSize:13}}>{req.days}d</div>
+              <div style={{color:'var(--sf-text-secondary)',fontSize:13}}>{req.leave_type}</div>
+              <div style={{color:'var(--sf-muted)',fontSize:11}}>{req.start_date}{req.end_date!==req.start_date && ` → ${req.end_date}`}</div>
+              <div style={{color:'var(--sf-text-secondary)',fontSize:13}}>{req.days}d</div>
               <span style={{background:s.bg,color:s.c,fontSize:11,padding:'3px 8px',borderRadius:6,fontWeight:700,display:'inline-block'}}>{req.status}</span>
               {canApprove && (
                 <div style={{display:'flex',gap:5}}>

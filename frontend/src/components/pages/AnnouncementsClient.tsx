@@ -35,7 +35,7 @@ export default function AnnouncementsClient({ session }: { session: SessionUser 
                 <h3 style={{color:'var(--sf-text)',fontWeight:700,fontSize:16,fontFamily:"'Space Grotesk',sans-serif"}}>{p.label}{a.title}</h3>
                 <span style={{background:p.c+'20',color:p.c,fontSize:10,padding:'3px 8px',borderRadius:5,fontWeight:700}}>{a.priority}</span>
               </div>
-              <p style={{color:'#A0A0C0',fontSize:13,lineHeight:1.6,marginBottom:12}}>{a.body}</p>
+              <p style={{color:'var(--sf-text-secondary)',fontSize:13,lineHeight:1.6,marginBottom:12}}>{a.body}</p>
               {(a.event_date || a.image_url || a.link_url) && (
                 <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:12}}>
                   {a.event_date && <div style={{color:'#FBBF24',fontSize:12,fontWeight:600}}>Date: {a.event_date}</div>}
@@ -73,8 +73,11 @@ function CreateForm({ onClose, onSaved }: any) {
   async function save() {
     if (!t.trim()||!b.trim()) return
     setSaving(true)
-    await fetch('/api/announcements',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,body:b,priority:p,event_date:eventDate||null,image_url:imageUrl||null,link_url:linkUrl||null})})
-    setSaving(false); onSaved()
+    const res = await fetch('/api/announcements',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,body:b,priority:p,event_date:eventDate||null,image_url:imageUrl||null,link_url:linkUrl||null})})
+    const data = await res.json().catch(() => ({}))
+    setSaving(false)
+    if (!res.ok) { alert(data.error || data.detail || 'Could not post announcement'); return }
+    onSaved()
   }
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}} onClick={onClose}>

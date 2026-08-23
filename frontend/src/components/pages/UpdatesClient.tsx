@@ -8,7 +8,8 @@ import { PageHeader, PageShell } from '@/components/app/Section'
 import { StatusBadge, statusTint } from '@/components/app/StatusBadge'
 import { Modal } from '@/components/app/Modal'
 import { todayIST } from '@/lib/clock'
-import { TASK_STATUSES, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
+import { allowedTaskStatuses, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
+import { ATTENDANCE_CHANGED } from '@/lib/attendance'
 
 const URL_RE = /(https?:\/\/[^\s]+)/g
 
@@ -91,6 +92,14 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
   }
 
   useEffect(() => { loadFeed() }, [])
+
+  useEffect(() => {
+    function refreshAttendance() {
+      fetch('/api/attendance').then((r) => r.json()).then((a) => setAttendance(Array.isArray(a) ? a : [])).catch(() => {})
+    }
+    window.addEventListener(ATTENDANCE_CHANGED, refreshAttendance)
+    return () => window.removeEventListener(ATTENDANCE_CHANGED, refreshAttendance)
+  }, [])
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -395,7 +404,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                             className="sf-input"
                             style={statusTint(selectedTask.status)}
                           >
-                            {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                            {allowedTaskStatuses(selectedTask, session.role).map((s) => <option key={s} value={s}>{s}</option>)}
                           </select>
                         ) : (
                           <span className="sf-upd-hint">{clockedIn ? 'Status is read-only' : 'Clock in to change status'}</span>
@@ -407,7 +416,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                         )}
                       </div>
 
-                      {isMgmt && selectedTask.requires_review && (
+                      {isMgmt && selectedTask.requires_review && selectedTask.status === 'Under Review' && (
                         <div className="sf-upd-tool-block">
                           <div className="sf-upd-label">Review · v{selectedTask.review_version || '1'} · {selectedTask.review_status && selectedTask.review_status !== 'none' ? selectedTask.review_status : 'pending'}</div>
                           {clockedIn ? (

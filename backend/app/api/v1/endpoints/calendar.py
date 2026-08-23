@@ -95,7 +95,7 @@ def _build_personal_days(
                 "days": lv.days,
             }
             for lv in leaves
-            if lv.start_date <= d <= lv.end_date
+            if lv.start_date <= d <= lv.end_date and lv.status != "Rejected"
         ]
         att = next((a for a in attendance if a.date == d), None)
         days[key] = {
@@ -180,7 +180,7 @@ def _company_calendar(
                 "user_name": profiles[lv.user_id].name if lv.user_id in profiles else "Unknown",
             }
             for lv in leaves
-            if lv.start_date <= d <= lv.end_date
+            if lv.start_date <= d <= lv.end_date and lv.status != "Rejected"
         ]
         day_attendance = [a for a in attendance if a.date == d]
         days[key] = {

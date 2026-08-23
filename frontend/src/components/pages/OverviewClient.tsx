@@ -6,6 +6,7 @@ import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
 import { PageShell, Section, StatCard, StatGrid } from '@/components/app/Section'
 import { EmptyState } from '@/components/app/Icons'
 import { clockOutWithConfirm, todayIST } from '@/lib/clock'
+import { notifyAttendanceChanged } from '@/lib/attendance'
 import { resolveNotificationLink, notificationActionLabel } from '@/lib/notifications'
 
 const ROLE_DASH: Record<string, { tag: string; blurb: string; emoji: string }> = {
@@ -154,10 +155,12 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
     const log = await r.json().catch(() => null)
     if (log?.login_time) { setTodayLog(log); setClocked(true) }
     else setClocked(true)
+    notifyAttendanceChanged()
   })
   const clockOut = () => clockOutWithConfirm().then((log) => {
     if (log) setTodayLog(log)
     if (log?.logout_time) setClocked(false)
+    notifyAttendanceChanged()
   })
 
   function liveHoursToday(log: any) {

@@ -6,7 +6,8 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { SessionUser } from '@/types'
 import { PageHeader, PageShell } from '@/components/app/Section'
-import { StatusBadge, statusTint } from '@/components/app/StatusBadge'
+import { StatusBadge, ReviewBadge, statusTint } from '@/components/app/StatusBadge'
+import { ATTENDANCE_CHANGED } from '@/lib/attendance'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
 import { todayIST } from '@/lib/clock'
@@ -66,6 +67,14 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
   }
 
   useEffect(() => { load() }, [taskId])
+
+  useEffect(() => {
+    function refreshAttendance() {
+      fetch('/api/attendance').then((r) => r.json()).then((a) => setAttendance(Array.isArray(a) ? a : [])).catch(() => {})
+    }
+    window.addEventListener(ATTENDANCE_CHANGED, refreshAttendance)
+    return () => window.removeEventListener(ATTENDANCE_CHANGED, refreshAttendance)
+  }, [])
 
   useEffect(() => {
     const t = searchParams.get('tab')
@@ -156,7 +165,10 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
     )
   }
 
-  const visibleTabs = TABS.filter((t) => t.id !== 'review' || task.requires_review)
+  const visibleTabs = TABS.filter((t) => {
+    if (t.id === 'review') return task.requires_review
+    return true
+  })
 
   return (
     <PageShell>
@@ -167,8 +179,8 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <StatusBadge status={task.status} />
-          {task.review_status && task.review_status !== 'none' && (
-            <StatusBadge status={task.review_status === 'approved' ? 'Completed' : task.review_status === 'rejected' ? 'Revision Needed' : 'Under Review'} />
+          {task.requires_review && task.review_status && task.review_status !== 'none' && (
+            <ReviewBadge status={task.review_status} />
           )}
           {canWork ? (
             <>

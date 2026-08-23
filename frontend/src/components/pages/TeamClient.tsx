@@ -69,6 +69,13 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   const canViewDepartments = ['owner', 'manager', 'hr'].includes(role)
   const canReset = ['owner', 'hr', 'manager'].includes(role)
 
+  function canResetUser(u: any) {
+    if (!canReset || u.id === session.id) return false
+    if (role === 'manager') return u.role === 'team'
+    if (role === 'hr') return !['owner', 'manager'].includes(u.role)
+    return role === 'owner'
+  }
+
   async function refresh() {
     setDeptError('')
     try {
@@ -734,7 +741,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                       </div>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
                         {canEditUser(u) && <button type="button" onClick={() => startEditUser(u)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 10px' }}>Edit</button>}
-                        {canReset && u.id !== session.id && (role !== 'manager' || u.role === 'team') && <button type="button" onClick={() => resetPassword(u.id, u.name)} className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '6px 10px' }}>Reset</button>}
+                        {canResetUser(u) && <button type="button" onClick={() => resetPassword(u.id, u.name)} className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '6px 10px' }}>Reset</button>}
                         {role === 'owner' && u.id !== session.id && u.is_active && <button type="button" onClick={() => deactivateUser(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 10px', color: 'var(--sf-danger)' }}>Off</button>}
                         {role === 'owner' && u.id !== session.id && <button type="button" onClick={() => hardDeleteUser(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 10px', color: '#F87171' }}>Delete</button>}
                       </div>
@@ -758,7 +765,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                 width={640}
                 footer={
                   <>
-                    {viewingUser && canReset && viewingUser.id !== session.id && (role !== 'manager' || viewingUser.role === 'team') && (
+                    {viewingUser && canResetUser(viewingUser) && (
                       <button
                         type="button"
                         className="sf-btn sf-btn-ghost"

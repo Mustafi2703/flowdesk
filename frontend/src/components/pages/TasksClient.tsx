@@ -82,6 +82,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   const [showCreate, setShowCreate] = useState(false)
   const [attendance, setAttendance] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [emailingId, setEmailingId] = useState<string | null>(null)
   const today = todayIST()
   const clockedIn = isClockedInToday(attendance, session.id, today)
 
@@ -90,6 +91,19 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   const canDelete = canCreate
   const canSeeBilling = ['owner','manager','accountant'].includes(session.role)
   const canSetPrice = canSetTaskPrice(session.role)
+
+  async function emailBrief(task: any) {
+    if (!canEdit) return
+    setEmailingId(task.id)
+    const res = await fetch(`/api/emails/task-brief/${task.id}`, { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    setEmailingId(null)
+    if (!res.ok) {
+      alert(data.error || data.detail || 'Could not send email')
+      return
+    }
+    alert(data.sent ? `Brief emailed to ${data.sent} assignee(s).` : 'No assignees to email.')
+  }
 
   function isAssigned(task: any) {
     return isTaskAssignee(task, session.id)
@@ -327,6 +341,16 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                             {canUpdateStatus(task) && task.status === 'Not Started' && (
                               <button type="button" onClick={() => updateTaskStatus(task.id, 'In Progress')} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px' }}>Start</button>
                             )}
+                            <button
+                              type="button"
+                              onClick={() => emailBrief(task)}
+                              disabled={emailingId === task.id || !(task.assigned_to || []).length}
+                              className="sf-btn sf-btn-ghost"
+                              style={{ fontSize:11, padding:'4px 8px' }}
+                              title="Email assignment brief to assignees"
+                            >
+                              {emailingId === task.id ? '…' : 'Email'}
+                            </button>
                             {task.requires_review && (
                               <button type="button" onClick={() => router.push(`/tasks/${task.id}`)} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px' }}>Review</button>
                             )}

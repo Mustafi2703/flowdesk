@@ -38,7 +38,27 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const [clocked, setClocked] = useState(false)
   const [loading, setLoading] = useState(true)
   const [nowTick, setNowTick] = useState(Date.now())
+  const [emailBusy, setEmailBusy] = useState('')
+  const [emailNotice, setEmailNotice] = useState('')
   const today = todayIST()
+
+  async function runEmailAction(kind: 'test' | 'morning' | 'evening') {
+    setEmailBusy(kind)
+    setEmailNotice('')
+    const path =
+      kind === 'test' ? '/api/emails/test'
+        : kind === 'morning' ? '/api/emails/morning-digest'
+          : '/api/emails/evening-digest'
+    const res = await fetch(path, { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    setEmailBusy('')
+    if (!res.ok || data.ok === false) {
+      setEmailNotice(data.error || data.detail || 'Could not send email')
+      return
+    }
+    if (kind === 'test') setEmailNotice(`Test email sent to ${data.to}`)
+    else setEmailNotice(`${kind === 'morning' ? 'Morning' : 'Evening'} brief sent to ${data.sent} people`)
+  }
 
   useEffect(() => {
     const t = setInterval(() => setNowTick(Date.now()), 60000)
@@ -199,6 +219,35 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
           </div>
         </Section>
       </div>
+
+      {isAdmin && (
+        <Section
+          title="Email tools"
+          subtitle="Owner & manager — send briefs on demand (from no-reply@scrumfolks.com)"
+          flush
+          style={{ flexShrink: 0 }}
+        >
+          <div style={{ padding: '12px 14px', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <button type="button" className="sf-btn sf-btn-ghost" disabled={!!emailBusy} onClick={() => runEmailAction('test')}>
+              {emailBusy === 'test' ? 'Sending…' : 'Send test to me'}
+            </button>
+            <button type="button" className="sf-btn sf-btn-primary" disabled={!!emailBusy} onClick={() => runEmailAction('morning')}>
+              {emailBusy === 'morning' ? 'Sending…' : 'Send morning brief'}
+            </button>
+            <button type="button" className="sf-btn sf-btn-primary" disabled={!!emailBusy} onClick={() => runEmailAction('evening')}>
+              {emailBusy === 'evening' ? 'Sending…' : 'Send evening brief'}
+            </button>
+            <span style={{ color: 'var(--sf-muted)', fontSize: 12 }}>
+              Task assignment emails also go out when you create/assign a task or click Email brief on a task.
+            </span>
+            {emailNotice && (
+              <div style={{ width: '100%', color: emailNotice.includes('Could') || emailNotice.includes('error') ? 'var(--sf-danger)' : 'var(--sf-success)', fontSize: 13 }}>
+                {emailNotice}
+              </div>
+            )}
+          </div>
+        </Section>
+      )}
 
       <StatGrid>
         <StatCard label="Notifications" value={unreadNotifs.length} sub={`${notifications.length} total`} accent="#E8630A" />

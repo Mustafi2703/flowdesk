@@ -84,10 +84,10 @@ def _try_lock(db: Session, key: int) -> bool:
     return bool(db.execute(text("SELECT pg_try_advisory_lock(881122, :k)"), {"k": key}).scalar())
 
 
-def send_morning_digests(db: Session) -> int:
+def send_morning_digests(db: Session, *, force: bool = False) -> int:
     """Morning brief: what to do today, ordered by priority."""
     today = date.today()
-    if not _try_lock(db, int(today.strftime("%Y%m%d") + "1")):
+    if not force and not _try_lock(db, int(today.strftime("%Y%m%d") + "1")):
         return 0
 
     users = db.scalars(select(Profile).where(Profile.is_active.is_(True))).all()
@@ -120,10 +120,10 @@ def send_morning_digests(db: Session) -> int:
     return sent
 
 
-def send_evening_digests(db: Session) -> int:
+def send_evening_digests(db: Session, *, force: bool = False) -> int:
     """Evening wrap-up: pending work + how the day went."""
     today = date.today()
-    if not _try_lock(db, int(today.strftime("%Y%m%d") + "2")):
+    if not force and not _try_lock(db, int(today.strftime("%Y%m%d") + "2")):
         return 0
 
     users = db.scalars(select(Profile).where(Profile.is_active.is_(True))).all()

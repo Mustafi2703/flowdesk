@@ -15,6 +15,7 @@ from app.api.v1.endpoints import (
     calendar,
     cron,
     dashboard,
+    emails,
     leaves,
     notifications,
     performance,
@@ -28,6 +29,7 @@ api_router = APIRouter(prefix="/api/v1")
 
 api_router.include_router(auth.router)
 api_router.include_router(dashboard.router)
+api_router.include_router(emails.router)
 api_router.include_router(tasks.router)
 api_router.include_router(tasks.dev_router)
 api_router.include_router(brands.router)

@@ -6,7 +6,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  return proxy(req, { to: `/api/v1/attachments/${id}/download` })
+  return proxy(req, { to: `/api/v1/attachments/${id}` })
 }
 
 export async function DELETE(

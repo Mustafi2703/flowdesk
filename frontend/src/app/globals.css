@@ -1535,3 +1535,393 @@ html[data-theme='morning'] body {
     justify-content: flex-start;
   }
 }
+
+/* Trello-style task board */
+.sf-trello-board {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 100%;
+  padding: 12px 14px 16px;
+  align-items: flex-start;
+}
+.sf-trello-col {
+  flex: 0 0 272px;
+  width: 272px;
+  max-height: calc(100% - 4px);
+  display: flex;
+  flex-direction: column;
+  background: var(--sf-surface);
+  border: 1px solid var(--sf-border);
+  border-radius: 12px;
+  border-top: 3px solid var(--col-accent, var(--sf-border-strong));
+}
+.sf-trello-col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px 8px;
+}
+.sf-trello-col-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sf-text-secondary);
+}
+.sf-trello-col-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--sf-muted);
+  background: var(--sf-surface-2);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.sf-trello-col-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sf-trello-card {
+  background: var(--sf-surface-2);
+  border: 1px solid var(--sf-border);
+  border-left: 4px solid var(--sf-accent);
+  border-radius: 10px;
+  padding: 10px 10px 8px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.sf-trello-card:hover {
+  box-shadow: var(--sf-shadow);
+  transform: translateY(-1px);
+}
+.sf-trello-card-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.sf-trello-label {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1.3;
+}
+.sf-trello-label-review {
+  background: rgba(168, 85, 247, 0.18);
+  color: #c084fc;
+}
+.sf-trello-label-type {
+  background: rgba(96, 165, 250, 0.15);
+  color: #93c5fd;
+}
+.sf-trello-card-title {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0 0 6px;
+  color: var(--sf-text);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+  cursor: pointer;
+  font-family: inherit;
+}
+.sf-trello-card-title:hover {
+  color: var(--sf-accent-hover);
+}
+.sf-trello-card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 10px;
+  color: var(--sf-muted);
+}
+.sf-trello-brand {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sf-trello-due {
+  flex-shrink: 0;
+  background: var(--sf-surface);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-weight: 600;
+}
+.sf-trello-due-late {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+}
+.sf-trello-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.sf-trello-avatars {
+  display: flex;
+  gap: 4px;
+}
+.sf-trello-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--sf-accent-soft);
+  color: var(--sf-accent);
+  font-size: 9px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--sf-surface-2);
+}
+.sf-trello-start {
+  font-size: 10px !important;
+  padding: 4px 8px !important;
+}
+.sf-trello-status {
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 5px 7px;
+  font-size: 10px;
+  border-radius: 7px;
+  border: 1px solid var(--sf-border);
+  background: var(--sf-surface);
+  color: var(--sf-text-secondary);
+  font-family: inherit;
+}
+.sf-trello-card-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.sf-trello-card-actions .sf-btn {
+  font-size: 10px;
+  padding: 4px 8px;
+}
+.sf-trello-delete {
+  color: var(--sf-danger) !important;
+}
+.sf-trello-empty {
+  color: var(--sf-muted-2);
+  font-size: 11px;
+  text-align: center;
+  padding: 18px 8px;
+  border: 1px dashed var(--sf-border);
+  border-radius: 8px;
+}
+
+/* Calendar day detail */
+.sf-cal-cell {
+  min-height: 96px;
+  padding: 8px;
+  border: none;
+  border-right: 1px solid var(--sf-border);
+  border-bottom: 1px solid var(--sf-border);
+  background: transparent;
+  text-align: left;
+  transition: background 0.12s ease;
+  font-family: inherit;
+}
+.sf-cal-cell:hover:not(:disabled) {
+  background: var(--sf-surface-hover);
+}
+.sf-cal-cell-selected {
+  background: var(--sf-accent-soft) !important;
+  box-shadow: inset 0 0 0 2px var(--sf-accent);
+}
+.sf-cal-cell-today .sf-cal-day-num {
+  color: var(--sf-accent);
+  font-weight: 800;
+}
+.sf-cal-day-num {
+  color: var(--sf-text);
+  font-weight: 500;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.sf-cal-day-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 4px 0 16px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--sf-border);
+}
+.sf-cal-day-hero-date {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.sf-cal-day-hero-num {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--sf-accent);
+}
+.sf-cal-day-hero-weekday {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sf-muted);
+}
+.sf-cal-day-hero-full {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--sf-text);
+  margin-top: 2px;
+}
+.sf-cal-day-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sf-cal-stat {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--sf-surface-2);
+  border: 1px solid var(--sf-border);
+  color: var(--sf-text-secondary);
+}
+.sf-cal-stat-tasks { color: #60a5fa; border-color: rgba(96, 165, 250, 0.25); }
+.sf-cal-stat-leave { color: #c084fc; border-color: rgba(192, 132, 252, 0.25); }
+.sf-cal-stat-att { color: #34d399; border-color: rgba(52, 211, 153, 0.25); }
+.sf-cal-day-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.sf-cal-section-title {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sf-muted);
+}
+.sf-cal-task-list,
+.sf-cal-leave-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sf-cal-task-card {
+  background: var(--sf-surface-2);
+  border: 1px solid var(--sf-border);
+  border-left: 4px solid var(--sf-accent);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.sf-cal-task-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.sf-cal-task-title {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--sf-text);
+  margin-bottom: 4px;
+}
+.sf-cal-task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--sf-muted);
+}
+.sf-cal-task-assignees {
+  font-size: 11px;
+  color: var(--sf-muted-2);
+  margin-top: 4px;
+}
+.sf-cal-task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sf-cal-leave-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(124, 58, 237, 0.08);
+  border: 1px solid rgba(124, 58, 237, 0.2);
+  border-radius: 12px;
+}
+.sf-cal-leave-type {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sf-text);
+}
+.sf-cal-leave-sub {
+  font-size: 11px;
+  color: var(--sf-muted);
+  margin-top: 2px;
+}
+.sf-cal-leave-status {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--sf-surface);
+}
+.sf-cal-att-card {
+  background: var(--sf-surface-2);
+  border: 1px solid var(--sf-border);
+  border-radius: 12px;
+  padding: 4px 14px;
+}
+.sf-cal-att-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--sf-border);
+  font-size: 13px;
+  color: var(--sf-text-secondary);
+}
+.sf-cal-att-row:last-child {
+  border-bottom: none;
+}
+.sf-cal-empty {
+  text-align: center;
+  padding: 28px 16px 12px;
+}
+.sf-cal-empty-icon {
+  font-size: 36px;
+  margin-bottom: 8px;
+}
+.sf-cal-empty-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--sf-text);
+  margin-bottom: 6px;
+}
+.sf-cal-empty-text {
+  font-size: 13px;
+  color: var(--sf-muted);
+}

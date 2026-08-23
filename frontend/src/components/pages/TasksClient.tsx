@@ -7,7 +7,7 @@ import { Icon } from '@/components/app/Icons'
 import { PageHeader, PageShell, Section } from '@/components/app/Section'
 import { StatusBadge, statusTint } from '@/components/app/StatusBadge'
 import { todayIST } from '@/lib/clock'
-import { TASK_STATUSES, canManageTasks, canSetTaskPrice, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
+import { TASK_STATUSES, allowedTaskStatuses, canManageTasks, canSetTaskPrice, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { TaskThreadBox } from '@/components/app/TaskThreadBox'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
@@ -15,6 +15,16 @@ import { PeoplePicker } from '@/components/app/PeoplePicker'
 const STATUSES = TASK_STATUSES
 const PRIORITIES = ['Critical','High','Medium','Low']
 const TYPES = ['Design','Content','Development','Strategy','Operations','Other']
+const BOARD_COLUMNS: { status: TaskStatus; label: string; accent: string }[] = [
+  { status: 'Not Started', label: 'To Do', accent: '#64748b' },
+  { status: 'In Progress', label: 'Doing', accent: '#3b82f6' },
+  { status: 'Under Review', label: 'In Review', accent: '#a855f7' },
+  { status: 'Revision Needed', label: 'Revisions', accent: '#f59e0b' },
+  { status: 'Completed', label: 'Done', accent: '#22c55e' },
+  { status: 'On Hold', label: 'On Hold', accent: '#94a3b8' },
+  { status: 'Struggling', label: 'Struggling', accent: '#ef4444' },
+  { status: 'Needs Attention', label: 'Attention', accent: '#fb923c' },
+]
 const PRIORITY_RANK: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 }
 const PRIORITY_COLORS: Record<string, { bg: string; text: string }> = {
   Critical: { bg: 'rgba(239,68,68,0.2)', text: '#F87171' },
@@ -74,7 +84,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   const [tasks, setTasks] = useState<any[]>([])
   const [brands, setBrands] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
-  const [view, setView] = useState<'list'|'kanban'>('list')
+  const [view, setView] = useState<'list'|'kanban'>('kanban')
   const [filterStatus, setFilterStatus] = useState('All')
   const [filterBrand, setFilterBrand] = useState('All')
   const [sortBy, setSortBy] = useState<SortKey>('due_date')
@@ -113,6 +123,26 @@ export default function TasksClient({ session }: { session: SessionUser }) {
     if (!clockedIn) return false
     if (canEdit) return true
     return isAssigned(task)
+  }
+
+  function statusOptions(task: any) {
+    return allowedTaskStatuses(task, session.role)
+  }
+
+  function assigneeInitials(task: any) {
+    const ids = task.assigned_to || []
+    return ids.slice(0, 3).map((id: string) => {
+      const u = users.find((x) => sameUserId(x.id, id))
+      const name = u?.name || '?'
+      return name.split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase()
+    })
+  }
+
+  function dueChip(task: any) {
+    if (!task.due_date) return null
+    const dl = Math.ceil((new Date(task.due_date).getTime() - Date.now()) / 86400000)
+    const late = dl < 0 && task.status !== 'Completed'
+    return { dl, late }
   }
 
   function canUpdateProgress(task: any) {
@@ -311,7 +341,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                             onChange={e => updateTaskStatus(task.id, e.target.value)}
                             style={{ ...toolbarSelect, padding: '4px 8px', fontSize: 11, ...statusTint(task.status) }}
                           >
-                            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                            {statusOptions(task).map(s => <option key={s} value={s}>{s}</option>)}
                           </select>
                         ) : (
                           <StatusBadge status={task.status} />
@@ -377,54 +407,77 @@ export default function TasksClient({ session }: { session: SessionUser }) {
           </div>
         </Section>
       ) : (
-        <Section title="Task board" subtitle="Kanban by status" flush flex={1}>
-          <div style={{ display:'flex', gap:10, overflowX:'auto', overflowY:'auto', height:'100%', padding:'0.75rem' }}>
-          {(['Not Started','In Progress','Under Review','Revision Needed','Struggling','Needs Attention','Completed','On Hold'] as TaskStatus[]).map(col => {
-            const colTasks = filtered.filter(t => t.status===col)
+        <Section title="Task board" subtitle="Trello-style workflow — upload moves tasks to review" flush flex={1}>
+          <div className="sf-trello-board">
+          {BOARD_COLUMNS.map(({ status: col, label, accent }) => {
+            const colTasks = filtered.filter(t => t.status === col)
             return (
-              <div key={col} style={{ minWidth:220, flex:'0 0 220px', background:'var(--sf-surface)', border:'1px solid var(--sf-border)', borderRadius:12, padding:10 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:10 }}>
-                  <span style={{ color: STATUS_TEXT[col] || '#A0A0C0', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em' }}>{col}</span>
-                  <span style={{ background:'var(--sf-surface-2)', color:'var(--sf-muted)', fontSize:10, padding:'1px 6px', borderRadius:4 }}>{colTasks.length}</span>
+              <div key={col} className="sf-trello-col" style={{ '--col-accent': accent } as React.CSSProperties}>
+                <div className="sf-trello-col-head">
+                  <span className="sf-trello-col-title">{label}</span>
+                  <span className="sf-trello-col-count">{colTasks.length}</span>
                 </div>
-                {colTasks.map(task => (
+                <div className="sf-trello-col-body">
+                {colTasks.map(task => {
+                  const due = dueChip(task)
+                  const initials = assigneeInitials(task)
+                  const pri = PRIORITY_COLORS[task.priority || 'Low'] || PRIORITY_COLORS.Low
+                  return (
                   <div
                     key={task.id}
-                    style={{ background:'var(--sf-surface-2)', border:'1px solid var(--sf-border)', borderRadius:9, padding:10, marginBottom:7 }}
+                    className="sf-trello-card"
+                    style={{ borderLeftColor: pri.text }}
                   >
-                    <div
-                      onClick={() => openTask(task)}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      <div style={{ color:'var(--sf-text)', fontSize:12, fontWeight:600, marginBottom:4 }}>{task.title}</div>
-                      <div style={{ color:'var(--sf-muted)', fontSize:10, marginBottom:6 }}>{task.brand?.name||'—'}</div>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 8 }}>
-                        <StatusBadge status={task.status} />
-                        <span style={{ marginLeft: 6 }}><PriorityBadge priority={task.priority} /></span>
-                        {task.due_date && <span style={{ color:'var(--sf-muted)', fontSize:10 }}>{Math.ceil((new Date(task.due_date).getTime()-Date.now())/86400000)}d</span>}
-                      </div>
+                    <div className="sf-trello-card-labels">
+                      <span className="sf-trello-label" style={{ background: pri.bg, color: pri.text }}>{task.priority || 'Low'}</span>
+                      {task.requires_review && <span className="sf-trello-label sf-trello-label-review">Review</span>}
+                      {task.type && <span className="sf-trello-label sf-trello-label-type">{task.type}</span>}
                     </div>
-                    {canUpdateStatus(task) && (
+                    <button type="button" className="sf-trello-card-title" onClick={() => openTask(task)}>
+                      {task.title}
+                    </button>
+                    <div className="sf-trello-card-meta">
+                      <span className="sf-trello-brand">{task.brand?.name || 'No brand'}</span>
+                      {due && (
+                        <span className={`sf-trello-due${due.late ? ' sf-trello-due-late' : ''}`}>
+                          {due.late ? `${Math.abs(due.dl)}d late` : due.dl === 0 ? 'Today' : `${due.dl}d`}
+                        </span>
+                      )}
+                    </div>
+                    <div className="sf-trello-card-foot">
+                      <div className="sf-trello-avatars">
+                        {initials.map((ini: string, i: number) => (
+                          <span key={i} className="sf-trello-avatar" title="Assignee">{ini}</span>
+                        ))}
+                      </div>
+                      {canUpdateStatus(task) && task.status === 'Not Started' && (
+                        <button type="button" onClick={() => updateTaskStatus(task.id, 'In Progress')} className="sf-btn sf-btn-primary sf-trello-start">Start</button>
+                      )}
+                    </div>
+                    {canUpdateStatus(task) && task.status !== 'Not Started' && (
                       <select
                         value={task.status}
                         onChange={e => updateTaskStatus(task.id, e.target.value)}
-                        style={{ ...toolbarSelect, width:'100%', padding:'4px 6px', fontSize:10, marginBottom: 8, ...statusTint(task.status) }}
+                        className="sf-trello-status"
+                        style={statusTint(task.status)}
                       >
-                        {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                        {statusOptions(task).map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     )}
-                    <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-ghost" style={{ width:'100%', fontSize:10, padding:'4px 6px', marginBottom: 8 }}>Open task</button>
-                    {canEdit && task.requires_review && (
-                      <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-primary" style={{ width:'100%', fontSize:10, padding:'4px 6px', marginBottom: 8 }}>Review</button>
-                    )}
-                    {canEdit && (
-                      <div style={{ display:'flex', gap:6 }}>
-                        <button type="button" onClick={() => deleteTask(task)} className="sf-btn sf-btn-ghost" style={{ flex:1, fontSize:10, padding:'4px 6px', color:'var(--sf-danger)' }}>Delete</button>
-                      </div>
-                    )}
+                    <div className="sf-trello-card-actions">
+                      <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-ghost">Open</button>
+                      {canEdit && task.requires_review && task.status === 'Under Review' && (
+                        <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-primary">Review</button>
+                      )}
+                      {canEdit && (
+                        <button type="button" onClick={() => deleteTask(task)} className="sf-btn sf-btn-ghost sf-trello-delete">Delete</button>
+                      )}
+                    </div>
                   </div>
-                ))}
-                {colTasks.length===0 && <div style={{ color:'var(--sf-muted-2)', fontSize:11, textAlign:'center', padding:'14px 0' }}>Empty</div>}
+                  )
+                })}
+                {colTasks.length === 0 && <div className="sf-trello-empty">No cards</div>}
+                </div>
               </div>
             )
           })}

@@ -35,6 +35,19 @@ export function canMarkTaskBilled(role: string) {
   return ['owner', 'accountant'].includes(role)
 }
 
+/** Status options for assignees once a task is in the delivery workflow. */
+export function allowedTaskStatuses(task: any, role: string): TaskStatus[] {
+  if (canManageTasks(role)) return TASK_STATUSES
+  const current = (task?.status || 'Not Started') as TaskStatus
+  if (current === 'Completed') return ['Completed']
+  if (current === 'Not Started') return ['Not Started', 'In Progress']
+  if (current === 'Under Review') return ['Under Review']
+  const active: TaskStatus[] = ['In Progress', 'On Hold', 'Struggling', 'Needs Attention']
+  if (current === 'Revision Needed') active.push('Revision Needed')
+  if (!task?.requires_review) active.push('Completed')
+  return active
+}
+
 export function isClockedInToday(attendance: any[], userId: string, today?: string) {
   const day = today || todayIST()
   return attendance.some(

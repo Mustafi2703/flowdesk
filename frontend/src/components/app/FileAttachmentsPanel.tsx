@@ -9,17 +9,20 @@ export function FileAttachmentsPanel({
   canUpload = true,
   title = 'Files',
   excludeIds = [],
+  onUploadComplete,
 }: {
   entityType: 'task' | 'brand'
   entityId: string
   canUpload?: boolean
   title?: string
   excludeIds?: string[]
+  onUploadComplete?: (payload: { task_status?: string }) => void
 }) {
   const [files, setFiles] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [viewing, setViewing] = useState<any | null>(null)
 
   async function load() {
@@ -57,6 +60,7 @@ export function FileAttachmentsPanel({
     }
     setUploading(true)
     setError('')
+    setNotice('')
     const form = new FormData()
     form.append('entity_type', entityType)
     form.append('entity_id', entityId)
@@ -74,6 +78,10 @@ export function FileAttachmentsPanel({
           : 'Upload failed'
       setError(msg)
       return
+    }
+    if (data.task_status) {
+      setNotice(`Task moved to ${data.task_status} — manager will be notified for review.`)
+      onUploadComplete?.({ task_status: data.task_status })
     }
     load()
   }
@@ -119,6 +127,7 @@ export function FileAttachmentsPanel({
         )}
       </div>
       {error && <div style={{ color: '#F87171', fontSize: 12, marginBottom: 8 }}>{error}</div>}
+      {notice && <div style={{ color: 'var(--sf-success)', fontSize: 12, marginBottom: 8 }}>{notice}</div>}
       {loading ? (
         <div style={{ color: 'var(--sf-muted)', fontSize: 12 }}>Loading files…</div>
       ) : visibleFiles.length === 0 ? (
@@ -143,6 +152,14 @@ export function FileAttachmentsPanel({
               </button>
               <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                 <button type="button" onClick={() => setViewing(f)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px' }}>View</button>
+                <a
+                  href={`/api/attachments/${f.id}/download`}
+                  download={f.file_name}
+                  className="sf-btn sf-btn-ghost"
+                  style={{ fontSize: 11, padding: '4px 8px', textDecoration: 'none' }}
+                >
+                  Download
+                </a>
                 {canUpload && (
                   <button type="button" onClick={() => remove(f.id)} style={{ background: 'none', border: 'none', color: '#F87171', cursor: 'pointer', fontSize: 11 }}>Delete</button>
                 )}

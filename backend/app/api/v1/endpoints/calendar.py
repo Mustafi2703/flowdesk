@@ -15,6 +15,7 @@ from app.api.v1.deps import get_current_user
 from app.core.roles import Role
 from app.db.session import get_db
 from app.models.attendance import AttendanceLog
+from app.models.brand import Brand
 from app.models.leave import LeaveRequest
 from app.models.profile import Profile
 from app.models.task import Task
@@ -62,22 +63,30 @@ def _build_personal_days(
     attendance: list[AttendanceLog],
     first: date,
     last: date,
+    brands: dict[uuid.UUID, Brand] | None = None,
 ) -> dict[str, dict[str, Any]]:
+    brand_map = brands or {}
     days: dict[str, dict[str, Any]] = {}
     d = first
     while d <= last:
         key = d.isoformat()
-        day_tasks = [
-            {
-                "id": str(t.id),
-                "title": t.title,
-                "status": t.status,
-                "priority": t.priority,
-                "due_date": t.due_date.isoformat() if t.due_date else None,
-            }
-            for t in tasks
-            if t.due_date == d
-        ]
+        day_tasks = []
+        for t in tasks:
+            if t.due_date != d:
+                continue
+            brand = brand_map.get(t.brand_id) if t.brand_id else None
+            day_tasks.append(
+                {
+                    "id": str(t.id),
+                    "title": t.title,
+                    "status": t.status,
+                    "priority": t.priority,
+                    "type": t.type,
+                    "requires_review": bool(t.requires_review),
+                    "brand_name": brand.name if brand else None,
+                    "due_date": t.due_date.isoformat() if t.due_date else None,
+                }
+            )
         day_leave = [
             {
                 "id": str(lv.id),
@@ -116,6 +125,7 @@ def _company_calendar(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner only")
 
     profiles = _profile_lookup(db)
+    brand_map = {b.id: b for b in db.scalars(select(Brand)).all()}
     tasks = db.scalars(
         select(Task).where(
             Task.due_date.is_not(None),
@@ -155,6 +165,9 @@ def _company_calendar(
                     "title": t.title,
                     "status": t.status,
                     "priority": t.priority,
+                    "type": t.type,
+                    "requires_review": bool(t.requires_review),
+                    "brand_name": brand_map[t.brand_id].name if t.brand_id in brand_map else None,
                     "due_date": t.due_date.isoformat(),
                     "assignees": assignees,
                 }
@@ -247,6 +260,8 @@ def calendar(
         )
     ).all()
 
+    brand_map = {b.id: b for b in db.scalars(select(Brand)).all()}
+
     days = _build_personal_days(
         subject=subject,
         tasks=tasks,
@@ -254,6 +269,7 @@ def calendar(
         attendance=attendance,
         first=first,
         last=last,
+        brands=brand_map,
     )
 
     role = Role(viewer.role)

@@ -170,6 +170,48 @@ def store_attachment(
     return row
 
 
+def _advance_task_after_upload(db: Session, task: Task, user: Profile) -> str | None:
+    """Move active tasks through the delivery workflow when files are uploaded."""
+    if task.status == "Completed":
+        return None
+    changed: str | None = None
+    if task.status == "Not Started":
+        task.status = "In Progress"
+        changed = "In Progress"
+    if task.requires_review and task.status in {"In Progress", "Revision Needed", "Not Started"}:
+        if task.status != "Under Review":
+            task.status = "Under Review"
+            task.review_status = "pending"
+            changed = "Under Review"
+    if changed:
+        task.timeline = [
+            *(task.timeline or []),
+            {
+                "by": str(user.id),
+                "action": f"Auto status → {changed} (file uploaded)",
+                "fields": ["status"],
+                "at": datetime.now(timezone.utc).isoformat(),
+            },
+        ]
+        db.commit()
+        db.refresh(task)
+        if changed == "Under Review":
+            targets = {*(task.assigned_managers or []), *([task.created_by] if task.created_by else [])}
+            for manager_id in targets:
+                if not manager_id or manager_id == user.id:
+                    continue
+                db.add(
+                    Notification(
+                        user_id=manager_id,
+                        message=f'"{task.title}" ready for review — new file uploaded',
+                        type="task",
+                        link=f"/tasks/{task.id}",
+                    )
+                )
+            db.commit()
+    return changed
+
+
 def logo_attachment_id(logo_url: str | None) -> uuid.UUID | None:
     """Parse `/api/attachments/{id}` from a brand logo_url."""
     if not logo_url or "/api/attachments/" not in logo_url:
@@ -391,11 +433,21 @@ async def upload_attachment(
         mime_type=file.content_type,
         user=user,
     )
-    return _serialize(row)
+    task_status: str | None = None
+    if entity_type == "task":
+        task = db.get(Task, entity_id)
+        if task:
+            task_status = _advance_task_after_upload(db, task, user)
+    payload = _serialize(row)
+    if task_status:
+        payload["task_status"] = task_status
+    return payload
 
 
-def _serve_attachment(row: FileAttachment):
+def _serve_attachment(row: FileAttachment, *, as_attachment: bool = False):
     media = row.mime_type or "application/octet-stream"
+    disposition = "attachment" if as_attachment else "inline"
+    disp = f'{disposition}; filename="{row.file_name}"'
     # 1) Object bucket (R2 / S3)
     if getattr(row, "storage_backend", None) == "s3" and getattr(row, "storage_key", None):
         if object_storage.storage_enabled():
@@ -404,12 +456,17 @@ def _serve_attachment(row: FileAttachment):
                 return Response(
                     content=content,
                     media_type=media,
-                    headers={"Content-Disposition": f'inline; filename="{row.file_name}"'},
+                    headers={"Content-Disposition": disp},
                 )
     # 2) Local disk
     path = UPLOAD_ROOT / row.file_path
     if path.exists():
-        return FileResponse(path, filename=row.file_name, media_type=media)
+        return FileResponse(
+            path,
+            filename=row.file_name,
+            media_type=media,
+            content_disposition_type=disposition,
+        )
     # 3) Legacy BYTEA in Postgres
     raw = row.file_data
     if raw is not None:
@@ -418,12 +475,31 @@ def _serve_attachment(row: FileAttachment):
             return Response(
                 content=content,
                 media_type=media,
-                headers={"Content-Disposition": f'inline; filename="{row.file_name}"'},
+                headers={"Content-Disposition": disp},
             )
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File missing on disk")
 
 
 @router.get("/{attachment_id}")
+def view_attachment(
+    attachment_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: Profile = Depends(get_current_user),
+):
+    row = db.get(FileAttachment, attachment_id)
+    if not row or not _can_access_entity(db, row.entity_type, row.entity_id, user):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+    try:
+        return _serve_attachment(row, as_attachment=False)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Could not read file ({exc.__class__.__name__})",
+        ) from exc
+
+
 @router.get("/{attachment_id}/download")
 def download_attachment(
     attachment_id: uuid.UUID,
@@ -434,10 +510,10 @@ def download_attachment(
     if not row or not _can_access_entity(db, row.entity_type, row.entity_id, user):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
     try:
-        return _serve_attachment(row)
+        return _serve_attachment(row, as_attachment=True)
     except HTTPException:
         raise
-    except Exception as exc:  # noqa: BLE001 — surface corrupt blobs as 404, not 500
+    except Exception as exc:  # noqa: BLE001
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Could not read file ({exc.__class__.__name__})",

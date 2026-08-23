@@ -11,6 +11,13 @@ import { StatusBadge } from '@/components/app/StatusBadge'
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const COMPANY = 'company'
 
+const PRIORITY_COLORS: Record<string, string> = {
+  Critical: '#f87171',
+  High: '#fb923c',
+  Medium: '#eab308',
+  Low: '#94a3b8',
+}
+
 function monthKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
@@ -71,13 +78,9 @@ export default function CalendarClient({ session }: { session: SessionUser }) {
   const viewable = data?.viewable_users || [{ id: session.id, name: session.name }]
   const showPicker = (isOwner || isManager || isHr) && viewable.length > 1
   const dayDetail = selectedDay ? (data?.days?.[selectedDay] || {}) : null
-  const dayLabel = selectedDay
-    ? new Date(selectedDay + 'T12:00:00').toLocaleDateString(undefined, {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-      })
+  const selectedDate = selectedDay ? new Date(selectedDay + 'T12:00:00') : null
+  const dayLabel = selectedDate
+    ? selectedDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
     : ''
   const subtitle = isCompanyView
     ? 'Company-wide tasks, leave, and attendance'
@@ -87,6 +90,7 @@ export default function CalendarClient({ session }: { session: SessionUser }) {
 
   const taskCount = dayDetail?.tasks?.length || 0
   const leaveCount = dayDetail?.leave?.length || 0
+  const isEmptyDay = !taskCount && !leaveCount && !dayDetail?.attendance
 
   return (
     <PageShell>
@@ -134,22 +138,14 @@ export default function CalendarClient({ session }: { session: SessionUser }) {
                     key={cell.key}
                     type="button"
                     onClick={() => cell.inMonth && setSelectedDay(cell.key)}
+                    className={`sf-cal-cell${isSelected ? ' sf-cal-cell-selected' : ''}${isToday ? ' sf-cal-cell-today' : ''}`}
                     style={{
-                      minHeight: 96,
-                      padding: 8,
-                      border: 'none',
-                      borderRight: '1px solid var(--sf-border)',
-                      borderBottom: '1px solid var(--sf-border)',
-                      background: isSelected ? 'var(--sf-accent-soft)' : cell.inMonth ? 'transparent' : 'var(--sf-surface-2)',
-                      cursor: cell.inMonth ? 'pointer' : 'default',
-                      textAlign: 'left',
                       opacity: cell.inMonth ? 1 : 0.4,
-                      transition: 'background 0.12s ease',
+                      background: !isSelected && !cell.inMonth ? 'var(--sf-surface-2)' : undefined,
+                      cursor: cell.inMonth ? 'pointer' : 'default',
                     }}
                   >
-                    <div style={{ color: isToday ? 'var(--sf-accent)' : 'var(--sf-text)', fontWeight: isToday ? 700 : 500, fontSize: 13, marginBottom: 6 }}>
-                      {cell.date.getDate()}
-                    </div>
+                    <div className="sf-cal-day-num">{cell.date.getDate()}</div>
                     {tasksN > 0 && <div style={pill('#2563eb')}>{tasksN} task{tasksN > 1 ? 's' : ''}</div>}
                     {leaveN > 0 && <div style={pill('#7c3aed')}>{leaveN} on leave</div>}
                     {isCompanyView && att?.present_count > 0 && (
@@ -167,89 +163,181 @@ export default function CalendarClient({ session }: { session: SessionUser }) {
       <Modal
         open={Boolean(selectedDay)}
         onClose={() => setSelectedDay(null)}
-        title={dayLabel || 'Day detail'}
-        subtitle={
-          selectedDay
-            ? `${taskCount} task${taskCount === 1 ? '' : 's'} · ${leaveCount} leave`
-            : undefined
-        }
-        width={560}
+        title=""
+        width={640}
+        zIndex={1100}
         footer={
-          <button type="button" className="sf-btn sf-btn-primary" onClick={() => setSelectedDay(null)}>
-            Close
-          </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 8, flexWrap: 'wrap' }}>
+            <Link href="/tasks" className="sf-btn sf-btn-ghost" style={{ textDecoration: 'none' }} onClick={() => setSelectedDay(null)}>
+              All tasks
+            </Link>
+            <button type="button" className="sf-btn sf-btn-primary" onClick={() => setSelectedDay(null)}>
+              Close
+            </button>
+          </div>
         }
       >
+        {selectedDate && (
+          <div className="sf-cal-day-hero">
+            <div className="sf-cal-day-hero-date">
+              <span className="sf-cal-day-hero-num">{selectedDate.getDate()}</span>
+              <div>
+                <div className="sf-cal-day-hero-weekday">{selectedDate.toLocaleDateString(undefined, { weekday: 'long' })}</div>
+                <div className="sf-cal-day-hero-full">{dayLabel}</div>
+              </div>
+            </div>
+            <div className="sf-cal-day-stats">
+              <span className="sf-cal-stat sf-cal-stat-tasks">{taskCount} task{taskCount === 1 ? '' : 's'}</span>
+              <span className="sf-cal-stat sf-cal-stat-leave">{leaveCount} leave</span>
+              {dayDetail?.attendance && !isCompanyView && (
+                <span className="sf-cal-stat sf-cal-stat-att">
+                  {dayDetail.attendance.clocked_in ? 'Clocked in' : `${dayDetail.attendance.hours_worked ?? 0}h logged`}
+                </span>
+              )}
+              {isCompanyView && dayDetail?.attendance && (
+                <span className="sf-cal-stat sf-cal-stat-att">
+                  {dayDetail.attendance.present_count} present
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {dayDetail && (
-          <>
+          <div className="sf-cal-day-body">
             {dayDetail.tasks?.length > 0 && (
-              <Block title="Tasks due">
-                {dayDetail.tasks.map((t: any) => (
-                  <Link
-                    key={t.id}
-                    href={`/tasks/${t.id}`}
-                    onClick={() => setSelectedDay(null)}
-                    style={{ ...rowStyle, textDecoration: 'none' }}
-                  >
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 600 }}>{t.title}</div>
-                      {t.assignees?.length > 0 && (
-                        <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 2 }}>{t.assignees.join(', ')}</div>
-                      )}
-                    </div>
-                    <StatusBadge status={t.status} />
-                  </Link>
-                ))}
-              </Block>
+              <section className="sf-cal-section">
+                <h3 className="sf-cal-section-title">Tasks due this day</h3>
+                <div className="sf-cal-task-list">
+                  {dayDetail.tasks.map((t: any) => {
+                    const priColor = PRIORITY_COLORS[t.priority || 'Low'] || PRIORITY_COLORS.Low
+                    const canStart = t.status === 'Not Started'
+                    const needsReview = t.requires_review && t.status === 'Under Review'
+                    return (
+                      <article key={t.id} className="sf-cal-task-card" style={{ borderLeftColor: priColor }}>
+                        <div className="sf-cal-task-head">
+                          <div className="sf-cal-task-main">
+                            <div className="sf-cal-task-title">{t.title}</div>
+                            <div className="sf-cal-task-meta">
+                              {t.brand_name && <span>{t.brand_name}</span>}
+                              {t.type && <span>{t.type}</span>}
+                              {t.priority && <span style={{ color: priColor, fontWeight: 700 }}>{t.priority}</span>}
+                            </div>
+                            {t.assignees?.length > 0 && (
+                              <div className="sf-cal-task-assignees">{t.assignees.join(' · ')}</div>
+                            )}
+                          </div>
+                          <StatusBadge status={t.status} />
+                        </div>
+                        <div className="sf-cal-task-actions">
+                          <Link
+                            href={`/tasks/${t.id}`}
+                            className="sf-btn sf-btn-primary"
+                            style={{ textDecoration: 'none', fontSize: 12 }}
+                            onClick={() => setSelectedDay(null)}
+                          >
+                            Open task
+                          </Link>
+                          <Link
+                            href={`/tasks/${t.id}?tab=files`}
+                            className="sf-btn sf-btn-ghost"
+                            style={{ textDecoration: 'none', fontSize: 12 }}
+                            onClick={() => setSelectedDay(null)}
+                          >
+                            Files & upload
+                          </Link>
+                          {canStart && (
+                            <Link
+                              href={`/tasks/${t.id}`}
+                              className="sf-btn sf-btn-ghost"
+                              style={{ textDecoration: 'none', fontSize: 12 }}
+                              onClick={() => setSelectedDay(null)}
+                            >
+                              Start work
+                            </Link>
+                          )}
+                          {needsReview && (isOwner || isManager) && (
+                            <Link
+                              href={`/tasks/${t.id}?tab=review`}
+                              className="sf-btn sf-btn-ghost"
+                              style={{ textDecoration: 'none', fontSize: 12 }}
+                              onClick={() => setSelectedDay(null)}
+                            >
+                              Review
+                            </Link>
+                          )}
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+              </section>
             )}
+
             {dayDetail.leave?.length > 0 && (
-              <Block title="Leave">
-                {dayDetail.leave.map((l: any) => (
-                  <div key={l.id} style={rowStyle}>
-                    <span>{l.user_name ? `${l.user_name} — ${l.leave_type}` : l.leave_type}</span>
-                    <span style={{ color: 'var(--sf-muted)', fontSize: 11 }}>{l.status}</span>
-                  </div>
-                ))}
-              </Block>
-            )}
-            {dayDetail.attendance && !isCompanyView && (
-              <Block title="Attendance">
-                <div style={rowStyle}>
-                  <span>{dayDetail.attendance.clocked_in ? 'Currently clocked in' : 'Hours logged'}</span>
-                  <span style={{ color: 'var(--sf-muted)', fontSize: 11 }}>
-                    {dayDetail.attendance.hours_worked != null ? `${dayDetail.attendance.hours_worked}h` : '—'}
-                  </span>
+              <section className="sf-cal-section">
+                <h3 className="sf-cal-section-title">Leave</h3>
+                <div className="sf-cal-leave-list">
+                  {dayDetail.leave.map((l: any) => (
+                    <div key={l.id} className="sf-cal-leave-card">
+                      <div>
+                        <div className="sf-cal-leave-type">{l.user_name ? `${l.user_name} — ${l.leave_type}` : l.leave_type}</div>
+                        {l.days != null && <div className="sf-cal-leave-sub">{l.days} day(s) total</div>}
+                      </div>
+                      <span className={`sf-cal-leave-status sf-cal-leave-status-${String(l.status || 'pending').toLowerCase()}`}>
+                        {l.status}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              </Block>
+              </section>
             )}
-            {isCompanyView && dayDetail.attendance && (
-              <Block title="Attendance">
-                <div style={rowStyle}>
-                  <span>Team present</span>
-                  <span style={{ color: 'var(--sf-muted)', fontSize: 11 }}>
-                    {dayDetail.attendance.present_count} logged · {dayDetail.attendance.clocked_in_count} active
-                  </span>
+
+            {dayDetail.attendance && (
+              <section className="sf-cal-section">
+                <h3 className="sf-cal-section-title">Attendance</h3>
+                <div className="sf-cal-att-card">
+                  {isCompanyView ? (
+                    <>
+                      <div className="sf-cal-att-row">
+                        <span>Team logged in</span>
+                        <strong>{dayDetail.attendance.present_count}</strong>
+                      </div>
+                      <div className="sf-cal-att-row">
+                        <span>Currently active</span>
+                        <strong>{dayDetail.attendance.clocked_in_count}</strong>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="sf-cal-att-row">
+                        <span>Status</span>
+                        <strong>{dayDetail.attendance.clocked_in ? 'Clocked in' : 'Not clocked in'}</strong>
+                      </div>
+                      <div className="sf-cal-att-row">
+                        <span>Hours logged</span>
+                        <strong>{dayDetail.attendance.hours_worked != null ? `${dayDetail.attendance.hours_worked}h` : '—'}</strong>
+                      </div>
+                    </>
+                  )}
                 </div>
-              </Block>
+              </section>
             )}
-            {!dayDetail.tasks?.length && !dayDetail.leave?.length && !dayDetail.attendance && (
-              <div style={{ color: 'var(--sf-muted)', fontSize: 14, textAlign: 'center', padding: '24px 8px' }}>
-                Nothing scheduled for this day.
+
+            {isEmptyDay && (
+              <div className="sf-cal-empty">
+                <div className="sf-cal-empty-icon">📅</div>
+                <div className="sf-cal-empty-title">Clear day</div>
+                <div className="sf-cal-empty-text">No tasks, leave, or attendance logged for this date.</div>
+                <Link href="/tasks" className="sf-btn sf-btn-ghost" style={{ textDecoration: 'none', marginTop: 8 }} onClick={() => setSelectedDay(null)}>
+                  Browse all tasks
+                </Link>
               </div>
             )}
-          </>
+          </div>
         )}
       </Modal>
     </PageShell>
-  )
-}
-
-function Block({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{title}</div>
-      {children}
-    </div>
   )
 }
 
@@ -277,17 +365,4 @@ const navBtn: any = {
   padding: '8px 12px',
   cursor: 'pointer',
   fontSize: 12,
-}
-
-const rowStyle: any = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: 12,
-  padding: '10px 12px',
-  background: 'var(--sf-surface-2)',
-  borderRadius: 10,
-  marginBottom: 6,
-  color: 'var(--sf-text)',
-  fontSize: 13,
 }

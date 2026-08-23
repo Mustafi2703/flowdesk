@@ -3,14 +3,14 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { SessionUser } from '@/types'
 import { PageHeader, PageShell } from '@/components/app/Section'
 import { StatusBadge, statusTint } from '@/components/app/StatusBadge'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
 import { todayIST } from '@/lib/clock'
-import { TASK_STATUSES, canManageTasks, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
+import { TASK_STATUSES, allowedTaskStatuses, canManageTasks, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
@@ -27,6 +27,7 @@ function newSubTaskId() {
 
 export default function TaskDetailClient({ session, taskId }: { session: SessionUser; taskId: string }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [task, setTask] = useState<any>(null)
   const [users, setUsers] = useState<any[]>([])
   const [attendance, setAttendance] = useState<any[]>([])
@@ -65,6 +66,11 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
   }
 
   useEffect(() => { load() }, [taskId])
+
+  useEffect(() => {
+    const t = searchParams.get('tab')
+    if (t && TABS.some((row) => row.id === t)) setTab(t)
+  }, [searchParams])
 
   async function patch(body: any) {
     setSaving(true)
@@ -177,7 +183,7 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
                 className="sf-input"
                 style={{ fontSize: 12, padding: '6px 8px', ...statusTint(task.status) }}
               >
-                {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                {allowedTaskStatuses(task, session.role).map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </>
           ) : (
@@ -362,7 +368,7 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
 
       {tab === 'files' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <FileAttachmentsPanel entityType="task" entityId={task.id} canUpload={canWork} title="Uploads (any file type)" />
+          <FileAttachmentsPanel entityType="task" entityId={task.id} canUpload={canWork} title="Uploads (any file type)" onUploadComplete={() => load()} />
           <div style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, padding: 18 }}>
             <div style={{ color: 'var(--sf-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', marginBottom: 10 }}>Google Drive / external links</div>
             {canEdit && (

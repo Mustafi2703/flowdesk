@@ -31,6 +31,7 @@ export function DocumentViewer({
   const [textPreview, setTextPreview] = useState('')
   const [loadingText, setLoadingText] = useState(false)
   const url = file ? `/api/attachments/${file.id}` : ''
+  const downloadUrl = file ? `/api/attachments/${file.id}/download` : ''
 
   useEffect(() => {
     if (!open || !file || !isText(file.mime_type, file.file_name)) {
@@ -61,7 +62,7 @@ export function DocumentViewer({
       zIndex={1200}
       footer={
         <>
-          <a href={url} download={file.file_name} className="sf-btn sf-btn-ghost" style={{ fontSize: 12, textDecoration: 'none' }}>
+          <a href={downloadUrl} download={file.file_name} className="sf-btn sf-btn-ghost" style={{ fontSize: 12, textDecoration: 'none' }}>
             Download
           </a>
           <a href={url} target="_blank" rel="noreferrer" className="sf-btn sf-btn-ghost" style={{ fontSize: 12, textDecoration: 'none' }}>

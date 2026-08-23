@@ -1,7 +1,6 @@
-import { proxy } from '@/lib/proxy'
+import { NextRequest } from 'next/server'
+import { proxy } from '@/lib/api'
 
-export const runtime = 'nodejs'
-
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   return proxy(req, { to: '/api/v1/emails/morning-digest', method: 'POST' })
 }

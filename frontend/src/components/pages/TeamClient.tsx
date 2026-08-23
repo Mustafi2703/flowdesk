@@ -740,7 +740,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                       </div>
                     </div>
                   )
-                })
+                })}
                 </div>
               )}
             </div>

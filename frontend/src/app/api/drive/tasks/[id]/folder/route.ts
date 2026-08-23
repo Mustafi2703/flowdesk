@@ -3,5 +3,5 @@ import { proxy } from '@/lib/api'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  return proxy(req, { to: `/api/v1/emails/task-brief/${id}`, method: 'POST' })
+  return proxy(req, { to: `/api/v1/drive/tasks/${id}/folder`, method: 'POST' })
 }

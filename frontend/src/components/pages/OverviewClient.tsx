@@ -40,6 +40,8 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const [nowTick, setNowTick] = useState(Date.now())
   const [emailBusy, setEmailBusy] = useState('')
   const [emailNotice, setEmailNotice] = useState('')
+  const [driveStatus, setDriveStatus] = useState<any>(null)
+  const [driveBusy, setDriveBusy] = useState(false)
   const today = todayIST()
 
   async function runEmailAction(kind: 'test' | 'morning' | 'evening') {
@@ -58,6 +60,34 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
     }
     if (kind === 'test') setEmailNotice(`Test email sent to ${data.to}`)
     else setEmailNotice(`${kind === 'morning' ? 'Morning' : 'Evening'} brief sent to ${data.sent} people`)
+  }
+
+  async function loadDriveStatus() {
+    if (!['owner', 'manager'].includes(session.role)) return
+    const res = await fetch('/api/drive/status')
+    const data = await res.json().catch(() => null)
+    if (res.ok) setDriveStatus(data)
+  }
+
+  async function connectDrive() {
+    setDriveBusy(true)
+    setEmailNotice('')
+    const res = await fetch('/api/drive/connect')
+    const data = await res.json().catch(() => ({}))
+    setDriveBusy(false)
+    if (!res.ok) {
+      setEmailNotice(data.detail || data.error || 'Could not start Google Drive connect')
+      return
+    }
+    if (data.url) window.location.href = data.url
+  }
+
+  async function disconnectDrive() {
+    if (!window.confirm('Disconnect Google Drive from Scrumfolks?')) return
+    setDriveBusy(true)
+    await fetch('/api/drive/disconnect', { method: 'POST' })
+    setDriveBusy(false)
+    loadDriveStatus()
   }
 
   useEffect(() => {
@@ -85,6 +115,12 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
       setClocked(Boolean(todays?.login_time && !todays?.logout_time))
       setLoading(false)
     })
+    loadDriveStatus()
+    if (typeof window !== 'undefined') {
+      const q = new URLSearchParams(window.location.search)
+      if (q.get('drive') === 'connected') setEmailNotice('Google Drive connected. You can create task folders from any task.')
+      if (q.get('drive') === 'error') setEmailNotice(`Google Drive connect failed: ${q.get('msg') || 'unknown'}`)
+    }
   }, [])
 
   async function markRead(id: string) {
@@ -222,6 +258,48 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
 
       {isAdmin && (
         <Section
+          title="Google Drive"
+          subtitle="Connect the agency Drive so tasks can get real folders (not just pasted links)"
+          flush
+          style={{ flexShrink: 0 }}
+        >
+          <div style={{ padding: '12px 14px', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+            {driveStatus?.connected ? (
+              <>
+                <span style={{ color: 'var(--sf-success)', fontSize: 13, fontWeight: 650 }}>
+                  Connected{driveStatus.account_email ? ` · ${driveStatus.account_email}` : ''}
+                </span>
+                {driveStatus.root_folder_url && (
+                  <a href={driveStatus.root_folder_url} target="_blank" rel="noreferrer" className="sf-link-btn" style={{ fontSize: 12 }}>
+                    Open Scrumfolks TMS folder
+                  </a>
+                )}
+                {session.role === 'owner' && (
+                  <button type="button" className="sf-btn sf-btn-ghost" disabled={driveBusy} onClick={disconnectDrive}>
+                    Disconnect
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <span style={{ color: 'var(--sf-muted)', fontSize: 13 }}>
+                  {driveStatus?.configured
+                    ? 'Not connected yet — Owner can link Google Drive.'
+                    : 'Add Google OAuth vars on Railway backend, then connect here.'}
+                </span>
+                {session.role === 'owner' && (
+                  <button type="button" className="sf-btn sf-btn-primary" disabled={driveBusy || driveStatus?.configured === false} onClick={connectDrive}>
+                    {driveBusy ? 'Opening Google…' : 'Connect Google Drive'}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </Section>
+      )}
+
+      {isAdmin && (
+        <Section
           title="Email tools"
           subtitle="Owner & manager — send briefs on demand (from no-reply@scrumfolks.com)"
           flush
@@ -241,7 +319,7 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
               Task assignment emails also go out when you create/assign a task or click Email brief on a task.
             </span>
             {emailNotice && (
-              <div style={{ width: '100%', color: emailNotice.includes('Could') || emailNotice.includes('error') ? 'var(--sf-danger)' : 'var(--sf-success)', fontSize: 13 }}>
+              <div style={{ width: '100%', color: emailNotice.toLowerCase().includes('fail') || emailNotice.toLowerCase().includes('could') ? 'var(--sf-danger)' : 'var(--sf-success)', fontSize: 13 }}>
                 {emailNotice}
               </div>
             )}

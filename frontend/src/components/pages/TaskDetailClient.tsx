@@ -38,6 +38,7 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
   const [linkLabel, setLinkLabel] = useState('')
   const [reviewNotes, setReviewNotes] = useState('')
   const [emailing, setEmailing] = useState(false)
+  const [driveFolderBusy, setDriveFolderBusy] = useState(false)
   const today = todayIST()
   const clockedIn = isClockedInToday(attendance, session.id, today)
   const canEdit = canManageTasks(session.role)
@@ -116,6 +117,20 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
       return
     }
     alert(data.sent ? `Task email sent (${data.sent}).` : 'No assignees to email.')
+  }
+
+  async function createDriveFolder() {
+    setDriveFolderBusy(true)
+    setError('')
+    const res = await fetch(`/api/drive/tasks/${taskId}/folder`, { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    setDriveFolderBusy(false)
+    if (!res.ok) {
+      setError(data.detail || data.error || 'Could not create Drive folder')
+      return
+    }
+    if (data.external_links) setTask((prev: any) => ({ ...prev, external_links: data.external_links }))
+    else await load()
   }
 
   const assignees = useMemo(() => {
@@ -350,7 +365,18 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
           <FileAttachmentsPanel entityType="task" entityId={task.id} canUpload={canWork} title="Uploads (any file type)" />
           <div style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, padding: 18 }}>
             <div style={{ color: 'var(--sf-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', marginBottom: 10 }}>Google Drive / external links</div>
-            {(task.external_links || []).length === 0 && <div style={{ color: 'var(--sf-muted)', fontSize: 12, marginBottom: 10 }}>No links yet. Paste a Drive, Dropbox, or Figma URL.</div>}
+            {canEdit && (
+              <button
+                type="button"
+                className="sf-btn sf-btn-primary"
+                style={{ fontSize: 12, marginBottom: 12 }}
+                disabled={driveFolderBusy}
+                onClick={createDriveFolder}
+              >
+                {driveFolderBusy ? 'Creating…' : 'Create Drive folder'}
+              </button>
+            )}
+            {(task.external_links || []).length === 0 && <div style={{ color: 'var(--sf-muted)', fontSize: 12, marginBottom: 10 }}>No links yet. Create a folder in the connected Drive, or paste a Drive / Dropbox / Figma URL.</div>}
             {(task.external_links || []).map((lnk: any, i: number) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--sf-border)' }}>
                 <a href={lnk.url} target="_blank" rel="noreferrer" style={{ color: '#60A5FA', fontSize: 13 }}>{lnk.label || lnk.url}</a>

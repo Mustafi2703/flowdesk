@@ -80,6 +80,13 @@ class Settings(BaseSettings):
     email_test_recipient: str | None = None
     task_brief_emails_enabled: bool = True
 
+    # ── Google Drive (Owner connects one workspace Drive) ────────────────
+    google_oauth_client_id: str | None = None
+    google_oauth_client_secret: str | None = None
+    # Must be the FastAPI callback, e.g.
+    # https://backend-production-d5dd9.up.railway.app/api/v1/drive/callback
+    google_oauth_redirect_uri: str | None = None
+
     # ── AI ───────────────────────────────────────────────────────────────
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-sonnet-4-20250514"

@@ -10,6 +10,7 @@ from app.models.attachment import FileAttachment
 from app.models.brand import Brand
 from app.models.daily_summary import DailySummary
 from app.models.department import Department
+from app.models.integration import Integration
 from app.models.leave import LeaveRequest
 from app.models.notification import Notification
 from app.models.profile import Profile
@@ -23,6 +24,7 @@ __all__ = [
     "DailySummary",
     "Department",
     "FileAttachment",
+    "Integration",
     "LeaveRequest",
     "Notification",
     "Profile",

@@ -2,6 +2,7 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import { SessionUser } from '@/types'
+import { PageHeader, PageShell, Section, StatCard, StatGrid } from '@/components/app/Section'
 import { clockOutWithConfirm, todayIST } from '@/lib/clock'
 
 export default function AttendanceClient({ session }: { session: SessionUser }) {

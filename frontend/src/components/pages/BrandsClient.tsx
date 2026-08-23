@@ -10,6 +10,7 @@ import { TASK_STATUSES, canManageTasks, canSetTaskPrice, isClockedInToday, isTas
 import { todayIST } from '@/lib/clock'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
+import { BrandBadge, BrandLogoMark, BrandTag, brandAccent } from '@/components/app/BrandBadge'
 
 const WORKFLOW_STAGES = [
   { id: 'assigned', label: 'Assigned' },
@@ -20,36 +21,9 @@ const WORKFLOW_STAGES = [
   { id: 'delivered', label: 'Delivered' },
 ]
 
-function brandLogoSrc(brand: any) {
-  if (!brand?.logo_url) return null
-  const stamp = brand.updated_at ? new Date(brand.updated_at).getTime() : ''
-  return stamp ? `${brand.logo_url}?v=${stamp}` : brand.logo_url
-}
-
 function logoAttachmentId(logoUrl?: string | null) {
   if (!logoUrl?.includes('/api/attachments/')) return null
   return logoUrl.split('/').pop()?.split('?')[0] || null
-}
-
-function BrandLogoMark({ brand, size = 40 }: { brand: any; size?: number }) {
-  const initials = (brand.logo || brand.name?.slice(0, 2) || '?').slice(0, 8)
-  const src = brandLogoSrc(brand)
-  if (src) {
-    return (
-      <img
-        src={src}
-        alt={brand.name}
-        width={size}
-        height={size}
-        style={{ width: size, height: size, borderRadius: size > 48 ? 12 : 8, objectFit: 'cover', flexShrink: 0, background: 'var(--sf-surface-2)' }}
-      />
-    )
-  }
-  return (
-    <div style={{ width: size, height: size, background: 'linear-gradient(135deg,#E8630A,#FF9A4A)', borderRadius: size > 48 ? 12 : 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sf-text)', fontWeight: 800, fontSize: size > 48 ? 14 : 11, flexShrink: 0, padding: 2, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-      {initials}
-    </div>
-  )
 }
 
 const sameId = (a: string | null | undefined, b: string | null | undefined) => String(a || '') === String(b || '')
@@ -73,6 +47,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   const [showCreate, setShowCreate] = useState(false)
   const [loading, setLoading] = useState(true)
   const [identityEditNonce, setIdentityEditNonce] = useState(0)
+  const [brandSearch, setBrandSearch] = useState('')
   const canEdit = ['owner', 'manager'].includes(session.role)
   const isOwner = session.role === 'owner'
   const isReadOnlyRole = ['hr', 'accountant'].includes(session.role)
@@ -124,6 +99,16 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
     () => (selected ? tasks.filter(t => sameId(t.brand_id, selected.id)) : []),
     [tasks, selected]
   )
+
+  const filteredBrands = useMemo(() => {
+    const q = brandSearch.trim().toLowerCase()
+    if (!q) return visible
+    return visible.filter((b) =>
+      b.name?.toLowerCase().includes(q)
+      || b.client_type?.toLowerCase().includes(q)
+      || b.priority?.toLowerCase().includes(q)
+    )
+  }, [visible, brandSearch])
 
   function selectBrand(brand: any) {
     setSelectedId(String(brand.id))
@@ -190,55 +175,71 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
           )}
         </div>
       ) : (
-        <>
-          <div className="sf-brand-picker">
-            {visible.map(b => {
-              const bt = tasks.filter(t => sameId(t.brand_id, b.id))
-              const active = selected && sameId(selected.id, b.id)
-              return (
-                <button
-                  key={b.id}
-                  type="button"
-                  className={`sf-brand-chip${active ? ' sf-brand-chip-active' : ''}`}
-                  onClick={() => selectBrand(b)}
-                >
-                  <BrandLogoMark brand={b} size={32} />
-                  <span className="sf-brand-chip-text">
-                    <span className="sf-brand-chip-name">{b.name}</span>
-                    <span className="sf-brand-chip-meta">
-                      {bt.length} tasks · {WORKFLOW_STAGES.find(s => s.id === (b.workflow_stage || 'assigned'))?.label || 'Assigned'}
-                    </span>
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-
-          {selected ? (
-            <>
-              <PageTabs tabs={brandTabs} active={section} onChange={setSection} />
-              <BrandDetail
-                brand={selected}
-                tasks={brandTasks}
-                users={users}
-                session={session}
-                canEdit={canEdit}
-                canAssignManagers={isOwner}
-                canAssignTeam={canEdit}
-                tab={section}
-                onTabChange={setSection}
-                onRefresh={load}
-                onBrandUpdated={patchBrand}
-                attendance={attendance}
-                identityEditNonce={identityEditNonce}
-              />
-            </>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--sf-muted)' }}>
-              Select a brand above to view projects, tasks, and goals.
+        <div className="sf-brand-workspace">
+          <aside className="sf-brand-roster" aria-label="Client roster">
+            <div className="sf-brand-roster-head">
+              <h2 className="sf-brand-roster-title">Client roster</h2>
+              <span className="sf-brand-roster-count">{visible.length}</span>
             </div>
-          )}
-        </>
+            <div className="sf-brand-roster-search-wrap">
+              <input
+                type="search"
+                className="sf-brand-roster-search"
+                placeholder="Search clients…"
+                value={brandSearch}
+                onChange={(e) => setBrandSearch(e.target.value)}
+                aria-label="Search clients"
+              />
+            </div>
+            <div className="sf-brand-roster-list">
+              {filteredBrands.length === 0 ? (
+                <div className="sf-brand-roster-empty">No clients match &ldquo;{brandSearch}&rdquo;</div>
+              ) : filteredBrands.map((b) => {
+                const bt = tasks.filter(t => sameId(t.brand_id, b.id))
+                const active = selected && sameId(selected.id, b.id)
+                const stageLabel = WORKFLOW_STAGES.find(s => s.id === (b.workflow_stage || 'assigned'))?.label || 'Assigned'
+                return (
+                  <BrandBadge
+                    key={b.id}
+                    brand={b}
+                    variant="roster"
+                    active={!!active}
+                    taskCount={bt.length}
+                    stageLabel={stageLabel}
+                    onClick={() => selectBrand(b)}
+                  />
+                )
+              })}
+            </div>
+          </aside>
+
+          <div className="sf-brand-workspace-main">
+            {selected ? (
+              <>
+                <PageTabs tabs={brandTabs} active={section} onChange={setSection} />
+                <BrandDetail
+                  brand={selected}
+                  tasks={brandTasks}
+                  users={users}
+                  session={session}
+                  canEdit={canEdit}
+                  canAssignManagers={isOwner}
+                  canAssignTeam={canEdit}
+                  tab={section}
+                  onTabChange={setSection}
+                  onRefresh={load}
+                  onBrandUpdated={patchBrand}
+                  attendance={attendance}
+                  identityEditNonce={identityEditNonce}
+                />
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--sf-muted)' }}>
+                Select a client from the roster to view projects, tasks, and brand identity.
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {showCreate && canEdit && <CreateBrand onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); load() }} />}
@@ -455,17 +456,18 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
 
   return (
     <div>
-      <div className="sf-brand-hero">
+      <div className="sf-brand-hero" style={{ '--brand-accent': brandAccent(brand.priority) } as React.CSSProperties}>
         <div className="sf-brand-hero-body">
           <BrandLogoMark brand={brand} size={56} />
           <div className="sf-brand-hero-main">
             <h1 className="sf-brand-hero-name" title={brand.name}>{brand.name}</h1>
             <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-              <span style={{ background: '#3B82F620', color: '#3B82F6', fontSize: 11, padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>{brand.client_type}</span>
-              <span style={{ background: '#8B5CF620', color: '#8B5CF6', fontSize: 11, padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>{brand.priority}</span>
-              <span style={{ background: '#20B2AA20', color: '#20B2AA', fontSize: 11, padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
-                {WORKFLOW_STAGES.find(s => s.id === (brand.workflow_stage || 'assigned'))?.label || 'Assigned'}
-              </span>
+              {brand.client_type && <BrandTag label={brand.client_type} tone="type" />}
+              {brand.priority && <BrandTag label={brand.priority} tone="priority" />}
+              <BrandTag
+                label={WORKFLOW_STAGES.find(s => s.id === (brand.workflow_stage || 'assigned'))?.label || 'Assigned'}
+                tone="stage"
+              />
             </div>
             <p className="sf-brand-hero-desc">{brand.description}</p>
             {canEdit && (

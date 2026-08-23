@@ -12,6 +12,7 @@ import { ATTENDANCE_CHANGED } from '@/lib/attendance'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { TaskThreadBox } from '@/components/app/TaskThreadBox'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
+import { BrandBadge } from '@/components/app/BrandBadge'
 
 const STATUSES = TASK_STATUSES
 const PRIORITIES = ['Critical','High','Medium','Low']
@@ -342,7 +343,9 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                           </div>
                         )}
                       </td>
-                      <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default' }}>{task.brand?.name || '—'}</td>
+                      <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default' }}>
+                        <BrandBadge brand={task.brand} />
+                      </td>
                       <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default', color: 'var(--sf-text-secondary)', fontSize: 12, maxWidth: 160 }}>
                         {assigneeLabel}
                       </td>
@@ -453,7 +456,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                       {task.title}
                     </button>
                     <div className="sf-trello-card-meta">
-                      <span className="sf-trello-brand">{task.brand?.name || 'No brand'}</span>
+                      <span className="sf-trello-brand"><BrandBadge brand={task.brand} /></span>
                       {due && (
                         <span className={`sf-trello-due${due.late ? ' sf-trello-due-late' : ''}`}>
                           {due.late ? `${Math.abs(due.dl)}d late` : due.dl === 0 ? 'Today' : `${due.dl}d`}

@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/app/Icons'
 import { clockOutWithConfirm, todayIST } from '@/lib/clock'
 import { notifyAttendanceChanged } from '@/lib/attendance'
 import { resolveNotificationLink, notificationActionLabel } from '@/lib/notifications'
+import { BrandBadge } from '@/components/app/BrandBadge'
 
 const ROLE_DASH: Record<string, { tag: string; blurb: string; emoji: string }> = {
   owner: { tag: 'Agency HQ', blurb: 'See delivery, people, and revenue at a glance — your marketing command center.', emoji: '🚀' },
@@ -420,9 +421,9 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
                     >
                       <div style={{ minWidth:0 }}>
                         <div style={{ color:'var(--sf-text)', fontWeight:600, fontSize:13, marginBottom:2 }}>{t.title}</div>
-                        <div style={{ color:'var(--sf-muted)', fontSize:11 }}>
-                          {t.brand?.name||'No brand'} · {t.type||'Task'} · {t.priority || 'Medium'}
-                          {t.requires_review ? ' · Review' : ''}
+                        <div style={{ color:'var(--sf-muted)', fontSize:11, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <BrandBadge brand={t.brand} />
+                          <span>{t.type||'Task'} · {t.priority || 'Medium'}{t.requires_review ? ' · Review' : ''}</span>
                         </div>
                       </div>
                       <div style={{ display:'flex', gap:8, alignItems:'center', flexShrink:0 }}>

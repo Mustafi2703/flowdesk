@@ -662,6 +662,37 @@ html[data-theme='morning'] body {
   box-shadow: var(--sf-glow);
 }
 
+.sf-brand-roster-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.sf-brand-roster-filter {
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--sf-border);
+  background: var(--sf-surface);
+  color: var(--sf-muted);
+  font-size: 10px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.sf-brand-roster-filter:hover {
+  color: var(--sf-text);
+  border-color: var(--sf-border-strong);
+}
+
+.sf-brand-roster-filter.is-active {
+  background: var(--sf-accent-soft);
+  border-color: color-mix(in srgb, var(--sf-accent) 35%, var(--sf-border));
+  color: var(--sf-accent);
+}
+
 .sf-brand-roster-list {
   flex: 1;
   overflow-y: auto;

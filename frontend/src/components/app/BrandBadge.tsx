@@ -107,7 +107,7 @@ export function BrandBadge({
         onClick={onClick}
       >
         <span className="sf-brand-roster-accent" aria-hidden />
-        <BrandLogoMark brand={brand} size={36} />
+        <BrandLogoMark brand={brand} size={40} />
         <span className="sf-brand-roster-copy">
           <span className="sf-brand-roster-name" title={brand.name}>{brand.name}</span>
           <span className="sf-brand-roster-meta">

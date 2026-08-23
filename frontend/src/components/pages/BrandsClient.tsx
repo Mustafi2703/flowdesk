@@ -48,6 +48,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   const [loading, setLoading] = useState(true)
   const [identityEditNonce, setIdentityEditNonce] = useState(0)
   const [brandSearch, setBrandSearch] = useState('')
+  const [brandStageFilter, setBrandStageFilter] = useState('all')
   const canEdit = ['owner', 'manager'].includes(session.role)
   const isOwner = session.role === 'owner'
   const isReadOnlyRole = ['hr', 'accountant'].includes(session.role)
@@ -102,13 +103,14 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
 
   const filteredBrands = useMemo(() => {
     const q = brandSearch.trim().toLowerCase()
-    if (!q) return visible
-    return visible.filter((b) =>
-      b.name?.toLowerCase().includes(q)
-      || b.client_type?.toLowerCase().includes(q)
-      || b.priority?.toLowerCase().includes(q)
-    )
-  }, [visible, brandSearch])
+    return visible.filter((b) => {
+      if (brandStageFilter !== 'all' && (b.workflow_stage || 'assigned') !== brandStageFilter) return false
+      if (!q) return true
+      return b.name?.toLowerCase().includes(q)
+        || b.client_type?.toLowerCase().includes(q)
+        || b.priority?.toLowerCase().includes(q)
+    })
+  }, [visible, brandSearch, brandStageFilter])
 
   function selectBrand(brand: any) {
     setSelectedId(String(brand.id))
@@ -190,6 +192,25 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                 onChange={(e) => setBrandSearch(e.target.value)}
                 aria-label="Search clients"
               />
+              <div className="sf-brand-roster-filters" role="tablist" aria-label="Filter by stage">
+                <button
+                  type="button"
+                  className={`sf-brand-roster-filter${brandStageFilter === 'all' ? ' is-active' : ''}`}
+                  onClick={() => setBrandStageFilter('all')}
+                >
+                  All
+                </button>
+                {WORKFLOW_STAGES.map((stage) => (
+                  <button
+                    key={stage.id}
+                    type="button"
+                    className={`sf-brand-roster-filter${brandStageFilter === stage.id ? ' is-active' : ''}`}
+                    onClick={() => setBrandStageFilter(stage.id)}
+                  >
+                    {stage.label}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="sf-brand-roster-list">
               {filteredBrands.length === 0 ? (

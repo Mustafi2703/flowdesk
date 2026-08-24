@@ -7,6 +7,7 @@ import { EmptyState, Icon } from '@/components/app/Icons'
 import { PageHeader, PageShell, PageToolbar, Section } from '@/components/app/Section'
 import { TaskFormModal } from '@/components/pages/TasksClient'
 import { allowedTaskStatuses, canManageTasks, canManualStatusChange, canSetTaskPrice, isClockedInToday, isTaskAssignee } from '@/lib/tasks'
+import { BrandMeetingsPanel } from '@/components/pages/MeetingsClient'
 import { todayIST } from '@/lib/clock'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
@@ -55,6 +56,7 @@ const BRAND_SECTIONS = [
   { id: 'projects', label: 'Projects' },
   { id: 'tasks', label: 'Tasks' },
   { id: 'goals', label: 'Goals' },
+  { id: 'meetings', label: 'Meetings' },
   { id: 'identity', label: 'Identity' },
   { id: 'journey', label: 'Journey' },
 ]
@@ -276,6 +278,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
   const [identityDraft, setIdentityDraft] = useState({
     name: brand.name || '',
     logo: brand.logo || '',
+    contact_email: brand.contact_email || '',
     description: brand.description || '',
     short_term_goals: (brand.short_term_goals || []).join('\n'),
     long_term_goals: (brand.long_term_goals || []).join('\n'),
@@ -309,6 +312,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
     setIdentityDraft({
       name: brand.name || '',
       logo: brand.logo || '',
+      contact_email: brand.contact_email || '',
       description: brand.description || '',
       short_term_goals: (brand.short_term_goals || []).join('\n'),
       long_term_goals: (brand.long_term_goals || []).join('\n'),
@@ -324,7 +328,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
       client_type: brand.client_type || 'Retainer',
     })
     setLogoError('')
-  }, [brand.id, brand.assigned_members, brand.assigned_managers, brand.name, brand.logo, brand.logo_url, brand.description, brand.workflow_stage, brand.priority, brand.client_type, brand.short_term_goals, brand.long_term_goals, brand.journey, brand.responsibilities, brand.fonts, brand.logo_variants, brand.brand_colors, brand.photography_style, brand.brand_voice])
+  }, [brand.id, brand.assigned_members, brand.assigned_managers, brand.name, brand.logo, brand.logo_url, brand.contact_email, brand.description, brand.workflow_stage, brand.priority, brand.client_type, brand.short_term_goals, brand.long_term_goals, brand.journey, brand.responsibilities, brand.fonts, brand.logo_variants, brand.brand_colors, brand.photography_style, brand.brand_voice])
 
   useEffect(() => {
     if (identityEditNonce > 0) setEditingIdentity(true)
@@ -390,6 +394,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
         workflow_stage: identityDraft.workflow_stage,
         priority: identityDraft.priority,
         client_type: identityDraft.client_type,
+        contact_email: identityDraft.contact_email?.trim() || null,
       }),
     })
     setSavingIdentity(false)
@@ -522,6 +527,11 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                 tone="stage"
               />
             </div>
+            {brand.contact_email && (
+              <p className="sf-brand-page-desc" style={{ marginTop: 6 }}>
+                Client contact: <a href={`mailto:${brand.contact_email}`} style={{ color: 'var(--sf-accent)' }}>{brand.contact_email}</a>
+              </p>
+            )}
             {brand.description && <p className="sf-brand-page-desc">{brand.description}</p>}
           </div>
           {canEdit && (
@@ -892,6 +902,9 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                 <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Brand name
                   <input value={identityDraft.name} onChange={e => setIdentityDraft(d => ({ ...d, name: e.target.value }))} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)' }} />
                 </label>
+                <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Client email (meetings)
+                  <input type="email" value={identityDraft.contact_email} onChange={e => setIdentityDraft(d => ({ ...d, contact_email: e.target.value }))} placeholder="client@company.com" style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)' }} />
+                </label>
                 <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Initials fallback
                   <input value={identityDraft.logo} onChange={e => setIdentityDraft(d => ({ ...d, logo: e.target.value.slice(0, 8) }))} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)' }} />
                 </label>
@@ -953,6 +966,17 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
             canUpload={canUploadDocs}
             title="Brand files & documents"
             excludeIds={[logoAttachmentId(brand.logo_url)].filter(Boolean)}
+          />
+        </div>
+      )}
+
+      {tab === 'meetings' && (
+        <div className="sf-brand-panel">
+          <BrandMeetingsPanel
+            session={session}
+            brand={brand}
+            canEdit={canEdit}
+            onBrandPatch={onBrandUpdated}
           />
         </div>
       )}

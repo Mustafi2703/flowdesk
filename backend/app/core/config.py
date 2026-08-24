@@ -86,6 +86,8 @@ class Settings(BaseSettings):
     # Must be the FastAPI callback, e.g.
     # https://backend-production-d5dd9.up.railway.app/api/v1/drive/callback
     google_oauth_redirect_uri: str | None = None
+    # Calendar/Meet OAuth callback, e.g. .../api/v1/meetings/callback
+    google_calendar_redirect_uri: str | None = None
 
     # ── AI ───────────────────────────────────────────────────────────────
     anthropic_api_key: str | None = None

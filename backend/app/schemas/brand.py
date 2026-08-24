@@ -33,6 +33,7 @@ class BrandCreate(BaseModel):
     photography_style: str | None = None
     brand_voice: str | None = None
     responsibilities: str | None = None
+    contact_email: str | None = None
     assigned_members: list[uuid.UUID] = Field(default_factory=list)
     assigned_managers: list[uuid.UUID] = Field(default_factory=list)
 
@@ -53,6 +54,7 @@ class BrandUpdate(BaseModel):
     photography_style: str | None = None
     brand_voice: str | None = None
     responsibilities: str | None = None
+    contact_email: str | None = None
     assigned_members: list[uuid.UUID] | None = None
     assigned_managers: list[uuid.UUID] | None = None
 
@@ -77,6 +79,7 @@ class BrandOut(BaseModel):
     photography_style: str | None
     brand_voice: str | None
     responsibilities: str | None
+    contact_email: str | None
     assigned_members: list[uuid.UUID]
     assigned_managers: list[uuid.UUID]
     created_by: uuid.UUID | None

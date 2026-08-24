@@ -213,6 +213,7 @@ export const NAV_ICON_TONES: Record<string, NavTone> = {
   updates: { bg: 'rgba(6, 182, 212, 0.14)', fg: '#0891b2', border: 'rgba(6, 182, 212, 0.28)' },
   devboard: { bg: 'rgba(16, 185, 129, 0.14)', fg: '#059669', border: 'rgba(16, 185, 129, 0.28)' },
   brands: { bg: 'rgba(236, 72, 153, 0.14)', fg: '#db2777', border: 'rgba(236, 72, 153, 0.28)' },
+  meetings: { bg: 'rgba(11, 106, 120, 0.14)', fg: '#0B6A78', border: 'rgba(11, 106, 120, 0.28)' },
   review: { bg: 'rgba(245, 158, 11, 0.14)', fg: '#d97706', border: 'rgba(245, 158, 11, 0.28)' },
   team: { bg: 'rgba(99, 102, 241, 0.14)', fg: '#6366f1', border: 'rgba(99, 102, 241, 0.28)' },
   performance: { bg: 'rgba(20, 184, 166, 0.14)', fg: '#0d9488', border: 'rgba(20, 184, 166, 0.28)' },

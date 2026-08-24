@@ -18,6 +18,7 @@ from app.api.v1.endpoints import (
     drive,
     emails,
     leaves,
+    meetings,
     notifications,
     performance,
     tasks,
@@ -35,6 +36,7 @@ api_router.include_router(emails.router)
 api_router.include_router(tasks.router)
 api_router.include_router(tasks.dev_router)
 api_router.include_router(brands.router)
+api_router.include_router(meetings.router)
 api_router.include_router(calendar.router)
 api_router.include_router(team.router)
 api_router.include_router(users.router)

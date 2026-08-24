@@ -68,6 +68,7 @@ def _serialize(brand: Brand) -> dict[str, Any]:
         "photography_style": brand.photography_style,
         "brand_voice": brand.brand_voice,
         "responsibilities": brand.responsibilities,
+        "contact_email": getattr(brand, "contact_email", None),
         "assigned_members": [str(uid) for uid in (brand.assigned_members or [])],
         "assigned_managers": [str(uid) for uid in (getattr(brand, "assigned_managers", None) or [])],
         "created_by": str(brand.created_by) if brand.created_by else None,

@@ -10,7 +10,7 @@ const SIDEBAR_KEY = 'sf-sidebar-collapsed'
 
 const NAV_GROUPS: { label: string; ids: string[] }[] = [
   { label: 'Workspace', ids: ['overview', 'calendar', 'tasks', 'updates', 'devboard'] },
-  { label: 'Clients', ids: ['brands', 'review'] },
+  { label: 'Clients', ids: ['brands', 'meetings', 'review'] },
   { label: 'People', ids: ['team', 'performance', 'attendance', 'leave', 'announcements'] },
   { label: 'Finance', ids: ['billing'] },
 ]

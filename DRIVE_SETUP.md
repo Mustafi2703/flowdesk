@@ -5,12 +5,13 @@ Owner connects **one** Google account. Scrumfolks can then create a real folder 
 ## 1. Google Cloud Console
 
 1. Open [Google Cloud Console](https://console.cloud.google.com/) → create/select a project.
-2. **APIs & Services → Enable APIs** → enable **Google Drive API**.
+2. **APIs & Services → Enable APIs** → enable **Google Drive API** and **Google Calendar API**.
 3. **Credentials → Create credentials → OAuth client ID**
    - Application type: **Web application**
-   - Authorized redirect URI (exact):
+   - Authorized redirect URIs (exact):
      ```
      https://backend-production-d5dd9.up.railway.app/api/v1/drive/callback
+     https://backend-production-d5dd9.up.railway.app/api/v1/meetings/callback
      ```
 4. Copy **Client ID** and **Client secret**.
 
@@ -20,6 +21,7 @@ Owner connects **one** Google account. Scrumfolks can then create a real folder 
 GOOGLE_OAUTH_CLIENT_ID=<client-id>
 GOOGLE_OAUTH_CLIENT_SECRET=<client-secret>
 GOOGLE_OAUTH_REDIRECT_URI=https://backend-production-d5dd9.up.railway.app/api/v1/drive/callback
+GOOGLE_CALENDAR_REDIRECT_URI=https://backend-production-d5dd9.up.railway.app/api/v1/meetings/callback
 APP_BASE_URL=https://frontend-production-c885.up.railway.app
 ```
 
@@ -31,6 +33,8 @@ Redeploy backend after setting vars.
 2. **Dashboard → Google Drive → Connect Google Drive**.
 3. Approve Drive access (scope: files created by the app only).
 4. Open any task → **Files** → **Create Drive folder**.
+
+**Client meetings (Google Meet):** Owner → **Meetings → Connect Google Calendar** (separate OAuth from Drive). Managers can then schedule adhoc or recurring syncs (weekly / monthly / quarterly / yearly) per brand; invites go to the brand contact email with a Meet link.
 
 Managers can create folders after Owner connects. Team still uses the folder links; they do not need Google OAuth.
 

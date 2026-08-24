@@ -132,6 +132,7 @@ export const NAV_ITEMS = [
   { id: 'updates',       label: 'Updates',       icon: 'inbox' as NavIcon, roles: ['owner','manager','team','hr','accountant'] },
   { id: 'devboard',      label: 'Workflow',      icon: 'code' as NavIcon, roles: ['owner','manager','team'] },
   { id: 'brands',        label: 'Brands',        icon: 'brands' as NavIcon, roles: ['owner','manager','hr','accountant','team'] },
+  { id: 'meetings',      label: 'Meetings',      icon: 'calendar' as NavIcon, roles: ['owner','manager'] },
   { id: 'review',        label: 'Review',        icon: 'review' as NavIcon, roles: ['owner','manager'] },
   { id: 'team',          label: 'Team',          icon: 'team' as NavIcon, roles: ['owner','manager','hr'] },
   { id: 'performance',   label: 'Performance',   icon: 'performance' as NavIcon, roles: ['owner','manager','hr','team'] },

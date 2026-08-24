@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Icon, NavIconBadge } from '@/components/app/Icons'
-import { Modal } from '@/components/app/Modal'
 import {
   notificationAccent,
   notificationActionLabel,
@@ -41,16 +40,23 @@ function timeAgo(iso: string) {
   return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
 }
 
-/**
- * Bell + notification modal + bottom-right toast for new items.
- */
+/** Bell + top-right dropdown panel (not centered modal). */
 export function NotificationBell() {
   const router = useRouter()
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const [items, setItems] = useState<Notif[]>([])
   const [open, setOpen] = useState(false)
   const [toast, setToast] = useState<Notif | null>(null)
+  const [panelPos, setPanelPos] = useState({ top: 56, right: 16 })
   const seenRef = useRef<Set<string>>(new Set())
   const primedRef = useRef(false)
+
+  function updatePanelPos() {
+    if (!btnRef.current) return
+    const r = btnRef.current.getBoundingClientRect()
+    setPanelPos({ top: r.bottom + 8, right: Math.max(12, window.innerWidth - r.right) })
+  }
 
   async function load() {
     const res = await fetch('/api/notifications')
@@ -63,8 +69,8 @@ export function NotificationBell() {
     } else {
       const fresh = list.filter((n) => !n.is_read && !seenRef.current.has(n.id))
       for (const n of fresh) seenRef.current.add(n.id)
-      const chat = fresh.find((n) => n.type === 'chat') || fresh[0]
-      if (chat) setToast(chat)
+      const next = fresh.find((n) => n.type === 'chat') || fresh[0]
+      if (next) setToast(next)
     }
     setItems(list)
   }
@@ -72,12 +78,37 @@ export function NotificationBell() {
   useEffect(() => {
     load()
     const id = setInterval(load, 10000)
+    updatePanelPos()
     return () => clearInterval(id)
   }, [])
 
   useEffect(() => {
+    if (!open) return
+    updatePanelPos()
+    const onResize = () => updatePanelPos()
+    window.addEventListener('resize', onResize)
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const onClick = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (panelRef.current?.contains(t) || btnRef.current?.contains(t)) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [open])
+
+  useEffect(() => {
     if (!toast) return
-    const t = setTimeout(() => setToast(null), 8000)
+    const t = setTimeout(() => setToast(null), 7000)
     return () => clearTimeout(t)
   }, [toast?.id])
 
@@ -100,20 +131,17 @@ export function NotificationBell() {
   }
 
   const unreadCount = items.filter((n) => !n.is_read).length
-  const grouped = {
-    chat: items.filter((n) => n.type === 'chat'),
-    task: items.filter((n) => n.type === 'task'),
-    other: items.filter((n) => n.type !== 'chat' && n.type !== 'task'),
-  }
 
   return (
-    <>
+    <div className="sf-notif-wrap">
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => { setOpen((v) => !v); if (!open) setTimeout(updatePanelPos, 0) }}
         title="Notifications"
         aria-label="Notifications"
-        className={`sf-notif-bell${unreadCount > 0 ? ' sf-notif-bell-active' : ''}`}
+        aria-expanded={open}
+        className={`sf-notif-bell${unreadCount > 0 ? ' sf-notif-bell-active' : ''}${open ? ' sf-notif-bell-open' : ''}`}
       >
         <Icon name="bell" size={18} />
         {unreadCount > 0 && (
@@ -121,62 +149,63 @@ export function NotificationBell() {
         )}
       </button>
 
-      <Modal
-        open={open}
-        onClose={() => setOpen(false)}
-        title="Notifications"
-        subtitle={unreadCount ? `${unreadCount} unread update${unreadCount === 1 ? '' : 's'}` : 'You are all caught up'}
-        size="wide"
-        zIndex={1300}
-        footer={
-          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 8, flexWrap: 'wrap' }}>
-            <button type="button" className="sf-btn sf-btn-ghost" onClick={() => { setOpen(false); router.push('/updates') }}>
-              Open Updates
-            </button>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {unreadCount > 0 && (
-                <button type="button" className="sf-btn sf-btn-ghost" onClick={markAllRead}>Mark all read</button>
+      {open && (
+        <>
+          <div className="sf-notif-backdrop" aria-hidden onClick={() => setOpen(false)} />
+          <div
+            ref={panelRef}
+            className="sf-notif-panel"
+            style={{ top: panelPos.top, right: panelPos.right }}
+            role="dialog"
+            aria-label="Notifications"
+          >
+            <div className="sf-notif-panel-head">
+              <div>
+                <div className="sf-notif-panel-title">Notifications</div>
+                <div className="sf-notif-panel-sub">
+                  {unreadCount ? `${unreadCount} unread` : 'All caught up'}
+                </div>
+              </div>
+              <div className="sf-notif-panel-actions">
+                {unreadCount > 0 && (
+                  <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 10px' }} onClick={markAllRead}>
+                    Mark read
+                  </button>
+                )}
+                <button type="button" className="sf-notif-panel-close" onClick={() => setOpen(false)} aria-label="Close">×</button>
+              </div>
+            </div>
+            <div className="sf-notif-panel-body">
+              {items.length === 0 ? (
+                <div className="sf-notif-empty">
+                  <NavIconBadge name="bell" navId="overview" className="sf-notif-empty-icon" />
+                  <div className="sf-notif-empty-title">Quiet for now</div>
+                  <p>Task updates, reviews, and announcements appear here.</p>
+                </div>
+              ) : (
+                items.map((n) => (
+                  <NotifRow key={n.id} n={n} onOpen={() => openNotif(n)} />
+                ))
               )}
-              <button type="button" className="sf-btn sf-btn-primary" onClick={() => setOpen(false)}>Done</button>
+            </div>
+            <div className="sf-notif-panel-foot">
+              <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 12 }} onClick={() => { setOpen(false); router.push('/updates') }}>
+                Open Updates
+              </button>
+              <button type="button" className="sf-btn sf-btn-primary" style={{ fontSize: 12 }} onClick={() => setOpen(false)}>
+                Done
+              </button>
             </div>
           </div>
-        }
-      >
-        {items.length === 0 ? (
-          <div className="sf-notif-empty">
-            <NavIconBadge name="bell" navId="overview" className="sf-notif-empty-icon" />
-            <div className="sf-notif-empty-title">Quiet for now</div>
-            <p>Task chats, reviews, and leave updates will appear here with one-click links.</p>
-          </div>
-        ) : (
-          <div className="sf-notif-feed">
-            {grouped.chat.length > 0 && (
-              <NotifGroup title="Updates & chat" icon="inbox" navId="updates" count={grouped.chat.filter((n) => !n.is_read).length}>
-                {grouped.chat.map((n) => (
-                  <NotifRow key={n.id} n={n} onOpen={() => openNotif(n)} />
-                ))}
-              </NotifGroup>
-            )}
-            {grouped.task.length > 0 && (
-              <NotifGroup title="Tasks & reviews" icon="tasks" navId="tasks" count={grouped.task.filter((n) => !n.is_read).length}>
-                {grouped.task.map((n) => (
-                  <NotifRow key={n.id} n={n} onOpen={() => openNotif(n)} />
-                ))}
-              </NotifGroup>
-            )}
-            {grouped.other.length > 0 && (
-              <NotifGroup title="Everything else" icon="bell" navId="overview" count={grouped.other.filter((n) => !n.is_read).length}>
-                {grouped.other.map((n) => (
-                  <NotifRow key={n.id} n={n} onOpen={() => openNotif(n)} />
-                ))}
-              </NotifGroup>
-            )}
-          </div>
-        )}
-      </Modal>
+        </>
+      )}
 
       {toast && !open && (
-        <div className="sf-notif-toast" role="status" style={{ borderLeftColor: notificationAccent(toast.type) }}>
+        <div
+          className="sf-notif-toast"
+          role="status"
+          style={{ top: panelPos.top, right: panelPos.right, borderLeftColor: notificationAccent(toast.type) }}
+        >
           <div className="sf-notif-toast-head">
             <NavIconBadge name={notificationIcon(toast.type)} navId={notificationNavId(toast.type)} />
             <span>New {typeLabel(toast.type)}</span>
@@ -187,47 +216,17 @@ export function NotificationBell() {
             <button type="button" className="sf-btn sf-btn-primary" style={{ fontSize: 12 }} onClick={() => openNotif(toast)}>
               {notificationActionLabel(toast.type)}
             </button>
-            <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 12 }} onClick={() => setToast(null)}>
-              Later
-            </button>
           </div>
         </div>
       )}
-    </>
-  )
-}
-
-function NotifGroup({
-  title,
-  icon,
-  navId,
-  count,
-  children,
-}: {
-  title: string
-  icon: IconName
-  navId: string
-  count: number
-  children: React.ReactNode
-}) {
-  return (
-    <section className="sf-notif-group">
-      <div className="sf-notif-group-head">
-        <span className="sf-notif-group-title">
-          <NavIconBadge name={icon} navId={navId} size={14} className="sf-notif-group-icon" />
-          {title}
-        </span>
-        {count > 0 && <span className="sf-notif-group-count">{count} new</span>}
-      </div>
-      {children}
-    </section>
+    </div>
   )
 }
 
 function NotifRow({ n, onOpen }: { n: Notif; onOpen: () => void }) {
   const accent = notificationAccent(n.type)
   return (
-    <article className={`sf-notif-row${n.is_read ? '' : ' sf-notif-row-unread'}`}>
+    <button type="button" className={`sf-notif-panel-row${n.is_read ? '' : ' is-unread'}`} onClick={onOpen}>
       <div
         className="sf-notif-row-icon"
         style={{
@@ -236,17 +235,14 @@ function NotifRow({ n, onOpen }: { n: Notif; onOpen: () => void }) {
           color: accent,
         }}
       >
-        <Icon name={notificationIcon(n.type)} size={16} />
+        <Icon name={notificationIcon(n.type)} size={15} />
       </div>
       <div className="sf-notif-row-body">
         <p className="sf-notif-row-msg">{n.message || 'Update'}</p>
         <div className="sf-notif-row-meta">
           {typeLabel(n.type)} · {n.created_at ? timeAgo(n.created_at) : ''}
         </div>
-        <button type="button" className="sf-notif-row-link" onClick={onOpen}>
-          {notificationActionLabel(n.type)} →
-        </button>
       </div>
-    </article>
+    </button>
   )
 }

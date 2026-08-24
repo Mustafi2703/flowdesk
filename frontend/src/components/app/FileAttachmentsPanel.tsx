@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { DocumentViewer } from '@/components/app/DocumentViewer'
+import { formatApiError } from '@/lib/apiErrors'
 
 export function FileAttachmentsPanel({
   entityType,
@@ -35,7 +36,7 @@ export function FileAttachmentsPanel({
     const res = await fetch(`/api/attachments?entity_type=${entityType}&entity_id=${entityId}`)
     const data = await res.json().catch(() => [])
     if (!res.ok) {
-      setError(data.error || data.detail || 'Could not load files')
+      setError(formatApiError(data, 'Could not load files'))
       setFiles([])
     } else {
       setFiles(Array.isArray(data) ? data : [])
@@ -70,13 +71,7 @@ export function FileAttachmentsPanel({
     setUploading(false)
     e.target.value = ''
     if (!res.ok) {
-      const detail = data.error || data.detail
-      const msg = typeof detail === 'string'
-        ? detail
-        : Array.isArray(detail)
-          ? 'Upload failed — try a smaller file or refresh and retry'
-          : 'Upload failed'
-      setError(msg)
+      setError(formatApiError(data, 'Upload failed'))
       return
     }
     if (data.task_status) {
@@ -91,7 +86,7 @@ export function FileAttachmentsPanel({
     const res = await fetch(`/api/attachments/${id}`, { method: 'DELETE' })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      setError(data.error || data.detail || 'Could not delete')
+      setError(formatApiError(data, 'Could not delete'))
       return
     }
     if (viewing?.id === id) setViewing(null)

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { clockOutWithConfirm, todayIST } from '@/lib/clock'
 import { notifyAttendanceChanged } from '@/lib/attendance'
 
+/** Compact clock status for the top bar. */
 export function ClockBar() {
   const [clocked, setClocked] = useState(false)
   const [loginTime, setLoginTime] = useState<string | null>(null)
@@ -41,22 +42,18 @@ export function ClockBar() {
   }
 
   return (
-    <div className="sf-topbar-clock">
-      <div className="sf-topbar-clock-copy">
-        <div className={`sf-topbar-clock-status${clocked ? ' is-on' : ''}`}>
-          {clocked ? 'Clocked in' : 'Not clocked in'}
-        </div>
-        <div className="sf-topbar-clock-detail">
-          {loginTime ? `In ${loginTime}` : 'Clock in to start work'}
-        </div>
-      </div>
+    <div className="sf-topbar-clock sf-topbar-clock--mini">
+      <span className={`sf-topbar-clock-dot${clocked ? ' is-on' : ''}`} aria-hidden />
+      <span className="sf-topbar-clock-detail">
+        {clocked ? `In since ${loginTime}` : 'Not clocked in'}
+      </span>
       <button
         type="button"
         onClick={clocked ? clockOut : clockIn}
         disabled={busy}
         className="sf-btn sf-btn-primary sf-topbar-clock-btn"
       >
-        {busy ? '…' : clocked ? 'Clock out' : 'Clock in'}
+        {busy ? '…' : clocked ? 'Out' : 'In'}
       </button>
     </div>
   )

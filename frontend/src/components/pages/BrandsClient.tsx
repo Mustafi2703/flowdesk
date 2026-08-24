@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
 import { EmptyState, Icon } from '@/components/app/Icons'
-import { PageHeader, PageShell, PageTabs, PageToolbar, Section } from '@/components/app/Section'
+import { PageHeader, PageShell, PageToolbar, Section } from '@/components/app/Section'
 import { TaskFormModal } from '@/components/pages/TasksClient'
 import { TASK_STATUSES, canManageTasks, canSetTaskPrice, isClockedInToday, isTaskAssignee } from '@/lib/tasks'
 import { todayIST } from '@/lib/clock'
@@ -20,6 +20,28 @@ const WORKFLOW_STAGES = [
   { id: 'approval', label: 'Approval' },
   { id: 'delivered', label: 'Delivered' },
 ]
+
+const ROSTER_FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'retainer', label: 'Retainer' },
+  { id: 'project', label: 'Project' },
+  { id: 'one-time', label: 'One-Time' },
+  { id: 'active-work', label: 'Active work' },
+]
+
+function normalizeClientType(value?: string | null) {
+  return String(value || '').toLowerCase().replace(/[\s_-]+/g, '')
+}
+
+function matchesRosterFilter(brand: any, filterId: string, openTaskCount: number) {
+  if (filterId === 'all') return true
+  if (filterId === 'active-work') return openTaskCount > 0
+  const ct = normalizeClientType(brand.client_type)
+  if (filterId === 'retainer') return ct.includes('retainer')
+  if (filterId === 'project') return ct.includes('project')
+  if (filterId === 'one-time') return ct.includes('onetime') || ct.includes('oneoff')
+  return true
+}
 
 function logoAttachmentId(logoUrl?: string | null) {
   if (!logoUrl?.includes('/api/attachments/')) return null
@@ -104,13 +126,18 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   const filteredBrands = useMemo(() => {
     const q = brandSearch.trim().toLowerCase()
     return visible.filter((b) => {
-      if (brandStageFilter !== 'all' && (b.workflow_stage || 'assigned') !== brandStageFilter) return false
+      const brandTasks = tasks.filter(t => sameId(t.brand_id, b.id))
+      const openTasks = brandTasks.filter(t => t.status !== 'Completed').length
+      if (!matchesRosterFilter(b, brandStageFilter, openTasks)) return false
       if (!q) return true
+      const stageLabel = WORKFLOW_STAGES.find(s => s.id === (b.workflow_stage || 'assigned'))?.label || ''
       return b.name?.toLowerCase().includes(q)
         || b.client_type?.toLowerCase().includes(q)
         || b.priority?.toLowerCase().includes(q)
+        || stageLabel.toLowerCase().includes(q)
+        || (b.description || '').toLowerCase().includes(q)
     })
-  }, [visible, brandSearch, brandStageFilter])
+  }, [visible, brandSearch, brandStageFilter, tasks])
 
   function selectBrand(brand: any) {
     setSelectedId(String(brand.id))
@@ -121,46 +148,14 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
     return <div style={{ color: 'var(--sf-muted)', padding: 40, textAlign: 'center' }}>Loading brands…</div>
   }
 
-  const brandTabs = selected
-    ? BRAND_SECTIONS.map(s => {
-        const count = s.id === 'projects'
-          ? brandTasks.filter(t => t.task_mode === 'project').length
-          : s.id === 'tasks'
-            ? brandTasks.filter(t => t.task_mode !== 'project').length
-            : undefined
-        return {
-          id: s.id,
-          label: count != null ? `${s.label} (${count})` : s.label,
-        }
-      })
-    : []
-
   return (
     <PageShell>
       <PageToolbar>
         <PageHeader
           title={session.role === 'team' ? 'My brands' : isReadOnlyRole ? 'Brands (view)' : 'Brands'}
-          subtitle={`${visible.length} client${visible.length === 1 ? '' : 's'}${isReadOnlyRole ? ' · read-only' : ''}`}
+          subtitle={selected ? selected.name : `${visible.length} client${visible.length === 1 ? '' : 's'}${isReadOnlyRole ? ' · read-only' : ''}`}
         />
-        {canEdit && selected && (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button type="button" onClick={() => setShowCreate(true)} className="sf-btn sf-btn-primary">
-              Add brand
-            </button>
-            <button type="button" className="sf-btn sf-btn-ghost" onClick={() => { setSection('identity'); setIdentityEditNonce((n) => n + 1) }}>
-              Edit identity
-            </button>
-            <button type="button" className="sf-btn sf-btn-ghost" style={{ color: 'var(--sf-danger)' }} onClick={async () => {
-              if (!window.confirm(`Delete brand "${selected.name}"? Tasks stay but will be unlinked.`)) return
-              const res = await fetch(`/api/brands/${selected.id}`, { method: 'DELETE' })
-              const data = await res.json().catch(() => ({}))
-              if (!res.ok) { alert(data.error || data.detail || 'Could not delete brand'); return }
-              setSelectedId(null)
-              load()
-            }}>Delete brand</button>
-          </div>
-        )}
-        {canEdit && !selected && (
+        {canEdit && (
           <button type="button" onClick={() => setShowCreate(true)} className="sf-btn sf-btn-primary">
             Add brand
           </button>
@@ -192,29 +187,26 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                 onChange={(e) => setBrandSearch(e.target.value)}
                 aria-label="Search clients"
               />
-              <div className="sf-brand-roster-filters" role="tablist" aria-label="Filter by stage">
-                <button
-                  type="button"
-                  className={`sf-brand-roster-filter${brandStageFilter === 'all' ? ' is-active' : ''}`}
-                  onClick={() => setBrandStageFilter('all')}
-                >
-                  All
-                </button>
-                {WORKFLOW_STAGES.map((stage) => (
+              <div className="sf-brand-roster-filters" role="tablist" aria-label="Filter clients">
+                {ROSTER_FILTERS.map((filter) => (
                   <button
-                    key={stage.id}
+                    key={filter.id}
                     type="button"
-                    className={`sf-brand-roster-filter${brandStageFilter === stage.id ? ' is-active' : ''}`}
-                    onClick={() => setBrandStageFilter(stage.id)}
+                    className={`sf-brand-roster-filter${brandStageFilter === filter.id ? ' is-active' : ''}`}
+                    onClick={() => setBrandStageFilter(filter.id)}
                   >
-                    {stage.label}
+                    {filter.label}
                   </button>
                 ))}
               </div>
             </div>
             <div className="sf-brand-roster-list">
               {filteredBrands.length === 0 ? (
-                <div className="sf-brand-roster-empty">No clients match &ldquo;{brandSearch}&rdquo;</div>
+                <div className="sf-brand-roster-empty">
+                  {brandSearch.trim() || brandStageFilter !== 'all'
+                    ? 'No clients match your search or filter.'
+                    : 'No clients in roster.'}
+                </div>
               ) : filteredBrands.map((b) => {
                 const bt = tasks.filter(t => sameId(t.brand_id, b.id))
                 const active = selected && sameId(selected.id, b.id)
@@ -236,28 +228,31 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
 
           <div className="sf-brand-workspace-main">
             {selected ? (
-              <>
-                <PageTabs tabs={brandTabs} active={section} onChange={setSection} />
-                <BrandDetail
-                  brand={selected}
-                  tasks={brandTasks}
-                  users={users}
-                  session={session}
-                  canEdit={canEdit}
-                  canAssignManagers={isOwner}
-                  canAssignTeam={canEdit}
-                  tab={section}
-                  onTabChange={setSection}
-                  onRefresh={load}
-                  onBrandUpdated={patchBrand}
-                  attendance={attendance}
-                  identityEditNonce={identityEditNonce}
-                />
-              </>
+              <BrandDetail
+                brand={selected}
+                tasks={brandTasks}
+                users={users}
+                session={session}
+                canEdit={canEdit}
+                canAssignManagers={isOwner}
+                canAssignTeam={canEdit}
+                tab={section}
+                onTabChange={setSection}
+                onRefresh={load}
+                onBrandUpdated={patchBrand}
+                onDelete={async () => {
+                  if (!window.confirm(`Delete brand "${selected.name}"? Tasks stay but will be unlinked.`)) return
+                  const res = await fetch(`/api/brands/${selected.id}`, { method: 'DELETE' })
+                  const data = await res.json().catch(() => ({}))
+                  if (!res.ok) { alert(data.error || data.detail || 'Could not delete brand'); return }
+                  setSelectedId(null)
+                  load()
+                }}
+                attendance={attendance}
+                identityEditNonce={identityEditNonce}
+              />
             ) : (
-              <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--sf-muted)' }}>
-                Select a client from the roster to view projects, tasks, and brand identity.
-              </div>
+              <div className="sf-brand-empty">Select a client from the roster to open their workspace.</div>
             )}
           </div>
         </div>
@@ -268,7 +263,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   )
 }
 
-function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers, canAssignTeam, tab, onTabChange, onRefresh, onBrandUpdated, attendance, identityEditNonce = 0 }: any) {
+function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers, canAssignTeam, tab, onTabChange, onRefresh, onBrandUpdated, onDelete, attendance, identityEditNonce = 0 }: any) {
   const router = useRouter()
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [createAsProject, setCreateAsProject] = useState(false)
@@ -475,14 +470,45 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
     onRefresh()
   }
 
+  const currentStageIdx = WORKFLOW_STAGES.findIndex(s => s.id === (brand.workflow_stage || 'assigned'))
+  const brandTabs = BRAND_SECTIONS.map(s => {
+    const count = s.id === 'projects'
+      ? projects.length
+      : s.id === 'tasks'
+        ? standardTasks.length
+        : undefined
+    return { id: s.id, label: count != null ? `${s.label} (${count})` : s.label }
+  })
+
+  const allocatedPeople = [
+    ...((brand.assigned_managers || []).map((uid: string) => ({ uid, roleLabel: 'Manager' as const }))),
+    ...((brand.assigned_members || []).map((uid: string) => ({ uid, roleLabel: 'Team' as const }))),
+  ]
+
+  function IdentityCard({ label, value }: { label: string; value?: string | null }) {
+    const empty = !value?.trim()
+    return (
+      <div className={`sf-brand-identity-card${empty ? ' is-empty' : ''}`}>
+        <span className="sf-brand-identity-label">{label}</span>
+        {empty ? (
+          <span className="sf-brand-identity-empty">Not set — add on Identity tab</span>
+        ) : (
+          <span className="sf-brand-identity-value">{value}</span>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div>
-      <div className="sf-brand-hero" style={{ '--brand-accent': brandAccent(brand.priority) } as React.CSSProperties}>
-        <div className="sf-brand-hero-body">
-          <BrandLogoMark brand={brand} size={56} />
-          <div className="sf-brand-hero-main">
-            <h1 className="sf-brand-hero-name" title={brand.name}>{brand.name}</h1>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+    <div className="sf-brand-page" style={{ '--brand-accent': brandAccent(brand.priority) } as React.CSSProperties}>
+      <div className="sf-brand-page-header">
+        <div className="sf-brand-page-header-top">
+          <div className="sf-brand-page-logo">
+            <BrandLogoMark brand={brand} size={64} />
+          </div>
+          <div className="sf-brand-page-intro">
+            <h1 className="sf-brand-page-name">{brand.name}</h1>
+            <div className="sf-brand-page-tags">
               {brand.client_type && <BrandTag label={brand.client_type} tone="type" />}
               {brand.priority && <BrandTag label={brand.priority} tone="priority" />}
               <BrandTag
@@ -490,189 +516,196 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                 tone="stage"
               />
             </div>
-            <p className="sf-brand-hero-desc">{brand.description}</p>
-            {canEdit && (
-              <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <label className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 10px', cursor: uploadingLogo ? 'wait' : 'pointer' }}>
-                  {uploadingLogo ? 'Uploading logo…' : brand.logo_url ? 'Replace logo' : 'Upload logo'}
-                  <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden disabled={uploadingLogo} onChange={uploadLogo} />
-                </label>
-                <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 11 }} onClick={() => { setEditingIdentity(true); onTabChange('identity') }}>Edit brand</button>
-                {logoError && <span style={{ color: '#F87171', fontSize: 11 }}>{logoError}</span>}
-              </div>
-            )}
+            {brand.description && <p className="sf-brand-page-desc">{brand.description}</p>}
           </div>
-          <div className="sf-brand-hero-stats">
-            {[['Total', tasks.length, '#3B82F6'], ['Projects', projects.length, '#06B6D4'], ['Done', done, '#10B981'], ['Flagged', fl.length, '#EF4444']].map(([l, v, c]) => (
-              <div key={String(l)} style={{ background: 'var(--sf-bg)', borderRadius: 10, padding: '8px 12px', textAlign: 'center', border: '1px solid var(--sf-border)' }}>
-                <div style={{ color: String(c), fontWeight: 700, fontSize: 18 }}>{v}</div>
-                <div style={{ color: 'var(--sf-muted)', fontSize: 10 }}>{l}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginTop: 16, minWidth: 0, gap: 12 }}>
-        <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
-          <PageHeader
-            title={BRAND_SECTIONS.find(s => s.id === tab)?.label || 'Overview'}
-            subtitle={brand.name}
-          />
-        </div>
-        {canEdit && tab === 'projects' && (
-          <button type="button" onClick={openCreateProject} className="sf-btn sf-btn-primary">Add project</button>
-        )}
-        {canEdit && tab === 'tasks' && (
-          <button type="button" onClick={openCreateTask} className="sf-btn sf-btn-primary">Add task</button>
-        )}
-      </div>
-
-      {tab === 'overview' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div style={{ gridColumn: '1/-1', background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, padding: 18 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
-              <div style={{ color: 'var(--sf-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Brand identity</div>
-              {canEdit && (
-                <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => { setEditingIdentity(true); onTabChange('identity') }}>
-                  Edit identity
+          {canEdit && (
+            <div className="sf-brand-page-actions">
+              <label className="sf-btn sf-btn-ghost" style={{ fontSize: 12, cursor: uploadingLogo ? 'wait' : 'pointer' }}>
+                {uploadingLogo ? 'Uploading…' : brand.logo_url ? 'Replace logo' : 'Upload logo'}
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden disabled={uploadingLogo} onChange={uploadLogo} />
+              </label>
+              <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 12 }} onClick={() => { setEditingIdentity(true); onTabChange('identity') }}>
+                Edit identity
+              </button>
+              {onDelete && (
+                <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 12, color: 'var(--sf-danger)' }} onClick={onDelete}>
+                  Delete
                 </button>
               )}
-            </div>
-            <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 14, minWidth: 0 }}>
-              <BrandLogoMark brand={brand} size={56} />
-              <div style={{ minWidth: 0 }}>
-                <div className="sf-truncate" style={{ color: 'var(--sf-text)', fontWeight: 700 }} title={brand.name}>{brand.name}</div>
-                <div style={{ color: 'var(--sf-muted)', fontSize: 12 }}>{brand.client_type} · {brand.priority}</div>
-              </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-              {[
-                ['Fonts', brand.fonts],
-                ['Colors', brand.brand_colors],
-                ['Voice', brand.brand_voice],
-                ['Photography', brand.photography_style],
-              ].map(([label, value]) => (
-                <div key={String(label)} style={{ minWidth: 0 }}>
-                  <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{label}</div>
-                  <div style={{ color: 'var(--sf-text)', fontSize: 13, overflowWrap: 'anywhere' }}>{value || 'Not specified — add this on the Identity tab'}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-          {fl.length > 0 && (
-            <div style={{ gridColumn: '1/-1', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 12, padding: 16 }}>
-              <div style={{ color: '#F87171', fontWeight: 700, fontSize: 13, marginBottom: 10 }}>⚠ Flagged Tasks ({fl.length})</div>
-              {fl.map((t: any) => (
-                <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid rgba(239,68,68,0.1)' }}>
-                  <span style={{ color: 'var(--sf-text-secondary)', fontSize: 13 }}>{t.title}</span>
-                  <span style={{ background: STATUS_BG[t.status] || '#F3F4F6', color: STATUS_TEXT[t.status] || '#374151', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5 }}>{t.status}</span>
-                </div>
-              ))}
+              {logoError && <span style={{ color: 'var(--sf-danger)', fontSize: 11, width: '100%' }}>{logoError}</span>}
             </div>
           )}
-          <div style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, padding: 18 }}>
-            <div style={{ color: 'var(--sf-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Recent work</div>
-            {tasks.slice(0, 5).map((t: any) => (
-              <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'var(--sf-surface-2)', borderRadius: 7, marginBottom: 5 }}>
-                <span style={{ color: 'var(--sf-text-secondary)', fontSize: 12 }}>{t.title}</span>
-                <span style={{ background: STATUS_BG[t.status] || '#F3F4F6', color: STATUS_TEXT[t.status] || '#374151', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>{t.status}</span>
-              </div>
-            ))}
-            {tasks.length === 0 && <div style={{ color: 'var(--sf-muted-2)', fontSize: 12 }}>No tasks yet — add a project or task from the tabs above.</div>}
-          </div>
-          <div style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, padding: 18 }}>
-            <div style={{ color: 'var(--sf-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Allocated people</div>
-            <div style={{ color: 'var(--sf-muted)', fontSize: 12, marginBottom: 12 }}>
-              With roles. Owner assigns managers; managers add team. Allocated people see brand documents.
-            </div>
+        </div>
 
-            {/* Always list current allocation with roles */}
-            <div style={{ marginBottom: (canAssignManagers || canAssignTeam) ? 14 : 0 }}>
-              {[
-                ...((brand.assigned_managers || []).map((uid: string) => ({ uid, roleLabel: 'Manager' }))),
-                ...((brand.assigned_members || []).map((uid: string) => ({ uid, roleLabel: 'Team' }))),
-              ].map(({ uid, roleLabel }) => {
-                const u = users.find((x: any) => sameId(x.id, uid))
-                if (!u) return null
-                return (
-                  <div key={`${roleLabel}-${uid}`} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 10px', background: 'var(--sf-surface-2)', borderRadius: 7, marginBottom: 5 }}>
-                    <div style={{
-                      width: 28, height: 28, borderRadius: 6,
-                      background: roleLabel === 'Manager' ? '#3B82F6' : 'var(--sf-accent)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: '#fff', fontWeight: 700, fontSize: 10,
-                    }}>{u.avatar || u.name?.slice(0, 2)}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600 }}>{u.name}</div>
-                      <div style={{ color: 'var(--sf-muted)', fontSize: 10 }}>
-                        {[u.designation, u.department].filter(Boolean).join(' · ') || roleLabel}
-                      </div>
-                    </div>
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, flexShrink: 0,
-                      background: roleLabel === 'Manager' ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)',
-                      color: roleLabel === 'Manager' ? '#3B82F6' : '#10B981',
-                    }}>{roleLabel}</span>
-                  </div>
-                )
-              })}
-              {!(brand.assigned_managers?.length || brand.assigned_members?.length) && (
-                <div style={{ color: 'var(--sf-muted-2)', fontSize: 12, marginBottom: 8 }}>Nobody allocated yet.</div>
+        <div className="sf-brand-page-stats">
+          {[['Total', tasks.length, '#3B82F6'], ['Projects', projects.length, '#06B6D4'], ['Done', done, '#10B981'], ['Flagged', fl.length, '#EF4444']].map(([l, v, c]) => (
+            <div key={String(l)} className="sf-brand-page-stat">
+              <span className="sf-brand-page-stat-val" style={{ color: String(c) }}>{v}</span>
+              <span className="sf-brand-page-stat-label">{l}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="sf-brand-stage-track" aria-label="Workflow stage">
+          {WORKFLOW_STAGES.map((stage, i) => {
+            const isCurrent = i === currentStageIdx
+            const isDone = i < currentStageIdx
+            return (
+              <div key={stage.id} className={`sf-brand-stage-step${isCurrent ? ' is-current' : ''}${isDone ? ' is-done' : ''}`}>
+                <div className="sf-brand-stage-dot">{isDone ? '✓' : i + 1}</div>
+                <div className="sf-brand-stage-label">{stage.label}</div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="sf-brand-page-tabs" role="tablist">
+        {brandTabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            className={`sf-brand-page-tab${tab === t.id ? ' is-active' : ''}`}
+            onClick={() => onTabChange(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="sf-brand-page-body">
+      {tab === 'overview' && (
+        <div className="sf-brand-grid sf-brand-grid--wide">
+          <div className="sf-brand-panel">
+            <div className="sf-brand-panel-head">
+              <h3>Brand identity</h3>
+              {canEdit && (
+                <button type="button" className="sf-link-btn" onClick={() => { setEditingIdentity(true); onTabChange('identity') }}>Edit →</button>
               )}
             </div>
-
-            {(canAssignManagers || canAssignTeam) && (
-              <>
-                <div style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Add / update allocation</div>
-                {canAssignManagers && (
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 650, marginBottom: 6 }}>Managers</div>
-                    <PeoplePicker
-                      users={assignableManagers}
-                      selectedIds={managerIds}
-                      onChange={setManagerIds}
-                      variant="dropdown"
-                      placeholder="Add managers…"
-                      emptyLabel="No Manager users yet."
-                      groupByRole={false}
-                    />
-                  </div>
-                )}
-                {canAssignTeam && (
-                  <div style={{ marginBottom: 10 }}>
-                    <div style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 650, marginBottom: 6 }}>Team members</div>
-                    <PeoplePicker
-                      users={assignableTeam}
-                      selectedIds={memberIds}
-                      onChange={setMemberIds}
-                      variant="dropdown"
-                      placeholder="Add team members…"
-                      emptyLabel="No Team users yet."
-                      groupByRole={false}
-                    />
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={saveMembers}
-                  disabled={savingMembers}
-                  className="sf-btn sf-btn-primary"
-                  style={{ marginTop: 8, fontSize: 12 }}
-                >
-                  {savingMembers ? 'Saving…' : 'Save allocation'}
-                </button>
-              </>
-            )}
+            <div className="sf-brand-panel-body">
+              <div className="sf-brand-identity-cards">
+                <IdentityCard label="Fonts" value={brand.fonts} />
+                <IdentityCard label="Colors" value={brand.brand_colors} />
+                <IdentityCard label="Voice" value={brand.brand_voice} />
+                <IdentityCard label="Photography" value={brand.photography_style} />
+              </div>
+            </div>
           </div>
+
+          <div className="sf-brand-panel">
+            <div className="sf-brand-panel-head">
+              <h3>Team</h3>
+              <span style={{ fontSize: 11, color: 'var(--sf-muted)' }}>{allocatedPeople.length} people</span>
+            </div>
+            <div className="sf-brand-panel-body">
+              <div className="sf-brand-team-grid">
+                {allocatedPeople.length === 0 ? (
+                  <div className="sf-brand-identity-empty">Nobody allocated yet.</div>
+                ) : allocatedPeople.map(({ uid, roleLabel }) => {
+                  const u = users.find((x: any) => sameId(x.id, uid))
+                  if (!u) return null
+                  const isMgr = roleLabel === 'Manager'
+                  return (
+                    <div key={`${roleLabel}-${uid}`} className="sf-brand-team-card">
+                      <div className={`sf-brand-team-avatar${isMgr ? ' is-manager' : ' is-team'}`}>{u.avatar || u.name?.slice(0, 2)}</div>
+                      <div className="sf-brand-team-info">
+                        <div className="sf-brand-team-name">{u.name}</div>
+                        <div className="sf-brand-team-role">{[u.designation, u.department].filter(Boolean).join(' · ') || roleLabel}</div>
+                      </div>
+                      <span className={`sf-brand-team-badge${isMgr ? ' is-manager' : ' is-team'}`}>{roleLabel}</span>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {(canAssignManagers || canAssignTeam) && (
+                <div className="sf-brand-alloc-section">
+                  <div className="sf-brand-alloc-label">Manage allocation</div>
+                  {canAssignManagers && (
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ fontSize: 12, fontWeight: 650, marginBottom: 6, color: 'var(--sf-text)' }}>Managers</div>
+                      <PeoplePicker users={assignableManagers} selectedIds={managerIds} onChange={setManagerIds} variant="dropdown" placeholder="Add managers…" emptyLabel="No Manager users yet." groupByRole={false} />
+                    </div>
+                  )}
+                  {canAssignTeam && (
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 12, fontWeight: 650, marginBottom: 6, color: 'var(--sf-text)' }}>Team members</div>
+                      <PeoplePicker users={assignableTeam} selectedIds={memberIds} onChange={setMemberIds} variant="dropdown" placeholder="Add team members…" emptyLabel="No Team users yet." groupByRole={false} />
+                    </div>
+                  )}
+                  <button type="button" onClick={saveMembers} disabled={savingMembers} className="sf-btn sf-btn-primary" style={{ fontSize: 12 }}>
+                    {savingMembers ? 'Saving…' : 'Save allocation'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {fl.length > 0 && (
+            <div className="sf-brand-panel sf-brand-panel--full sf-brand-flagged">
+              <div className="sf-brand-panel-body">
+                <div className="sf-brand-flagged-head">Flagged tasks ({fl.length})</div>
+                <div className="sf-brand-task-list">
+                  {fl.map((t: any) => (
+                    <button key={t.id} type="button" className="sf-brand-task-row" onClick={() => router.push(`/tasks/${t.id}`)}>
+                      <div>
+                        <div className="sf-brand-task-row-title">{t.title}</div>
+                        <div className="sf-brand-task-row-meta">{t.type} · Due {t.due_date || '—'}</div>
+                      </div>
+                      <span style={{ background: STATUS_BG[t.status] || '#F3F4F6', color: STATUS_TEXT[t.status] || '#374151', fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 5 }}>{t.status}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="sf-brand-panel sf-brand-panel--full">
+            <div className="sf-brand-panel-head">
+              <h3>Recent work</h3>
+              <button type="button" className="sf-link-btn" onClick={() => onTabChange('tasks')}>All tasks →</button>
+            </div>
+            <div className="sf-brand-panel-body">
+              {tasks.length === 0 ? (
+                <div className="sf-brand-empty">No tasks yet — add a project or task from the tabs above.</div>
+              ) : (
+                <div className="sf-brand-task-list">
+                  {tasks.slice(0, 6).map((t: any) => (
+                    <button key={t.id} type="button" className="sf-brand-task-row" onClick={() => router.push(`/tasks/${t.id}`)}>
+                      <div>
+                        <div className="sf-brand-task-row-title">{t.title}</div>
+                        <div className="sf-brand-task-row-meta">{t.type} · Due {t.due_date || '—'}</div>
+                      </div>
+                      <span style={{ background: STATUS_BG[t.status] || '#F3F4F6', color: STATUS_TEXT[t.status] || '#374151', fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 5 }}>{t.status}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab !== 'overview' && (
+        <div className="sf-brand-page-toolbar">
+          <h2>{BRAND_SECTIONS.find(s => s.id === tab)?.label || 'Section'}</h2>
+          {canEdit && tab === 'projects' && (
+            <button type="button" onClick={openCreateProject} className="sf-btn sf-btn-primary">Add project</button>
+          )}
+          {canEdit && tab === 'tasks' && (
+            <button type="button" onClick={openCreateTask} className="sf-btn sf-btn-primary">Add task</button>
+          )}
         </div>
       )}
 
       {tab === 'projects' && (
         <div>
           {projects.length === 0 && (
-            <div style={{ textAlign: 'center', padding: 40, color: 'var(--sf-muted-2)' }}>
-              <div style={{ marginBottom: 12, fontSize: 15, fontWeight: 600, color: 'var(--sf-muted)' }}>No projects for {brand.name} yet.</div>
+            <div className="sf-brand-empty">
+              <div style={{ marginBottom: 12, fontWeight: 600 }}>No projects for {brand.name} yet.</div>
               {canEdit && <button type="button" onClick={openCreateProject} className="sf-btn sf-btn-primary">Create first project</button>}
             </div>
           )}
@@ -680,16 +713,16 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
             const sub = t.sub_tasks || []
             const stDone = sub.filter((s: any) => s.status === 'Completed').length
             return (
-              <div key={t.id} style={{ padding: '16px 18px', background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, marginBottom: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
+              <div key={t.id} className="sf-brand-project-card">
+                <div className="sf-brand-project-head">
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
                       <span style={{ background: 'rgba(6,182,212,0.15)', color: '#06B6D4', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>PROJECT</span>
-                      <span style={{ color: 'var(--sf-text)', fontSize: 14, fontWeight: 700 }}>{t.title}</span>
+                      <span className="sf-brand-project-title">{t.title}</span>
                     </div>
-                    <div style={{ color: 'var(--sf-muted)', fontSize: 11 }}>{t.type} · Due {t.due_date || '—'}</div>
+                    <div className="sf-brand-project-meta">{t.type} · Due {t.due_date || '—'}</div>
                   </div>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                     {renderStatus(t)}
                     <button type="button" onClick={() => router.push(`/tasks/${t.id}`)} className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '4px 8px' }}>Open</button>
                     {canEdit && (
@@ -710,8 +743,8 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                       <div style={{ width: `${sub.length ? (stDone / sub.length) * 100 : 0}%`, height: '100%', background: '#06B6D4' }} />
                     </div>
                     {sub.map((st: any) => (
-                      <div key={st.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', background: 'var(--sf-surface-2)', borderRadius: 7, marginBottom: 5 }}>
-                        <span style={{ color: 'var(--sf-text)', fontSize: 12 }}>{st.title}</span>
+                      <div key={st.id} className="sf-brand-subtask-row">
+                        <span style={{ color: 'var(--sf-text)' }}>{st.title}</span>
                         <span style={{ background: STATUS_BG[st.status] || '#F3F4F6', color: STATUS_TEXT[st.status] || '#374151', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>{st.status}</span>
                       </div>
                     ))}
@@ -726,47 +759,57 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
       {tab === 'tasks' && (
         <div>
           {standardTasks.length === 0 && (
-            <div style={{ textAlign: 'center', padding: 40, color: 'var(--sf-muted-2)' }}>
+            <div className="sf-brand-empty">
               No standard tasks for {brand.name}.
               {canEdit && <div style={{ marginTop: 12 }}><button type="button" onClick={openCreateTask} className="sf-btn sf-btn-primary">Add task</button></div>}
             </div>
           )}
-          {standardTasks.map((t: any) => (
-            <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 16px', background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 10, marginBottom: 8, gap: 12 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ color: 'var(--sf-text)', fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{t.title}</div>
-                <div style={{ color: 'var(--sf-muted)', fontSize: 11 }}>{t.type} · Due {t.due_date}</div>
-              </div>
-              {renderStatus(t)}
-              <button type="button" onClick={() => router.push(`/tasks/${t.id}`)} className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '4px 8px' }}>Open</button>
-              {canEdit && (
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button type="button" onClick={() => openEditTask(t)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px' }}>Edit</button>
-                  <button type="button" onClick={() => deleteTask(t)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px', color: 'var(--sf-danger)' }}>Delete</button>
+          <div className="sf-brand-task-list">
+            {standardTasks.map((t: any) => (
+              <div key={t.id} className="sf-brand-task-row" style={{ cursor: 'default' }}>
+                <div style={{ flex: 1 }} onClick={() => router.push(`/tasks/${t.id}`)} role="button" tabIndex={0}>
+                  <div className="sf-brand-task-row-title">{t.title}</div>
+                  <div className="sf-brand-task-row-meta">{t.type} · Due {t.due_date}</div>
                 </div>
-              )}
-            </div>
-          ))}
+                {renderStatus(t)}
+                <button type="button" onClick={() => router.push(`/tasks/${t.id}`)} className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '4px 8px' }}>Open</button>
+                {canEdit && (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button type="button" onClick={() => openEditTask(t)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px' }}>Edit</button>
+                    <button type="button" onClick={() => deleteTask(t)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px', color: 'var(--sf-danger)' }}>Delete</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {tab === 'goals' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          {[['Short-Term Goals', 'var(--sf-accent)', brand.short_term_goals || []], ['Long-Term Goals', '#3B82F6', brand.long_term_goals || []]].map(([title, color, items]) => (
-            <div key={String(title)} style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, padding: 18 }}>
-              <div style={{ color: String(color), fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>{title}</div>
-              {(items as string[]).map((g, i) => (
-                <div key={i} style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: '1px solid var(--sf-border)' }}>
-                  <span style={{ color: String(color) }}>→</span>
-                  <span style={{ color: 'var(--sf-text-secondary)', fontSize: 13 }}>{g}</span>
-                </div>
-              ))}
-              {!(items as string[]).length && <div style={{ color: 'var(--sf-muted-2)', fontSize: 12 }}>None set yet.</div>}
+        <div className="sf-brand-grid">
+          {[['Short-term goals', 'var(--sf-accent)', brand.short_term_goals || []], ['Long-term goals', '#3B82F6', brand.long_term_goals || []]].map(([title, color, items]) => (
+            <div key={String(title)} className="sf-brand-panel">
+              <div className="sf-brand-panel-head">
+                <h3 style={{ color: String(color) }}>{title}</h3>
+              </div>
+              <div className="sf-brand-panel-body">
+                {(items as string[]).map((g, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--sf-border)' }}>
+                    <span style={{ color: String(color) }}>→</span>
+                    <span style={{ color: 'var(--sf-text-secondary)', fontSize: 13, lineHeight: 1.5 }}>{g}</span>
+                  </div>
+                ))}
+                {!(items as string[]).length && <div className="sf-brand-identity-empty">None set yet.</div>}
+              </div>
             </div>
           ))}
-          <div style={{ gridColumn: '1/-1', background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, padding: 18 }}>
-            <div style={{ color: '#10B981', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Responsibilities</div>
-            <p style={{ color: 'var(--sf-text-secondary)', fontSize: 13, lineHeight: 1.7, margin: 0 }}>{brand.responsibilities || 'Not specified.'}</p>
+          <div className="sf-brand-panel sf-brand-panel--full">
+            <div className="sf-brand-panel-head">
+              <h3 style={{ color: '#10B981' }}>Responsibilities</h3>
+            </div>
+            <div className="sf-brand-panel-body">
+              <p style={{ color: 'var(--sf-text-secondary)', fontSize: 13, lineHeight: 1.7, margin: 0 }}>{brand.responsibilities || 'Not specified.'}</p>
+            </div>
           </div>
         </div>
       )}
@@ -848,7 +891,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                 </label>
                 <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Client type
                   <select value={identityDraft.client_type} onChange={e => setIdentityDraft(d => ({ ...d, client_type: e.target.value }))} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)' }}>
-                    {['Retainer', 'Project', 'One-off'].map(x => <option key={x} value={x}>{x}</option>)}
+                    {['Retainer', 'Project-Based', 'One-Time', 'Internal'].map(x => <option key={x} value={x}>{x}</option>)}
                   </select>
                 </label>
                 <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Priority
@@ -909,20 +952,26 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
       )}
 
       {tab === 'journey' && (
-        <div style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 12, padding: 18 }}>
-          <div style={{ color: '#8B5CF6', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Brand journey</div>
-          {(brand.journey || []).length === 0 ? (
-            <div style={{ color: 'var(--sf-muted-2)', fontSize: 13 }}>No journey milestones yet. Add them when creating or editing the brand.</div>
-          ) : (
-            (brand.journey || []).map((item: string, i: number) => (
-              <div key={i} style={{ display: 'flex', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--sf-border)' }}>
-                <span style={{ color: '#8B5CF6', fontWeight: 700, fontSize: 12 }}>{String(i + 1).padStart(2, '0')}</span>
-                <span style={{ color: 'var(--sf-text-secondary)', fontSize: 13 }}>{item}</span>
-              </div>
-            ))
-          )}
+        <div className="sf-brand-panel">
+          <div className="sf-brand-panel-head">
+            <h3>Brand journey</h3>
+          </div>
+          <div className="sf-brand-panel-body">
+            {(brand.journey || []).length === 0 ? (
+              <div className="sf-brand-empty">No journey milestones yet. Add them on the Identity tab.</div>
+            ) : (
+              (brand.journey || []).map((item: string, i: number) => (
+                <div key={i} style={{ display: 'flex', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--sf-border)' }}>
+                  <span style={{ color: '#8B5CF6', fontWeight: 800, fontSize: 12, minWidth: 24 }}>{String(i + 1).padStart(2, '0')}</span>
+                  <span style={{ color: 'var(--sf-text-secondary)', fontSize: 13, lineHeight: 1.5 }}>{item}</span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
+
+      </div>
 
       {showTaskModal && canEdit && (
         <TaskFormModal

@@ -7,22 +7,22 @@ import { PageShell, Section, StatCard, StatGrid } from '@/components/app/Section
 import { EmptyState, DashTileIcon, NavIconBadge, type IconName } from '@/components/app/Icons'
 import { clockOutWithConfirm, todayIST } from '@/lib/clock'
 import { notifyAttendanceChanged } from '@/lib/attendance'
-import { resolveNotificationLink, notificationActionLabel } from '@/lib/notifications'
 import { BrandBadge } from '@/components/app/BrandBadge'
+import { StatusBadge } from '@/components/app/StatusBadge'
 
 const ROLE_DASH: Record<string, { tag: string; blurb: string; icon: IconName; navId: string }> = {
-  owner: { tag: 'Agency HQ', blurb: 'See delivery, people, and revenue at a glance — your marketing command center.', icon: 'sparkles', navId: 'overview' },
-  manager: { tag: 'Delivery lead', blurb: 'Keep campaigns moving, reviews flowing, and the team unblocked.', icon: 'performance', navId: 'tasks' },
-  team: { tag: 'Creative desk', blurb: 'Your tasks, files, and Updates threads — everything to ship great work.', icon: 'tasks', navId: 'tasks' },
-  hr: { tag: 'People pulse', blurb: 'Leave, attendance, and team health in one friendly view.', icon: 'team', navId: 'team' },
-  accountant: { tag: 'Books & billing', blurb: 'Billable work, pending invoices, and open deliverables.', icon: 'billing', navId: 'billing' },
+  owner: { tag: 'Agency HQ', blurb: 'Delivery, people, and revenue at a glance.', icon: 'sparkles', navId: 'overview' },
+  manager: { tag: 'Delivery lead', blurb: 'Keep campaigns moving and reviews flowing.', icon: 'performance', navId: 'tasks' },
+  team: { tag: 'Creative desk', blurb: 'Your tasks, files, and Updates threads.', icon: 'tasks', navId: 'tasks' },
+  hr: { tag: 'People pulse', blurb: 'Leave, attendance, and team health.', icon: 'team', navId: 'team' },
+  accountant: { tag: 'Books & billing', blurb: 'Billable work and pending invoices.', icon: 'billing', navId: 'billing' },
 }
 
-const QUICK_TILES: { label: string; hint: string; href: string; icon: IconName; navId: string }[] = [
-  { label: 'Task board', hint: 'Trello-style workflow', href: '/tasks', icon: 'tasks', navId: 'tasks' },
-  { label: 'Updates', hint: 'Slack-style threads', href: '/updates', icon: 'inbox', navId: 'updates' },
-  { label: 'Calendar', hint: 'Due dates & leave', href: '/calendar', icon: 'calendar', navId: 'calendar' },
-  { label: 'Brands', hint: 'Client projects', href: '/brands', icon: 'brands', navId: 'brands' },
+const QUICK_TILES: { label: string; href: string; icon: IconName; navId: string }[] = [
+  { label: 'Tasks', href: '/tasks', icon: 'tasks', navId: 'tasks' },
+  { label: 'Updates', href: '/updates', icon: 'inbox', navId: 'updates' },
+  { label: 'Calendar', href: '/calendar', icon: 'calendar', navId: 'calendar' },
+  { label: 'Brands', href: '/brands', icon: 'brands', navId: 'brands' },
 ]
 
 function Chip({ status }: { status: string }) {
@@ -37,22 +37,11 @@ function BarRow({ label, value, total, color }: { label: string; value: number; 
         <span style={{ color: 'var(--sf-text-secondary)' }}>{label}</span>
         <span style={{ color: 'var(--sf-text)', fontWeight: 650 }}>{value} · {pct}%</span>
       </div>
-      <div style={{ height: 8, borderRadius: 999, background: 'var(--sf-surface-2)', overflow: 'hidden' }}>
-        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 999, transition: 'width 0.3s ease' }} />
+      <div style={{ height: 6, borderRadius: 999, background: 'var(--sf-surface-2)', overflow: 'hidden' }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 999 }} />
       </div>
     </div>
   )
-}
-
-function fmtSize(n: number) {
-  if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function fileExt(name: string) {
-  const i = name.lastIndexOf('.')
-  return i >= 0 ? name.slice(i + 1).toUpperCase().slice(0, 4) : 'FILE'
 }
 
 export default function OverviewClient({ session }: { session: SessionUser }) {
@@ -61,33 +50,14 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const [announcements, setAnnouncements] = useState<any[]>([])
   const [leaves, setLeaves] = useState<any[]>([])
   const [updates, setUpdates] = useState<any[]>([])
-  const [notifications, setNotifications] = useState<any[]>([])
   const [todayLog, setTodayLog] = useState<any>(null)
   const [clocked, setClocked] = useState(false)
   const [loading, setLoading] = useState(true)
   const [nowTick, setNowTick] = useState(Date.now())
   const [emailBusy, setEmailBusy] = useState('')
   const [emailNotice, setEmailNotice] = useState('')
-  const [recentFiles, setRecentFiles] = useState<any[]>([])
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const today = todayIST()
-
-  async function runEmailAction(kind: 'test' | 'morning' | 'evening') {
-    setEmailBusy(kind)
-    setEmailNotice('')
-    const path =
-      kind === 'test' ? '/api/emails/test'
-        : kind === 'morning' ? '/api/emails/morning-digest'
-          : '/api/emails/evening-digest'
-    const res = await fetch(path, { method: 'POST' })
-    const data = await res.json().catch(() => ({}))
-    setEmailBusy('')
-    if (!res.ok || data.ok === false) {
-      setEmailNotice(data.error || data.detail || 'Could not send email')
-      return
-    }
-    if (kind === 'test') setEmailNotice(`Test email sent to ${data.to}`)
-    else setEmailNotice(`${kind === 'morning' ? 'Morning' : 'Evening'} brief sent to ${data.sent} people`)
-  }
 
   useEffect(() => {
     const t = setInterval(() => setNowTick(Date.now()), 60000)
@@ -101,36 +71,35 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
       fetch('/api/leave').then(r => r.json()),
       fetch('/api/updates').then(r => r.json()).catch(() => []),
       fetch('/api/attendance').then(r => r.json()).catch(() => []),
-      fetch('/api/notifications').then(r => r.json()).catch(() => []),
-      fetch('/api/attachments/recent').then(r => r.json()).catch(() => []),
-    ]).then(([t, a, l, u, att, n, files]) => {
-      setTasks(Array.isArray(t) ? t : [])
+    ]).then(([t, a, l, u, att]) => {
+      const taskList = Array.isArray(t) ? t : []
+      setTasks(taskList)
       setAnnouncements(Array.isArray(a) ? a : [])
       setLeaves(Array.isArray(l) ? l : [])
       setUpdates(Array.isArray(u) ? u : [])
-      setNotifications(Array.isArray(n) ? n : [])
-      setRecentFiles(Array.isArray(files) ? files : [])
       const logs = Array.isArray(att) ? att : []
       const todays = logs.find((x: any) => x.date === today)
       setTodayLog(todays || null)
       setClocked(Boolean(todays?.login_time && !todays?.logout_time))
+      const open = taskList.filter((x: any) => x.status !== 'Completed')
+      if (open.length > 0) setSelectedTaskId(String(open[0].id))
       setLoading(false)
     })
   }, [])
 
-  async function markRead(id: string) {
-    const res = await fetch(`/api/notifications/${id}/read`, { method: 'POST' })
-    if (!res.ok) return
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)))
+  async function runEmailAction(kind: 'test' | 'morning' | 'evening') {
+    setEmailBusy(kind)
+    setEmailNotice('')
+    const path = kind === 'test' ? '/api/emails/test' : kind === 'morning' ? '/api/emails/morning-digest' : '/api/emails/evening-digest'
+    const res = await fetch(path, { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    setEmailBusy('')
+    if (!res.ok || data.ok === false) setEmailNotice(data.error || data.detail || 'Could not send email')
+    else if (kind === 'test') setEmailNotice(`Test email sent to ${data.to}`)
+    else setEmailNotice(`${kind === 'morning' ? 'Morning' : 'Evening'} brief sent to ${data.sent} people`)
   }
 
-  async function markAllRead() {
-    const unread = notifications.filter((n) => !n.is_read)
-    await Promise.all(unread.map((n) => fetch(`/api/notifications/${n.id}/read`, { method: 'POST' })))
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
-  }
-
-  const clockIn  = () => fetch('/api/attendance/clockin',  { method:'POST' }).then(async (r) => {
+  const clockIn = () => fetch('/api/attendance/clockin', { method: 'POST' }).then(async (r) => {
     const log = await r.json().catch(() => null)
     if (log?.login_time) { setTodayLog(log); setClocked(true) }
     else setClocked(true)
@@ -153,64 +122,65 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   }
 
   const todayInTime = todayLog?.login_time || null
-  const hoursTodayVal = liveHoursToday(todayLog)
-  const hoursTodayLabel = todayInTime ? `${hoursTodayVal.toFixed(1)}h` : '0h'
+  const hoursTodayLabel = todayInTime ? `${liveHoursToday(todayLog).toFixed(1)}h` : '0h'
 
-  const myTasks     = tasks.filter(t => t.assigned_to?.includes(session.id))
-  const scopeTasks  = session.role === 'team' ? myTasks : tasks
-  const overdue     = scopeTasks.filter(t => t.due_date && t.due_date < today && t.status !== 'Completed')
-  const dueToday    = scopeTasks.filter(t => t.due_date === today && t.status !== 'Completed')
-  const flagged     = scopeTasks.filter(t => ['Struggling','Needs Attention'].includes(t.status))
+  const myTasks = tasks.filter(t => t.assigned_to?.includes(session.id))
+  const scopeTasks = session.role === 'team' ? myTasks : tasks
+  const overdue = scopeTasks.filter(t => t.due_date && t.due_date < today && t.status !== 'Completed')
+  const dueToday = scopeTasks.filter(t => t.due_date === today && t.status !== 'Completed')
+  const flagged = scopeTasks.filter(t => ['Struggling', 'Needs Attention'].includes(t.status))
   const underReview = scopeTasks.filter(t => t.status === 'Under Review' || t.requires_review)
   const pendingLeav = leaves.filter(l => l.status === 'Pending')
-  const unreadNotifs = notifications.filter(n => !n.is_read)
-  const isTeam      = session.role === 'team'
-  const isAdmin     = ['owner','manager'].includes(session.role)
+  const isTeam = session.role === 'team'
+  const isAdmin = ['owner', 'manager'].includes(session.role)
 
-  const myCompleted = myTasks.filter(t => t.status === 'Completed')
-  const myDelayed = myTasks.filter(t => t.due_date && t.due_date < today && t.status !== 'Completed')
-  const myOnTime = myCompleted.filter(t => {
-    if (!t.due_date) return true
-    return (t.updated_at || '').slice(0, 10) <= t.due_date
-  }).length
-  const myOnTimePct = myCompleted.length ? Math.round((myOnTime / myCompleted.length) * 100) : 0
+  const openTasks = scopeTasks.filter(t => t.status !== 'Completed').sort((a, b) => {
+    const rank = { Critical: 0, High: 1, Medium: 2, Low: 3 }
+    const pa = rank[a.priority] ?? 4
+    const pb = rank[b.priority] ?? 4
+    if (pa !== pb) return pa - pb
+    return (a.due_date || '9999').localeCompare(b.due_date || '9999')
+  })
+
+  const selectedTask = openTasks.find(t => String(t.id) === String(selectedTaskId)) || openTasks[0] || null
 
   const statusBreakdown = useMemo(() => {
-    const keys = ['Not Started', 'In Progress', 'Under Review', 'Revision Needed', 'Completed', 'On Hold', 'Struggling', 'Needs Attention']
+    const keys = ['Not Started', 'In Progress', 'Under Review', 'Revision Needed', 'Completed']
     const counts: Record<string, number> = {}
     for (const k of keys) counts[k] = 0
-    for (const t of scopeTasks) {
-      counts[t.status] = (counts[t.status] || 0) + 1
-    }
+    for (const t of scopeTasks) counts[t.status] = (counts[t.status] || 0) + 1
     return keys.map((k) => ({ label: k, value: counts[k] || 0 })).filter((r) => r.value > 0)
   }, [scopeTasks])
 
-  const important = scopeTasks
-    .filter(t => t.status !== 'Completed')
-    .sort((a, b) => {
-      const rank = { Critical: 0, High: 1, Medium: 2, Low: 3 }
-      const pa = rank[a.priority] ?? 4
-      const pb = rank[b.priority] ?? 4
-      if (pa !== pb) return pa - pb
-      return (a.due_date || '9999').localeCompare(b.due_date || '9999')
-    })
-    .slice(0, 12)
-
   const hour = new Date().getHours()
   const greet = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
-  const dateStr = new Date().toLocaleDateString('en-IN', { weekday:'long', year:'numeric', month:'long', day:'numeric' })
-  const completedCount = scopeTasks.filter(t => t.status === 'Completed').length
-  const openCount = scopeTasks.filter(t => t.status !== 'Completed').length
-
+  const dateStr = new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' })
   const roleDash = ROLE_DASH[session.role] || ROLE_DASH.team
-  const heroMetric = isAdmin ? openCount : isTeam ? myTasks.filter(t => t.status !== 'Completed').length : unreadNotifs.length
-  const heroMetricLabel = isAdmin ? 'Open tasks' : isTeam ? 'Active assignments' : 'Unread pings'
+  const openCount = openTasks.length
+  const completedCount = scopeTasks.filter(t => t.status === 'Completed').length
 
-  if (loading) return <div style={{ color:'var(--sf-muted)', padding:40, textAlign:'center' }}>Loading…</div>
+  if (loading) return <div style={{ color: 'var(--sf-muted)', padding: 40, textAlign: 'center' }}>Loading…</div>
 
   return (
     <PageShell>
-      <div className="sf-dash-hero">
+      {/* Horizontal clock bar */}
+      <div className={`sf-dash-clock-bar${clocked ? ' is-active' : ''}`}>
+        <div className="sf-dash-clock-bar-left">
+          <span className={`sf-dash-clock-pill${clocked ? ' is-on' : ''}`}>
+            {clocked ? 'Active session' : 'Clock in required for task work'}
+          </span>
+          <span className="sf-dash-clock-stat">In <strong>{todayInTime || '—'}</strong></span>
+          <span className="sf-dash-clock-stat">Today <strong>{hoursTodayLabel}</strong></span>
+          {overdue.length > 0 && <span className="sf-dash-clock-alert">{overdue.length} overdue</span>}
+          {dueToday.length > 0 && <span className="sf-dash-clock-warn">{dueToday.length} due today</span>}
+        </div>
+        <button type="button" onClick={clocked ? clockOut : clockIn} className="sf-btn sf-btn-primary">
+          {clocked ? 'Clock out' : 'Clock in'}
+        </button>
+      </div>
+
+      {/* Hero */}
+      <div className="sf-dash-hero sf-dash-hero--compact">
         <div className="sf-dash-hero-inner">
           <div>
             <NavIconBadge name={roleDash.icon} navId={roleDash.navId} className="sf-dash-hero-icon" />
@@ -218,360 +188,188 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
             <p className="sf-dash-hero-sub">{roleDash.blurb}</p>
             <span className="sf-dash-role-pill">{roleDash.tag} · {dateStr}</span>
           </div>
-          <div className="sf-dash-hero-metric">
-            <div className="sf-dash-hero-metric-val">{heroMetric}</div>
-            <div className="sf-dash-hero-metric-label">{heroMetricLabel}</div>
+          <div className="sf-dash-hero-stats-row">
+            <div className="sf-dash-hero-stat"><span>{openCount}</span><label>Open</label></div>
+            <div className="sf-dash-hero-stat"><span>{dueToday.length}</span><label>Due today</label></div>
+            <div className="sf-dash-hero-stat"><span>{overdue.length}</span><label>Overdue</label></div>
+            {isAdmin && <div className="sf-dash-hero-stat"><span>{underReview.length}</span><label>Review</label></div>}
           </div>
         </div>
       </div>
 
-      <div className="sf-dash-tiles">
+      {/* Quick nav */}
+      <div className="sf-dash-quicknav">
         {[
           ...QUICK_TILES,
-          ...(session.role === 'accountant' ? [{ label: 'Billing', hint: 'Invoices & billable', href: '/billing', icon: 'billing' as IconName, navId: 'billing' }] : []),
-          ...(isAdmin || session.role === 'hr' ? [{ label: 'Leave', hint: 'Requests & approvals', href: '/leave', icon: 'leave' as IconName, navId: 'leave' }] : []),
-          ...(isAdmin ? [{ label: 'Review queue', hint: 'Approve deliverables', href: '/review', icon: 'review' as IconName, navId: 'review' }] : []),
+          ...(isAdmin ? [{ label: 'Review', href: '/review', icon: 'review' as IconName, navId: 'review' }] : []),
+          ...(isAdmin || session.role === 'hr' ? [{ label: 'Leave', href: '/leave', icon: 'leave' as IconName, navId: 'leave' }] : []),
+          ...(session.role === 'accountant' ? [{ label: 'Billing', href: '/billing', icon: 'billing' as IconName, navId: 'billing' }] : []),
         ].map((tile) => (
-          <button key={tile.href} type="button" className="sf-dash-tile" onClick={() => router.push(tile.href)}>
+          <button key={tile.href} type="button" className="sf-dash-quicknav-btn" onClick={() => router.push(tile.href)}>
             <DashTileIcon name={tile.icon} navId={tile.navId} />
-            <span className="sf-dash-tile-label">{tile.label}</span>
-            <span className="sf-dash-tile-hint">{tile.hint}</span>
+            <span>{tile.label}</span>
           </button>
         ))}
       </div>
 
-      <div className="sf-bento">
-        <div className="sf-flow-card sf-bento-4">
-          <div className="sf-clock-card">
-            <div>
-              <div className={`sf-clock-status ${clocked ? 'on' : 'off'}`}>
-                {clocked ? '● Active work session' : 'Clock in to update tasks & reviews'}
-              </div>
-              <div className="sf-clock-metrics" style={{ marginTop: 14 }}>
-                <div>
-                  <div className="sf-clock-metric-label">In time</div>
-                  <div className="sf-clock-metric-val">{todayInTime || '—'}</div>
-                </div>
-                <div>
-                  <div className="sf-clock-metric-label">Hours today</div>
-                  <div className="sf-clock-metric-val" style={{ color: clocked ? 'var(--sf-success)' : undefined }}>{hoursTodayLabel}</div>
-                </div>
-              </div>
-            </div>
-            <button onClick={clocked ? clockOut : clockIn} className="sf-btn sf-btn-primary" style={{ width: '100%' }}>
-              {clocked ? 'Clock out' : 'Clock in'}
-            </button>
+      {/* Main workspace: tasks + detail + activity */}
+      <div className="sf-dash-workspace">
+        <div className="sf-dash-panel">
+          <div className="sf-dash-panel-head">
+            <h3>Your tasks</h3>
+            <button type="button" className="sf-link-btn" onClick={() => router.push('/tasks')}>Board →</button>
+          </div>
+          <div className="sf-dash-panel-scroll">
+            {openTasks.length === 0 ? (
+              <EmptyState icon="tasks" title="No open tasks." />
+            ) : openTasks.map((t) => {
+              const dl = t.due_date ? Math.ceil((new Date(t.due_date).getTime() - Date.now()) / 86400000) : null
+              const late = dl !== null && dl < 0
+              const active = selectedTask && String(selectedTask.id) === String(t.id)
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`sf-dash-task-row${active ? ' is-selected' : ''}`}
+                  onClick={() => setSelectedTaskId(String(t.id))}
+                >
+                  <div className="sf-dash-task-row-main">
+                    <div className="sf-dash-task-title">{t.title}</div>
+                    <div className="sf-dash-task-meta">
+                      <BrandBadge brand={t.brand} />
+                      <span>{t.priority || 'Medium'}</span>
+                    </div>
+                  </div>
+                  <div className="sf-dash-task-row-side">
+                    <Chip status={t.status} />
+                    {dl !== null && (
+                      <span className={late ? 'sf-dash-task-late' : 'sf-dash-task-due'}>
+                        {late ? `${Math.abs(dl)}d late` : dl === 0 ? 'Today' : `${dl}d`}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
           </div>
         </div>
 
-        <div className="sf-flow-card sf-bento-8">
-          <div className="sf-flow-card-head">
-            <div>
-              <h3 className="sf-flow-card-title">Documents hub</h3>
-              <p className="sf-flow-card-sub">All uploads from tasks & brands — stored securely in cloud (R2). Nothing is lost.</p>
-            </div>
-            <button type="button" className="sf-link-btn" onClick={() => router.push('/tasks')}>Open tasks →</button>
+        <div className="sf-dash-panel sf-dash-panel--center">
+          <div className="sf-dash-panel-head">
+            <h3>Focus</h3>
+            {selectedTask && (
+              <button type="button" className="sf-btn sf-btn-primary" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => router.push(`/tasks/${selectedTask.id}`)}>
+                Open task
+              </button>
+            )}
           </div>
-          <div className="sf-docs-banner">
-            <span aria-hidden style={{ fontSize: 20 }}>📁</span>
-            <span><strong>{recentFiles.length} recent file{recentFiles.length === 1 ? '' : 's'}</strong> — view inline or download. Upload from any task or brand page.</span>
-          </div>
-          <div className="sf-flow-card-body-flush">
-            {recentFiles.length === 0 ? (
-              <div style={{ padding: '20px 16px', color: 'var(--sf-muted)', fontSize: 13, textAlign: 'center' }}>
-                No documents yet. Upload files on a task or brand — they appear here automatically.
-              </div>
-            ) : recentFiles.slice(0, 8).map((f: any) => (
-              <div
-                key={f.id}
-                className="sf-doc-row"
-                onClick={() => {
-                  if (f.task_id) router.push(`/tasks/${f.task_id}?tab=files`)
-                  else if (f.entity_type === 'brand') router.push(`/brands`)
-                }}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter' && f.task_id) router.push(`/tasks/${f.task_id}?tab=files`) }}
-              >
-                <div className="sf-doc-badge">{fileExt(f.file_name || '')}</div>
-                <div className="sf-doc-copy">
-                  <div className="sf-doc-name" title={f.file_name}>{f.file_name}</div>
-                  <div className="sf-doc-meta">
-                    {f.task_title || f.brand_name || f.entity_type}
-                    {' · '}{fmtSize(f.file_size || 0)}
-                    {f.created_at ? ` · ${new Date(f.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}
+          <div className="sf-dash-panel-scroll">
+            {!selectedTask ? (
+              <div className="sf-dash-focus-empty">Select a task from the list to preview it here.</div>
+            ) : (
+              <div className="sf-dash-focus-card">
+                <h4>{selectedTask.title}</h4>
+                <div className="sf-dash-focus-tags">
+                  <BrandBadge brand={selectedTask.brand} />
+                  <StatusBadge status={selectedTask.status} />
+                  {selectedTask.requires_review && <span className="sf-dash-focus-tag">Review</span>}
+                </div>
+                <p className="sf-dash-focus-desc">{selectedTask.description || 'No description yet.'}</p>
+                <div className="sf-dash-focus-grid">
+                  <div><label>Type</label><span>{selectedTask.type || '—'}</span></div>
+                  <div><label>Priority</label><span>{selectedTask.priority || 'Medium'}</span></div>
+                  <div><label>Due</label><span>{selectedTask.due_date || '—'}</span></div>
+                  <div><label>Brand</label><span>{selectedTask.brand?.name || '—'}</span></div>
+                </div>
+                <div className="sf-dash-focus-actions">
+                  <button type="button" className="sf-btn sf-btn-primary" onClick={() => router.push(`/tasks/${selectedTask.id}`)}>Work on task</button>
+                  <button type="button" className="sf-btn sf-btn-ghost" onClick={() => router.push(`/updates?task=${selectedTask.id}`)}>Updates thread</button>
+                </div>
+                {statusBreakdown.length > 0 && (
+                  <div className="sf-dash-focus-status">
+                    <div className="sf-dash-panel-head" style={{ padding: 0, marginBottom: 10 }}>
+                      <h3 style={{ fontSize: 13 }}>Pipeline</h3>
+                    </div>
+                    {statusBreakdown.map((row) => (
+                      <BarRow key={row.label} label={row.label} value={row.value} total={scopeTasks.length} color={STATUS_TEXT[row.label] || 'var(--sf-accent)'} />
+                    ))}
                   </div>
-                </div>
-                <div className="sf-doc-actions" onClick={(e) => e.stopPropagation()}>
-                  <a href={`/api/attachments/${f.id}`} target="_blank" rel="noreferrer" className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px', textDecoration: 'none' }}>View</a>
-                  <a href={`/api/attachments/${f.id}/download`} download={f.file_name} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px', textDecoration: 'none' }}>Download</a>
-                </div>
+                )}
               </div>
-            ))}
+            )}
+          </div>
+        </div>
+
+        <div className="sf-dash-panel">
+          <div className="sf-dash-panel-head">
+            <h3>Activity</h3>
+            <button type="button" className="sf-link-btn" onClick={() => router.push('/updates')}>Updates →</button>
+          </div>
+          <div className="sf-dash-panel-scroll">
+            {updates.length === 0 && announcements.length === 0 ? (
+              <div className="sf-dash-focus-empty">No recent activity yet.</div>
+            ) : (
+              <>
+                {updates.slice(0, 8).map((u: any) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    className="sf-dash-activity-row"
+                    onClick={() => router.push(u.task_id ? `/updates?task=${u.task_id}` : '/updates')}
+                  >
+                    <NavIconBadge name="inbox" navId="updates" className="sf-dash-activity-icon" />
+                    <div>
+                      <div className="sf-dash-activity-title">{u.sender?.name || 'Someone'} · {u.task_title}</div>
+                      <div className="sf-dash-activity-msg">{u.message}</div>
+                    </div>
+                  </button>
+                ))}
+                {announcements.slice(0, 4).map((a: any) => (
+                  <div key={a.id} className="sf-dash-announce-row">
+                    <NavIconBadge name="announcements" navId="announcements" className="sf-dash-activity-icon" />
+                    <div>
+                      <div className="sf-dash-activity-title">{a.title}</div>
+                      <div className="sf-dash-activity-msg">{new Date(a.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      {isTeam && (
-        <div className="sf-dash-ring-wrap">
-          <div className="sf-dash-ring" style={{ '--pct': myOnTimePct } as React.CSSProperties}>
-            <span>{myOnTimePct}%</span>
-          </div>
-          <div>
-            <div style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 14 }}>On-time delivery</div>
-            <div style={{ color: 'var(--sf-muted)', fontSize: 12 }}>{myCompleted.length} completed · {myDelayed.length} delayed</div>
-          </div>
-        </div>
-      )}
-
       {isAdmin && (
-        <Section
-          title="Email tools"
-          subtitle="Owner & manager — send briefs on demand (from no-reply@scrumfolks.com)"
-          flush
-          style={{ flexShrink: 0 }}
-        >
+        <Section title="Email tools" subtitle="Send briefs on demand" flush style={{ marginTop: 16 }}>
           <div style={{ padding: '12px 14px', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
             <button type="button" className="sf-btn sf-btn-ghost" disabled={!!emailBusy} onClick={() => runEmailAction('test')}>
-              {emailBusy === 'test' ? 'Sending…' : 'Send test to me'}
+              {emailBusy === 'test' ? 'Sending…' : 'Test email'}
             </button>
             <button type="button" className="sf-btn sf-btn-primary" disabled={!!emailBusy} onClick={() => runEmailAction('morning')}>
-              {emailBusy === 'morning' ? 'Sending…' : 'Send morning brief'}
+              {emailBusy === 'morning' ? 'Sending…' : 'Morning brief'}
             </button>
             <button type="button" className="sf-btn sf-btn-primary" disabled={!!emailBusy} onClick={() => runEmailAction('evening')}>
-              {emailBusy === 'evening' ? 'Sending…' : 'Send evening brief'}
+              {emailBusy === 'evening' ? 'Sending…' : 'Evening brief'}
             </button>
-            <span style={{ color: 'var(--sf-muted)', fontSize: 12 }}>
-              Task assignment emails also go out when you create/assign a task or click Email brief on a task.
-            </span>
-            {emailNotice && (
-              <div style={{ width: '100%', color: emailNotice.toLowerCase().includes('fail') || emailNotice.toLowerCase().includes('could') ? 'var(--sf-danger)' : 'var(--sf-success)', fontSize: 13 }}>
-                {emailNotice}
-              </div>
-            )}
+            {emailNotice && <span style={{ fontSize: 12, color: emailNotice.includes('fail') || emailNotice.includes('Could') ? 'var(--sf-danger)' : 'var(--sf-success)' }}>{emailNotice}</span>}
           </div>
         </Section>
       )}
 
       <StatGrid>
-        <div className="sf-stat-card-clickable" onClick={() => router.push('/overview')} role="button" tabIndex={0}>
-          <StatCard label="Notifications" value={unreadNotifs.length} sub={`${notifications.length} total`} accent="var(--sf-accent)" />
-        </div>
         {isAdmin && <>
-          <div className="sf-stat-card-clickable" onClick={() => router.push('/tasks')} role="button" tabIndex={0}>
-            <StatCard label="Open tasks" value={openCount} sub={`${completedCount} completed`} accent="var(--sf-info)" />
-          </div>
-          <div className="sf-stat-card-clickable" onClick={() => router.push('/tasks')} role="button" tabIndex={0}>
-            <StatCard label="Overdue" value={overdue.length} accent="var(--sf-danger)" />
-          </div>
+          <StatCard label="Open" value={openCount} sub={`${completedCount} done`} accent="var(--sf-info)" />
+          <StatCard label="Overdue" value={overdue.length} accent="var(--sf-danger)" />
           <StatCard label="Due today" value={dueToday.length} accent="var(--sf-warning)" />
-          <div className="sf-stat-card-clickable" onClick={() => router.push('/review')} role="button" tabIndex={0}>
-            <StatCard label="Under review" value={underReview.length} accent="#8B5CF6" />
-          </div>
-          <StatCard label="Flagged" value={flagged.length} accent="var(--sf-danger)" />
-          <div className="sf-stat-card-clickable" onClick={() => router.push('/leave')} role="button" tabIndex={0}>
-            <StatCard label="Leave Pending" value={pendingLeav.length} accent="#8B5CF6" />
-          </div>
+          <StatCard label="Under review" value={underReview.length} accent="#8B5CF6" />
+          <StatCard label="Leave pending" value={pendingLeav.length} accent="#8B5CF6" />
         </>}
         {isTeam && <>
-          <div className="sf-stat-card-clickable" onClick={() => router.push('/tasks')} role="button" tabIndex={0}>
-            <StatCard label="Allocated" value={myTasks.length} sub={`${myCompleted.length} completed`} accent="var(--sf-accent)" />
-          </div>
-          <StatCard label="Delayed" value={myDelayed.length} accent="var(--sf-danger)" />
-          <StatCard label="On-time %" value={`${myOnTimePct}%`} accent="var(--sf-success)" />
-          <StatCard label="In Progress" value={myTasks.filter(t=>t.status==='In Progress').length} accent="var(--sf-info)" />
+          <StatCard label="My tasks" value={myTasks.length} accent="var(--sf-accent)" />
           <StatCard label="Due today" value={dueToday.length} accent="var(--sf-warning)" />
-        </>}
-        {session.role === 'hr' && <>
-          <div className="sf-stat-card-clickable" onClick={() => router.push('/leave')} role="button" tabIndex={0}>
-            <StatCard label="Leave Pending" value={pendingLeav.length} accent="#8B5CF6" />
-          </div>
-          <StatCard label="Overdue tasks" value={overdue.length} accent="var(--sf-danger)" />
-          <StatCard label="Open tasks" value={openCount} accent="var(--sf-info)" />
-        </>}
-        {session.role === 'accountant' && <>
-          <div className="sf-stat-card-clickable" onClick={() => router.push('/billing')} role="button" tabIndex={0}>
-            <StatCard label="Billable Tasks" value={tasks.filter(t=>t.is_billable).length} accent="#EC4899" />
-          </div>
-          <StatCard label="Pending Billing" value={tasks.filter(t=>t.is_billable&&!t.billed_at).length} accent="var(--sf-warning)" />
-          <StatCard label="Open tasks" value={openCount} accent="var(--sf-info)" />
+          <StatCard label="In progress" value={myTasks.filter(t => t.status === 'In Progress').length} accent="var(--sf-info)" />
         </>}
       </StatGrid>
-
-      <div className="sf-page-grid-2" style={{ flex: 1 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: 0 }}>
-          <Section
-            title="Priority lane"
-            subtitle={`${important.length} items need focus`}
-            flex={1}
-            action={<button type="button" className="sf-link-btn" onClick={() => router.push('/tasks')}>View all</button>}
-            flush
-          >
-            {important.length === 0 ? (
-              <EmptyState icon="tasks" title="No open tasks." />
-            ) : (
-              <div style={{ display:'flex', flexDirection:'column' }}>
-                {important.map((t:any) => {
-                  const dl = t.due_date ? Math.ceil((new Date(t.due_date).getTime()-Date.now())/86400000) : null
-                  const late = dl!==null && dl<0 && t.status!=='Completed'
-                  return (
-                    <div
-                      key={t.id}
-                      onClick={() => router.push(`/tasks/${t.id}`)}
-                      style={{ padding:'0.875rem 1rem', borderBottom:'1px solid var(--sf-border)', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, cursor:'pointer' }}
-                    >
-                      <div style={{ minWidth:0 }}>
-                        <div style={{ color:'var(--sf-text)', fontWeight:600, fontSize:13, marginBottom:2 }}>{t.title}</div>
-                        <div style={{ color:'var(--sf-muted)', fontSize:11, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          <BrandBadge brand={t.brand} />
-                          <span>{t.type||'Task'} · {t.priority || 'Medium'}{t.requires_review ? ' · Review' : ''}</span>
-                        </div>
-                      </div>
-                      <div style={{ display:'flex', gap:8, alignItems:'center', flexShrink:0 }}>
-                        <Chip status={t.status} />
-                        {dl!==null && <span style={{ color:late?'var(--sf-danger)':'var(--sf-muted)', fontSize:11 }}>{late?`${Math.abs(dl)}d overdue`:dl===0?'Today':`${dl}d`}</span>}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </Section>
-
-          <Section title="Status mix" subtitle={`${scopeTasks.length} tasks in view`}>
-            {statusBreakdown.length === 0 ? (
-              <p style={{ color: 'var(--sf-muted)', fontSize: 13 }}>No tasks yet.</p>
-            ) : (
-              statusBreakdown.map((row) => (
-                <BarRow
-                  key={row.label}
-                  label={row.label}
-                  value={row.value}
-                  total={scopeTasks.length}
-                  color={STATUS_TEXT[row.label] || 'var(--sf-accent)'}
-                />
-              ))
-            )}
-          </Section>
-        </div>
-
-        <div style={{ display:'flex', flexDirection:'column', gap:'1rem', minHeight:0 }}>
-          <Section
-            title="Your notifications"
-            subtitle={unreadNotifs.length ? `${unreadNotifs.length} unread` : 'Caught up'}
-            action={unreadNotifs.length > 0 ? (
-              <button type="button" className="sf-link-btn" onClick={markAllRead}>Mark all read</button>
-            ) : undefined}
-            flush
-          >
-            {notifications.length === 0 ? (
-              <div style={{ padding: '1rem 1.125rem', color: 'var(--sf-muted)', fontSize: 13 }}>No notifications yet.</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 260, overflowY: 'auto' }}>
-                {notifications.slice(0, 12).map((n: any) => (
-                  <div
-                    key={n.id}
-                    onClick={() => {
-                      if (!n.is_read) markRead(n.id)
-                      router.push(resolveNotificationLink(n.link, n.type))
-                    }}
-                    style={{
-                      padding: '0.75rem 1rem',
-                      borderBottom: '1px solid var(--sf-border)',
-                      display: 'flex',
-                      gap: 12,
-                      alignItems: 'flex-start',
-                      cursor: 'pointer',
-                      background: n.is_read ? 'transparent' : 'rgba(232,99,10,0.06)',
-                    }}
-                  >
-                    <span style={{
-                      width: 8, height: 8, borderRadius: '50%', marginTop: 5, flexShrink: 0,
-                      background: n.is_read ? 'var(--sf-border)' : 'var(--sf-accent)',
-                    }} />
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ color: 'var(--sf-text)', fontSize: 13, fontWeight: n.is_read ? 500 : 650, lineHeight: 1.4 }}>
-                        {n.message || 'Update'}
-                      </div>
-                      <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 3 }}>
-                        {n.type === 'chat' ? 'Updates' : (n.type || 'system')} · {n.created_at ? new Date(n.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
-                      </div>
-                      <button
-                        type="button"
-                        className="sf-notif-row-link"
-                        style={{ marginTop: 6 }}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (!n.is_read) markRead(n.id)
-                          router.push(resolveNotificationLink(n.link, n.type))
-                        }}
-                      >
-                        {notificationActionLabel(n.type)} →
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Section>
-
-          <Section
-            title="Recent updates"
-            action={<button type="button" className="sf-link-btn" onClick={() => router.push('/updates')}>Open Updates</button>}
-          >
-            {updates.length === 0 ? (
-              <p style={{ color:'var(--sf-muted)', fontSize:13 }}>No comments yet.</p>
-            ) : updates.slice(0,5).map((u:any) => (
-              <div key={u.id} onClick={() => router.push(u.task_id ? `/updates?task=${u.task_id}` : '/updates')} style={{ background:'var(--sf-surface-2)', border:'1px solid var(--sf-border)', borderRadius:8, padding:'0.75rem 0.875rem', marginBottom:8, cursor:'pointer' }}>
-                <div style={{ color:'var(--sf-text)', fontWeight:600, fontSize:12, marginBottom:2 }}>{u.sender?.name || 'Someone'} on {u.task_title}</div>
-                <div style={{ color:'var(--sf-muted)', fontSize:12, lineHeight:1.4 }}>{u.message}</div>
-              </div>
-            ))}
-          </Section>
-
-          <Section
-            title="Announcements"
-            action={<button type="button" className="sf-link-btn" onClick={() => router.push('/announcements')}>View all</button>}
-          >
-            {announcements.length === 0 ? (
-              <p style={{ color:'var(--sf-muted)', fontSize:13 }}>No announcements yet.</p>
-            ) : announcements.slice(0,4).map((a:any) => (
-              <div key={a.id} style={{ background:'var(--sf-surface-2)', border:'1px solid var(--sf-border)', borderLeft:`3px solid ${a.priority==='Urgent'?'var(--sf-danger)':a.priority==='Important'?'var(--sf-warning)':'var(--sf-muted-2)'}`, borderRadius:8, padding:'0.75rem 0.875rem', marginBottom:8 }}>
-                <div style={{ color:'var(--sf-text)', fontWeight:600, fontSize:12, marginBottom:2 }}>{a.title}</div>
-                <div style={{ color:'var(--sf-muted-2)', fontSize:10 }}>{new Date(a.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</div>
-              </div>
-            ))}
-          </Section>
-
-          {isAdmin && flagged.length > 0 && (
-            <Section title="Needs attention" subtitle={`${flagged.length} flagged`}>
-              {flagged.slice(0,5).map((t:any) => (
-                <div key={t.id} onClick={() => router.push(`/tasks/${t.id}`)} style={{ background:'var(--sf-surface-2)', border:'1px solid var(--sf-border)', borderRadius:8, padding:'0.625rem 0.75rem', marginBottom:8, cursor:'pointer' }}>
-                  <div style={{ color:'var(--sf-text)', fontSize:12, fontWeight:600, marginBottom:4 }}>{t.title}</div>
-                  <Chip status={t.status} />
-                </div>
-              ))}
-            </Section>
-          )}
-
-          {(isAdmin || session.role === 'hr') && pendingLeav.length > 0 && (
-            <Section
-              title="Leave pending"
-              action={<button type="button" className="sf-link-btn" onClick={() => router.push('/leave')}>Manage</button>}
-            >
-              {pendingLeav.slice(0,5).map((l:any) => (
-                <div key={l.id} style={{ background:'var(--sf-surface-2)', border:'1px solid var(--sf-border)', borderRadius:8, padding:'0.625rem 0.75rem', marginBottom:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                  <div>
-                    <div style={{ color:'var(--sf-text)', fontSize:12, fontWeight:600 }}>{l.user?.name||'Employee'}</div>
-                    <div style={{ color:'var(--sf-muted)', fontSize:10 }}>{l.leave_type} · {l.days} days</div>
-                  </div>
-                  <span style={{ background:'rgba(251,191,36,0.15)', color:'var(--sf-warning)', fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:5 }}>Pending</span>
-                </div>
-              ))}
-            </Section>
-          )}
-        </div>
-      </div>
     </PageShell>
   )
 }

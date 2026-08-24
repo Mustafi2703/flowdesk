@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator, field_validator
 
 
 class ProfileBase(BaseModel):
@@ -25,6 +25,52 @@ class ProfileCreate(ProfileBase):
     manager_id: uuid.UUID | None = None
     manager_ids: list[uuid.UUID] = Field(default_factory=list)
     department_id: uuid.UUID | None = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def normalize_create(cls, data):
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        pw = data.get('password')
+        if isinstance(pw, str) and not pw.strip():
+            data['password'] = None
+        mgrs = data.get('manager_ids')
+        if isinstance(mgrs, list):
+            data['manager_ids'] = [m for m in mgrs if m]
+        return data
+
+    @field_validator("password", mode="before")
+    @classmethod
+    def _empty_password_is_none(cls, value: object) -> object:
+        if value is None:
+            return None
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator("manager_id", mode="before")
+    @classmethod
+    def _empty_manager_id_is_none(cls, value: object) -> object:
+        if value is None:
+            return None
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator("manager_ids", mode="before")
+    @classmethod
+    def _drop_blank_manager_ids(cls, value: object) -> object:
+        if not isinstance(value, list):
+            return value
+        cleaned: list[object] = []
+        for item in value:
+            if item is None:
+                continue
+            if isinstance(item, str) and not item.strip():
+                continue
+            cleaned.append(item)
+        return cleaned
 
 
 class ProfileUpdate(BaseModel):
@@ -56,3 +102,13 @@ class ProfileOut(ProfileBase):
     manager_id: uuid.UUID | None = None
     manager_ids: list[uuid.UUID] = Field(default_factory=list)
     created_at: datetime
+
+    @field_validator('manager_ids', mode='before')
+    @classmethod
+    def coerce_manager_ids(cls, value):
+        return value if value is not None else []
+
+    @classmethod
+    def from_profile(cls, profile) -> "ProfileOut":
+        """Safe serializer — legacy rows may have NULL manager_ids."""
+        return cls.model_validate(profile)

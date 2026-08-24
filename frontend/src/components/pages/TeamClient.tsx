@@ -6,6 +6,7 @@ import { PageHeader, PageShell, PageTabs, PageToolbar, Section, StatCard, StatGr
 import { Modal } from '@/components/app/Modal'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
 import { todayIST } from '@/lib/clock'
+import { formatApiError } from '@/lib/apiErrors'
 
 const TEAM_PANELS = [
   { id: 'members', label: 'Team members' },
@@ -90,7 +91,12 @@ export default function TeamClient({ session }: { session: SessionUser }) {
       const t = await tasksRes.json().catch(() => [])
       const a = await attRes.json().catch(() => [])
       const roles = await rolesRes.json().catch(() => ({ roles: [] }))
-      setUsers(Array.isArray(u) ? u : [])
+      if (!teamRes.ok) {
+        setError(formatApiError(u, 'Could not load team members'))
+        setUsers([])
+      } else {
+        setUsers(Array.isArray(u) ? u : [])
+      }
       setTasks(Array.isArray(t) ? t : [])
       setAttendance(Array.isArray(a) ? a : [])
       setAssignableRoles(Array.isArray(roles.roles) ? roles.roles : [])
@@ -107,8 +113,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
         const deptRes = await fetch('/api/team/departments')
         const deptData = await deptRes.json().catch(() => ({}))
         if (!deptRes.ok) {
-          const msg = deptData.error || deptData.detail || 'Could not load departments'
-          setDeptError(typeof msg === 'string' ? msg : 'Could not load departments')
+          setDeptError(formatApiError(deptData, 'Could not load departments'))
           setDepartments([])
         } else {
           setDepartments(Array.isArray(deptData) ? deptData : [])
@@ -203,15 +208,18 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     }
     if (userForm.department_id) payload.department_id = userForm.department_id
     else if (userForm.department) payload.department = userForm.department
-    if (userForm.password) payload.password = userForm.password
+    if (userForm.password?.trim() && userForm.password.trim().length >= 8) {
+      payload.password = userForm.password.trim()
+    }
     if (role === 'owner') {
-      if (userForm.manager_ids?.length) payload.manager_ids = userForm.manager_ids
+      const mgrIds = (userForm.manager_ids || []).map(String).filter(Boolean)
+      if (mgrIds.length) payload.manager_ids = mgrIds
       else if (userForm.manager_id) payload.manager_id = userForm.manager_id
     }
     const res = await fetch('/api/team', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
     const data = await res.json().catch(() => ({}))
     setSaving(false)
-    if (!res.ok) { setError(data.error || data.detail || 'Could not create user'); return }
+    if (!res.ok) { setError(formatApiError(data, 'Could not create user')); return }
     setNotice(`User created. Temporary password: ${data.temporary_password}`)
     setUserForm({ name: '', email: '', role: assignableRoles[0] || 'team', department: '', department_id: '', designation: '', password: '', manager_id: '', manager_ids: [], is_active: true })
     setShowAdd(false)
@@ -232,12 +240,12 @@ export default function TeamClient({ session }: { session: SessionUser }) {
       payload.role = userForm.role
       payload.email = userForm.email
       payload.is_active = userForm.is_active
-      payload.manager_ids = userForm.manager_ids || []
+      payload.manager_ids = (userForm.manager_ids || []).map(String).filter(Boolean)
     }
     const res = await fetch(`/api/team/${editingUser.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
     const data = await res.json().catch(() => ({}))
     setSaving(false)
-    if (!res.ok) { setError(data.error || data.detail || 'Could not update user'); return }
+    if (!res.ok) { setError(formatApiError(data, 'Could not update user')); return }
     setNotice(`${userForm.name} updated successfully.`)
     setEditingUser(null)
     refresh()
@@ -256,7 +264,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     const res = await fetch(url, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
     const data = await res.json().catch(() => ({}))
     setSaving(false)
-    if (!res.ok) { setError(data.error || data.detail || `Could not ${editingDeptId ? 'update' : 'create'} department`); return }
+    if (!res.ok) { setError(formatApiError(data, `Could not ${editingDeptId ? 'update' : 'create'} department`)); return }
     setNotice(`Department "${data.name}" ${editingDeptId ? 'updated' : 'created'}${data.manager ? ` · Manager: ${data.manager.name}` : ''}.`)
     setDeptForm({ name: '', description: '', manager_id: '' })
     setEditingDeptId(null)
@@ -270,7 +278,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     setError(''); setNotice('')
     const res = await fetch(`/api/team/departments/${d.id}`, { method: 'DELETE' })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) { setError(data.error || data.detail || 'Could not delete department'); return }
+    if (!res.ok) { setError(formatApiError(data, 'Could not delete department')); return }
     setNotice(`Department "${d.name}" deleted.`)
     if (editingDeptId === d.id) { setEditingDeptId(null); setShowDept(false) }
     refresh()
@@ -285,7 +293,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
       body: '{}',
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) { setError(data.error || data.detail || 'Could not reset password'); return }
+    if (!res.ok) { setError(formatApiError(data, 'Could not reset password')); return }
     const temp = data.temporary_password
     if (!temp) { setError('Reset succeeded but no password was returned. Try again.'); return }
     try { await navigator.clipboard.writeText(temp) } catch { /* ignore */ }
@@ -305,7 +313,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     }
     const res = await fetch(`/api/team/${id}`, opts)
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) { setError(data.error || 'Could not deactivate user'); return }
+    if (!res.ok) { setError(formatApiError(data, 'Could not deactivate user')); return }
     setNotice(`${name} has been deactivated.`)
     refresh()
   }
@@ -315,7 +323,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     setError(''); setNotice('')
     const res = await fetch(`/api/team/${id}?hard=true`, { method: 'DELETE' })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) { setError(data.error || data.detail || 'Could not delete user'); return }
+    if (!res.ok) { setError(formatApiError(data, 'Could not delete user')); return }
     setNotice(`${name} permanently deleted.`)
     setViewingUser(null)
     refresh()

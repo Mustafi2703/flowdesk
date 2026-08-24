@@ -32,7 +32,8 @@ def _wrap(title: str, body_html: str, cta_label: str, cta_url: str) -> tuple[str
   <a href="{html.escape(cta_url)}" style="display:inline-block;background:#FF6B1A;color:#fff;text-decoration:none;font-weight:700;font-size:13px;padding:10px 18px;border-radius:8px;">{html.escape(cta_label)}</a>
   <p style="margin:20px 0 0;font-size:11px;color:#9CA3AF;">This is an automated message from Scrumfolks TMS.</p>
 </div>"""
-    text_body = f"{title}\n\n{html.unescape(body_html.replace('<br>', '\n').replace('<br/>', '\n'))}\n\n{cta_label}: {cta_url}\n"
+    plain_body = html.unescape(body_html.replace("<br>", "\n").replace("<br/>", "\n"))
+    text_body = f"{title}\n\n{plain_body}\n\n{cta_label}: {cta_url}\n"
     return html_body, text_body
 
 

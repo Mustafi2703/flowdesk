@@ -7,7 +7,7 @@ import { Icon } from '@/components/app/Icons'
 import { PageHeader, PageShell, Section } from '@/components/app/Section'
 import { StatusBadge, statusTint } from '@/components/app/StatusBadge'
 import { todayIST } from '@/lib/clock'
-import { TASK_STATUSES, allowedTaskStatuses, canManageTasks, canSetTaskPrice, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
+import { TASK_STATUSES, allowedTaskStatuses, canManageTasks, canManualStatusChange, canSetTaskPrice, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
 import { ATTENDANCE_CHANGED } from '@/lib/attendance'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { TaskThreadBox } from '@/components/app/TaskThreadBox'
@@ -124,7 +124,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   function canUpdateStatus(task: any) {
     if (!clockedIn) return false
     if (canEdit) return true
-    return isAssigned(task)
+    return isAssigned(task) && canManualStatusChange(task, session.role, session.id)
   }
 
   function statusOptions(task: any) {
@@ -259,7 +259,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
       </div>
       {canEdit && (
         <p style={{ color:'var(--sf-muted)', fontSize:12, margin:'-8px 0 12px', flexShrink:0 }}>
-          Owners and managers can edit tasks and set prices. Assigned members can update status from the list.
+          Owners and managers can edit tasks and set prices. Assigned members upload files to send review tasks forward — status moves automatically.
         </p>
       )}
       {!clockedIn && (

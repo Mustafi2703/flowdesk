@@ -11,7 +11,8 @@ import { ATTENDANCE_CHANGED } from '@/lib/attendance'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
 import { todayIST } from '@/lib/clock'
-import { TASK_STATUSES, allowedTaskStatuses, canManageTasks, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
+import { TASK_STATUSES, allowedTaskStatuses, canManageTasks, canManualStatusChange, isClockedInToday, isTaskAssignee, sameUserId, taskStatusFlowHint } from '@/lib/tasks'
+import { TaskWorkflowBanner } from '@/components/app/TaskWorkflowBanner'
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
@@ -43,6 +44,9 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
   const canEdit = canManageTasks(session.role)
   const isAssignee = task ? isTaskAssignee(task, session.id) : false
   const canWork = clockedIn && (canEdit || isAssignee)
+  const canChangeStatus = clockedIn && (canEdit || (isAssignee && canManualStatusChange(task, session.role, session.id)))
+  const statusOptions = task ? allowedTaskStatuses(task, session.role) : []
+  const showStatusSelect = canChangeStatus && (canEdit || statusOptions.length > 1)
   const teamUsers = users.filter((u) => u.role === 'team' || u.role === 'manager')
 
   async function load() {
@@ -155,6 +159,8 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
 
   return (
     <PageShell>
+      {task.requires_review && <TaskWorkflowBanner task={task} role={session.role} />}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <div>
           <Link href="/tasks" style={{ color: 'var(--sf-muted)', fontSize: 12, textDecoration: 'none' }}>← Tasks</Link>
@@ -167,19 +173,23 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
           )}
           {canWork ? (
             <>
-              {task.status === 'Not Started' && (
+              {task.status === 'Not Started' && isAssignee && !canEdit && (
                 <button type="button" className="sf-btn sf-btn-primary" style={{ fontSize: 12 }} onClick={() => patch({ status: 'In Progress' })}>
-                  Start work → In Progress
+                  Start work
                 </button>
               )}
-              <select
-                value={task.status}
-                onChange={(e) => patch({ status: e.target.value })}
-                className="sf-input"
-                style={{ fontSize: 12, padding: '6px 8px', ...statusTint(task.status) }}
-              >
-                {allowedTaskStatuses(task, session.role).map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              {showStatusSelect ? (
+                <select
+                  value={task.status}
+                  onChange={(e) => patch({ status: e.target.value })}
+                  className="sf-input"
+                  style={{ fontSize: 12, padding: '6px 8px', ...statusTint(task.status) }}
+                >
+                  {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              ) : task.requires_review && isAssignee && !canEdit ? (
+                <span style={{ color: 'var(--sf-muted)', fontSize: 12, maxWidth: 320 }}>{taskStatusFlowHint(task, session.role)}</span>
+              ) : null}
             </>
           ) : (
             <span style={{ color: '#FBBF24', fontSize: 12 }}>{clockedIn ? '' : 'Clock in to update status'}</span>

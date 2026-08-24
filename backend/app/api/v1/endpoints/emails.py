@@ -16,6 +16,7 @@ from app.models.task import Task
 from app.services.digests import build_morning_digest, send_evening_digests, send_morning_digests
 from app.services.email import send_email, test_recipient_list
 from app.services.task_brief_email import send_task_brief_emails
+from app.services.task_visibility import can_view_task_db
 
 router = APIRouter(prefix="/emails", tags=["emails"])
 
@@ -34,7 +35,7 @@ def send_task_brief(
     """Resend the assignment brief to current assignees."""
     _require_mgmt(user)
     task = db.get(Task, task_id)
-    if not task:
+    if not task or not can_view_task_db(db, task, user):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     sent = send_task_brief_emails(db, task, assigner=user, assignee_ids=task.assigned_to or [])
     return {"ok": True, "sent": sent, "task_id": str(task.id)}

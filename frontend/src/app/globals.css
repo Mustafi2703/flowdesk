@@ -97,12 +97,15 @@ html[data-theme='morning'] body {
   height: 100vh;
   overflow: hidden;
   background: var(--sf-bg);
+  --sf-sidebar-w: 260px;
 }
 .sf-app-main {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  overflow: hidden;
+  transition: flex-basis 0.22s cubic-bezier(0.22, 1, 0.36, 1);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--sf-bg-elevated) 88%, transparent), var(--sf-bg) 120px),
     var(--sf-bg);
@@ -471,8 +474,10 @@ html[data-theme='morning'] body {
 .sf-main-scroll {
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
   overflow-y: auto;
-  overflow-x: auto;
+  overflow-x: hidden;
   padding: 1.25rem 1.5rem 1.5rem;
   display: flex;
   flex-direction: column;
@@ -2062,7 +2067,29 @@ html[data-theme='morning'] body {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 0.9fr);
   gap: 14px;
   min-height: 420px;
+  min-width: 0;
+  width: 100%;
   margin-bottom: 1rem;
+}
+.sf-dash-hero-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  min-width: 0;
+  width: 100%;
+}
+.sf-dash-hero-inner > div:first-child {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.sf-dash-hero-stats-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex-shrink: 1;
+  min-width: 0;
 }
 .sf-dash-panel {
   display: flex;
@@ -2294,13 +2321,6 @@ html[data-theme='morning'] body {
     radial-gradient(480px 240px at 0% 100%, color-mix(in srgb, var(--sf-info) 12%, transparent), transparent 50%),
     var(--sf-surface);
   box-shadow: var(--sf-shadow);
-}
-.sf-dash-hero-inner {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  flex-wrap: wrap;
 }
 .sf-dash-hero-title {
   font-family: 'Space Grotesk', sans-serif;
@@ -2867,7 +2887,7 @@ html[data-theme='morning'] .sf-table tr:hover td {
 
 /* Sidebar shell */
 .sf-sidebar {
-  width: 260px;
+  width: var(--sf-sidebar-w);
   background: var(--sf-sidebar);
   border-right: 1px solid var(--sf-sidebar-border);
   display: flex;
@@ -2884,7 +2904,6 @@ html[data-theme='morning'] .sf-table tr:hover td {
 }
 
 .sf-sidebar--collapsed {
-  width: 76px;
   padding-left: 0.5rem;
   padding-right: 0.5rem;
 }
@@ -3611,16 +3630,16 @@ html[data-theme='morning'] .sf-table tr:hover td {
 }
 .sf-updates-board {
   display: grid;
-  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
-  flex: 1;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
+  width: 100%;
   overflow: hidden;
   border: 1px solid var(--sf-border);
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--sf-surface) 88%, transparent);
-  box-shadow: var(--sf-shadow-lg);
-  backdrop-filter: blur(12px);
+  border-radius: var(--sf-radius-lg);
+  background: var(--sf-surface);
+  box-shadow: var(--sf-shadow);
 }
 .sf-updates-channels {
   border-right: 1px solid var(--sf-border);
@@ -3628,13 +3647,33 @@ html[data-theme='morning'] .sf-table tr:hover td {
   flex-direction: column;
   min-height: 0;
   min-width: 0;
+  height: 100%;
   overflow: hidden;
-  background: linear-gradient(180deg, var(--sf-surface-2), var(--sf-surface));
+  background: var(--sf-surface-2);
 }
 .sf-upd-channel-search {
-  padding: 14px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--sf-border);
   flex-shrink: 0;
+  background: var(--sf-surface);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.sf-upd-channel-search-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.sf-upd-channel-count {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--sf-muted);
+  white-space: nowrap;
 }
 .sf-upd-channel-heading {
   color: var(--sf-text);
@@ -3642,8 +3681,54 @@ html[data-theme='morning'] .sf-table tr:hover td {
   font-weight: 700;
   font-size: 13px;
   letter-spacing: 0.02em;
+  margin-bottom: 0;
+}
+
+/* Task review workflow banner */
+.sf-task-flow {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--sf-border);
+  background: color-mix(in srgb, var(--sf-accent) 6%, var(--sf-surface));
   margin-bottom: 10px;
 }
+.sf-task-flow--compact {
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+.sf-task-flow-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.sf-task-flow-step {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sf-muted);
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--sf-border);
+  background: var(--sf-surface);
+}
+.sf-task-flow-step.is-active {
+  color: var(--sf-accent);
+  border-color: color-mix(in srgb, var(--sf-accent) 40%, var(--sf-border));
+  background: color-mix(in srgb, var(--sf-accent) 12%, var(--sf-surface));
+}
+.sf-task-flow-step.is-done {
+  color: var(--sf-success);
+  border-color: color-mix(in srgb, var(--sf-success) 35%, var(--sf-border));
+}
+.sf-task-flow-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--sf-text-secondary);
+}
+
 .sf-upd-channel-search .sf-input {
   font-size: 12px;
   padding: 9px 12px;
@@ -3651,7 +3736,8 @@ html[data-theme='morning'] .sf-table tr:hover td {
   border-radius: 999px;
 }
 .sf-upd-channel-list {
-  flex: 1;
+  flex: 1 1 auto;
+  height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;

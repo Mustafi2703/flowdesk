@@ -131,7 +131,13 @@ def _team_query_for(user: Profile, include_inactive: bool):
         stmt = stmt.where(Profile.is_active.is_(True))
     role = Role(user.role)
     if role is Role.MANAGER:
-        stmt = stmt.where(or_(Profile.manager_id == user.id, Profile.id == user.id))
+        stmt = stmt.where(
+            or_(
+                Profile.manager_id == user.id,
+                Profile.manager_ids.contains([user.id]),
+                Profile.id == user.id,
+            )
+        )
     return stmt
 
 
@@ -175,7 +181,7 @@ def assignable_roles(user: Profile = Depends(get_current_user)) -> dict[str, lis
 @router.get("/workload")
 def team_workload(db: Session = Depends(get_db), user: Profile = Depends(get_current_user)) -> list[dict]:
     _require_team_view(user)
-    profiles = db.scalars(select(Profile).where(Profile.is_active.is_(True)).order_by(Profile.name)).all()
+    profiles = db.scalars(_team_query_for(user, include_inactive=False)).all()
     tasks = db.scalars(select(Task).where(Task.status.not_in(["Completed", "On Hold"]))).all()
     rows = []
     for profile in profiles:

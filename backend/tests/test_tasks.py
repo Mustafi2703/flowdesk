@@ -76,6 +76,47 @@ def test_team_can_update_status_only(client, users):
     assert bad.status_code == 403
 
 
+def test_team_cannot_manually_set_under_review(client, users):
+    owner = users.create("owner")
+    team = users.create("team")
+    task = _create_task(
+        client,
+        users.auth_headers(owner),
+        assigned_to=[str(team.id)],
+        requires_review=True,
+    ).json()
+    client.post("/api/v1/attendance/clockin", headers=users.auth_headers(team))
+    client.patch(
+        f"/api/v1/tasks/{task['id']}",
+        headers=users.auth_headers(team),
+        json={"status": "In Progress"},
+    )
+    blocked = client.patch(
+        f"/api/v1/tasks/{task['id']}",
+        headers=users.auth_headers(team),
+        json={"status": "Under Review"},
+    )
+    assert blocked.status_code == 403
+
+
+def test_team_cannot_mark_review_task_completed(client, users):
+    owner = users.create("owner")
+    team = users.create("team")
+    task = _create_task(
+        client,
+        users.auth_headers(owner),
+        assigned_to=[str(team.id)],
+        requires_review=True,
+    ).json()
+    client.post("/api/v1/attendance/clockin", headers=users.auth_headers(team))
+    blocked = client.patch(
+        f"/api/v1/tasks/{task['id']}",
+        headers=users.auth_headers(team),
+        json={"status": "Completed"},
+    )
+    assert blocked.status_code == 403
+
+
 def test_hr_cannot_update_unassigned_task_status(client, users):
     owner = users.create("owner")
     team = users.create("team")

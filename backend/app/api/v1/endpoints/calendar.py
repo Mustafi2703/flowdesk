@@ -8,7 +8,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user
@@ -25,6 +25,12 @@ router = APIRouter(prefix="/calendar", tags=["calendar"])
 COMPANY_SCOPE = "company"
 
 
+def _reports_to(viewer: Profile, subject: Profile) -> bool:
+    if subject.manager_id == viewer.id:
+        return True
+    return viewer.id in (subject.manager_ids or [])
+
+
 def _can_view_calendar(viewer: Profile, subject: Profile) -> bool:
     if viewer.id == subject.id:
         return True
@@ -33,7 +39,7 @@ def _can_view_calendar(viewer: Profile, subject: Profile) -> bool:
         return True
     if role is Role.HR:
         return True
-    if role is Role.MANAGER and subject.manager_id == viewer.id:
+    if role is Role.MANAGER and _reports_to(viewer, subject):
         return True
     return False
 
@@ -284,7 +290,13 @@ def calendar(
         ]
     elif role is Role.MANAGER:
         reports = db.scalars(
-            select(Profile).where(Profile.manager_id == viewer.id, Profile.is_active.is_(True))
+            select(Profile).where(
+                Profile.is_active.is_(True),
+                or_(
+                    Profile.manager_id == viewer.id,
+                    Profile.manager_ids.contains([viewer.id]),
+                ),
+            ).order_by(Profile.name)
         ).all()
         viewable_users = [{"id": str(viewer.id), "name": viewer.name}] + [
             {"id": str(r.id), "name": r.name} for r in reports

@@ -37,6 +37,7 @@ from app.models.leave import LeaveRequest
 from app.models.notification import Notification
 from app.models.profile import Profile
 from app.models.task import Task
+from app.services.task_visibility import can_view_task_db
 from app.utils.queues import (
     DASHBOARD_CACHE,
     PriorityHeap,
@@ -51,29 +52,21 @@ _OPEN_STATUSES = {"Not Started", "In Progress", "Under Review", "Revision Needed
 _FLAGGED_STATUSES = {"Struggling", "Needs Attention"}
 
 
-def _serialize_task(task: Task) -> dict[str, Any]:
-    return {
+def _serialize_task(task: Task, role: Role) -> dict[str, Any]:
+    payload = {
         "id": str(task.id),
         "title": task.title,
         "status": task.status,
         "priority": task.priority,
         "type": task.type,
         "due_date": task.due_date.isoformat() if task.due_date else None,
-        "is_billable": task.is_billable,
         "task_mode": task.task_mode,
         "brand_id": str(task.brand_id) if task.brand_id else None,
         "assigned_to": [str(uid) for uid in (task.assigned_to or [])],
     }
-
-
-def _visible(task: Task, user: Profile) -> bool:
-    if Role(user.role) in {Role.OWNER, Role.MANAGER, Role.HR, Role.ACCOUNTANT}:
-        return True
-    if user.id in (task.assigned_to or []):
-        return True
-    sub_ids = task.sub_tasks or []
-    me = str(user.id)
-    return any(me in {str(x) for x in (st.get("assigned_to") or [])} for st in sub_ids)
+    if role in {Role.OWNER, Role.MANAGER, Role.ACCOUNTANT}:
+        payload["is_billable"] = task.is_billable
+    return payload
 
 
 def _build_payload(db: Session, user: Profile) -> dict[str, Any]:
@@ -81,7 +74,7 @@ def _build_payload(db: Session, user: Profile) -> dict[str, Any]:
     role = Role(user.role)
 
     tasks_all = db.scalars(select(Task)).all()
-    visible_tasks = [task for task in tasks_all if _visible(task, user)]
+    visible_tasks = [task for task in tasks_all if can_view_task_db(db, task, user)]
     announcements = db.scalars(
         select(Announcement).order_by(Announcement.created_at.desc()).limit(3)
     ).all()
@@ -110,7 +103,7 @@ def _build_payload(db: Session, user: Profile) -> dict[str, Any]:
     heap: PriorityHeap[dict[str, Any]] = PriorityHeap()
     for task in visible_tasks:
         if task.status in _OPEN_STATUSES or task.status in _FLAGGED_STATUSES:
-            heap.push(urgency_score(_serialize_task(task), today=today), _serialize_task(task))
+            heap.push(urgency_score(_serialize_task(task, role), today=today), _serialize_task(task, role))
 
     overdue = [
         task
@@ -144,12 +137,11 @@ def _build_payload(db: Session, user: Profile) -> dict[str, Any]:
             "pending_billing": sum(1 for task in billable if task.billed_at is None),
         }
     else:
-        my_tasks = [task for task in visible_tasks if user.id in (task.assigned_to or [])]
         stats = {
-            "my_tasks": len(my_tasks),
-            "completed": sum(1 for task in my_tasks if task.status == "Completed"),
-            "due_today": sum(1 for task in my_tasks if task.due_date == today),
-            "in_progress": sum(1 for task in my_tasks if task.status == "In Progress"),
+            "my_tasks": len(visible_tasks),
+            "completed": sum(1 for task in visible_tasks if task.status == "Completed"),
+            "due_today": sum(1 for task in visible_tasks if task.due_date == today),
+            "in_progress": sum(1 for task in visible_tasks if task.status == "In Progress"),
         }
 
     # Refresh the user's notification ring buffer (deque).
@@ -174,7 +166,7 @@ def _build_payload(db: Session, user: Profile) -> dict[str, Any]:
         },
         "stats": stats,
         "priority_lane": heap.top_k(8),
-        "recent_tasks": [_serialize_task(task) for task in sorted(visible_tasks, key=lambda x: x.updated_at, reverse=True)[:6]],
+        "recent_tasks": [_serialize_task(task, role) for task in sorted(visible_tasks, key=lambda x: x.updated_at, reverse=True)[:6]],
         "announcements": [
             {
                 "id": str(a.id),
@@ -185,8 +177,8 @@ def _build_payload(db: Session, user: Profile) -> dict[str, Any]:
             }
             for a in announcements
         ],
-        "flagged_tasks": [_serialize_task(task) for task in flagged[:5]],
-        "due_today": [_serialize_task(task) for task in due_today[:5]],
+        "flagged_tasks": [_serialize_task(task, role) for task in flagged[:5]],
+        "due_today": [_serialize_task(task, role) for task in due_today[:5]],
         "pending_leave_requests": [
             {
                 "id": str(leave.id),

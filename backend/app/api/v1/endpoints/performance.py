@@ -26,7 +26,7 @@ def _require_access(user: Profile, *, target_user_id: uuid.UUID | None = None) -
     role = Role(user.role)
     if role in {Role.OWNER, Role.MANAGER, Role.HR}:
         return
-    if role is Role.TEAM and (target_user_id is None or target_user_id == user.id):
+    if role in {Role.TEAM, Role.DEVELOPER} and (target_user_id is None or target_user_id == user.id):
         return
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Performance restricted")
 

@@ -347,11 +347,6 @@ def review_attachment(
 ) -> dict[str, Any]:
     if Role(user.role) not in {Role.OWNER, Role.MANAGER}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner/Manager only")
-    if not _is_clocked_in_today(db, user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Clock in before reviewing files",
-        )
     row = db.get(FileAttachment, attachment_id)
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")

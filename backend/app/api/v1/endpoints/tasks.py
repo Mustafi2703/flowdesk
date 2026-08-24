@@ -43,6 +43,39 @@ _ASSIGNEE_PROGRESS_FIELDS = frozenset(
 )
 # Drive links are metadata — managers can attach folders without clocking in.
 _WORK_FIELDS = frozenset({"status", "checklist", "sub_tasks", "description"})
+_TEAM_ESCALATION = frozenset({"On Hold", "Struggling", "Needs Attention"})
+_REVIEW_AUTO_STATUSES = frozenset({"Under Review", "Revision Needed", "Completed"})
+
+
+def _validate_assignee_status_change(task: Task, new_status: str, role: Role) -> None:
+    """Review-gated tasks: assignees cannot jump into review outcomes manually."""
+    if role in {Role.OWNER, Role.MANAGER}:
+        return
+    if not task.requires_review:
+        return
+    current = task.status or "Not Started"
+    if new_status == current:
+        return
+    if new_status in _REVIEW_AUTO_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Upload deliverables or wait for manager review — review statuses change automatically",
+        )
+    if current == "Under Review":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Task is under review — wait for manager approval or revision notes",
+        )
+    if current == "Completed":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Task is completed")
+    if new_status == "In Progress" and current in {"Not Started", "Revision Needed"}:
+        return
+    if new_status in _TEAM_ESCALATION and current in {"Not Started", "In Progress", "Revision Needed"}:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Upload files to send this task for review, or flag On Hold / Struggling / Needs Attention",
+    )
 
 
 def _serialize(
@@ -341,7 +374,11 @@ def update_task(
     role = Role(user.role)
     allowed_manager = role in {Role.OWNER, Role.MANAGER}
     fields = set(payload.model_fields_set)
-    if fields & _WORK_FIELDS and not _is_clocked_in_today(db, user):
+    if (
+        fields & _WORK_FIELDS
+        and role not in {Role.OWNER, Role.MANAGER}
+        and not _is_clocked_in_today(db, user)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Clock in for today before updating task progress or status",
@@ -377,6 +414,8 @@ def update_task(
     # Track who assigned whenever assignment changes (owner/manager).
     if "assigned_to" in update and allowed_manager:
         update["assigned_by"] = user.id
+    if "status" in update and not allowed_manager:
+        _validate_assignee_status_change(task, str(update["status"]), role)
     for key, value in update.items():
         setattr(task, key, value)
     # Starting work (checklist / sub-tasks / description) auto-promotes Not Started → In Progress.
@@ -477,11 +516,6 @@ def review_task(
 ) -> dict[str, Any]:
     if Role(user.role) not in {Role.OWNER, Role.MANAGER}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner/Manager only")
-    if not _is_clocked_in_today(db, user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Clock in before reviewing tasks",
-        )
     task = db.get(Task, task_id)
     if not task or not _can_view_db(db, task, user):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
@@ -590,7 +624,7 @@ def close_updates(
     if Role(user.role) not in {Role.OWNER, Role.MANAGER}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner/Manager only")
     task = db.get(Task, task_id)
-    if not task:
+    if not task or not _can_view_db(db, task, user):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     purged = 0
     if purge:
@@ -629,7 +663,7 @@ def reopen_updates(
     if Role(user.role) not in {Role.OWNER, Role.MANAGER}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner/Manager only")
     task = db.get(Task, task_id)
-    if not task:
+    if not task or not _can_view_db(db, task, user):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     task.updates_closed = False
     task.updates_closed_at = None

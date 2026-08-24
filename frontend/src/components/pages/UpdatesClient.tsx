@@ -8,7 +8,9 @@ import { PageHeader, PageShell } from '@/components/app/Section'
 import { StatusBadge, statusTint } from '@/components/app/StatusBadge'
 import { Modal } from '@/components/app/Modal'
 import { todayIST } from '@/lib/clock'
-import { allowedTaskStatuses, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
+import { allowedTaskStatuses, canManualStatusChange, isClockedInToday, isTaskAssignee, sameUserId, taskStatusFlowHint } from '@/lib/tasks'
+import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
+import { TaskWorkflowBanner } from '@/components/app/TaskWorkflowBanner'
 import { ATTENDANCE_CHANGED } from '@/lib/attendance'
 
 const URL_RE = /(https?:\/\/[^\s]+)/g
@@ -209,7 +211,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     await loadFeed()
   }
 
-  const channels = useMemo(() => {
+  const { channels, channelTotal } = useMemo(() => {
     const byTask = new Map()
     for (const u of updates) {
       const prev = byTask.get(u.task_id)
@@ -231,18 +233,25 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     })
     rows.sort((a, b) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime())
     const q = query.trim().toLowerCase()
-    if (!q) return rows
-    return rows.filter((r) =>
+    if (!q) return { channels: rows, channelTotal: rows.length }
+    const filtered = rows.filter((r) =>
       r.task.title?.toLowerCase().includes(q) ||
-      (r.lastMessage || '').toLowerCase().includes(q)
+      r.task.brand?.name?.toLowerCase().includes(q) ||
+      (r.lastMessage || '').toLowerCase().includes(q) ||
+      (r.lastSender || '').toLowerCase().includes(q)
     )
+    return { channels: filtered, channelTotal: rows.length }
   }, [tasks, updates, query, showClosed])
 
   const selectedTask = tasks.find((t) => t.id === selectedTaskId)
   const assigneeNames = (selectedTask?.assigned_to || [])
     .map((id: string) => users.find((u) => sameUserId(u.id, id))?.name)
     .filter(Boolean)
-  const canChangeStatus = Boolean(selectedTask && clockedIn && (isMgmt || isTaskAssignee(selectedTask, session.id)))
+  const canChangeStatus = Boolean(
+    selectedTask && clockedIn && canManualStatusChange(selectedTask, session.role, session.id)
+  )
+  const statusOptions = selectedTask ? allowedTaskStatuses(selectedTask, session.role) : []
+  const showStatusSelect = canChangeStatus && (isMgmt || statusOptions.length > 1)
 
   if (loading) {
     return <div style={{ color: 'var(--sf-muted)', padding: 40, textAlign: 'center' }}>Loading chat…</div>
@@ -273,12 +282,20 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
         <div className="sf-updates-board">
           <div className="sf-updates-channels">
             <div className="sf-upd-channel-search">
-              <div className="sf-upd-channel-heading">Channels</div>
+              <div className="sf-upd-channel-search-row">
+                <div className="sf-upd-channel-heading">Channels</div>
+                <span className="sf-upd-channel-count">
+                  {query.trim()
+                    ? `${channels.length} of ${channelTotal}`
+                    : `${channelTotal} channel${channelTotal === 1 ? '' : 's'}`}
+                </span>
+              </div>
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search tasks"
+                placeholder="Search tasks, brands, or messages"
                 className="sf-input"
+                aria-label="Search task channels"
               />
             </div>
             <div ref={channelScrollRef} className="sf-upd-channel-list">
@@ -353,22 +370,40 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                     </div>
                   </div>
 
-                  {showTools && (
+                  {showTools && selectedTask && (
                     <div className="sf-upd-tools">
+                      {selectedTask.requires_review && (
+                        <TaskWorkflowBanner task={selectedTask} role={session.role} compact />
+                      )}
                       <div className="sf-upd-tool-row">
-                        {canChangeStatus ? (
+                        {showStatusSelect ? (
                           <select
                             value={selectedTask.status}
                             onChange={(e) => updateStatus(e.target.value)}
                             className="sf-input"
                             style={statusTint(selectedTask.status)}
                           >
-                            {allowedTaskStatuses(selectedTask, session.role).map((s) => <option key={s} value={s}>{s}</option>)}
+                            {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
                           </select>
                         ) : (
-                          <span className="sf-upd-hint">{clockedIn ? 'Status is read-only' : 'Clock in to change status'}</span>
+                          <span className="sf-upd-hint">
+                            {selectedTask.requires_review && !isMgmt
+                              ? taskStatusFlowHint(selectedTask, session.role)
+                              : clockedIn
+                                ? 'Status is automatic for this task'
+                                : 'Clock in to start work or upload files'}
+                          </span>
                         )}
                       </div>
+
+                      {!isMgmt && selectedTask.requires_review && selectedTaskId && (
+                        <FileAttachmentsPanel
+                          entityType="task"
+                          entityId={selectedTaskId}
+                          title="Upload for review"
+                          onUploadComplete={() => loadFeed()}
+                        />
+                      )}
 
                       {isMgmt && selectedTask.requires_review && selectedTask.status === 'Under Review' && (
                         <div className="sf-upd-tool-block">

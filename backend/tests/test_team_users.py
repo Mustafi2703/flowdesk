@@ -248,3 +248,24 @@ def test_manager_sees_only_reports_in_team_list(client, users):
     assert str(manager.id) in ids
     assert str(report.id) in ids
     assert len(ids) == 2
+
+
+def test_users_directory_hides_email_from_team(client, users):
+    owner = users.create("owner")
+    team = users.create("team")
+    owner_list = client.get("/api/v1/users", headers=users.auth_headers(owner)).json()
+    team_list = client.get("/api/v1/users", headers=users.auth_headers(team)).json()
+    assert owner_list[0]["email"]
+    assert "email" not in team_list[0]
+
+
+def test_manager_workload_scoped_to_reports(client, users):
+    owner = users.create("owner")
+    manager = users.create("manager")
+    report = users.create("team", manager_id=manager.id)
+    other = users.create("team")
+    rows = client.get("/api/v1/team/workload", headers=users.auth_headers(manager)).json()
+    ids = {r["user"]["id"] for r in rows}
+    assert str(manager.id) in ids
+    assert str(report.id) in ids
+    assert str(other.id) not in ids

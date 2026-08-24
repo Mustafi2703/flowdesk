@@ -54,7 +54,7 @@ def can_set_price(role: Role) -> bool:
 
 
 def can_approve_leave(role: Role) -> bool:
-    return role in {Role.OWNER, Role.HR}
+    return role in {Role.OWNER, Role.MANAGER, Role.HR}
 
 
 def can_view_team(role: Role) -> bool:
@@ -62,7 +62,7 @@ def can_view_team(role: Role) -> bool:
 
 
 def can_view_performance(role: Role) -> bool:
-    return role in {Role.OWNER, Role.MANAGER, Role.HR, Role.TEAM}
+    return role in {Role.OWNER, Role.MANAGER, Role.HR, Role.TEAM, Role.DEVELOPER}
 
 
 def can_post_announcement(role: Role) -> bool:

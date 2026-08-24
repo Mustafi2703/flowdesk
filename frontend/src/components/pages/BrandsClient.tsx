@@ -6,7 +6,7 @@ import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
 import { EmptyState, Icon } from '@/components/app/Icons'
 import { PageHeader, PageShell, PageToolbar, Section } from '@/components/app/Section'
 import { TaskFormModal } from '@/components/pages/TasksClient'
-import { TASK_STATUSES, canManageTasks, canSetTaskPrice, isClockedInToday, isTaskAssignee } from '@/lib/tasks'
+import { allowedTaskStatuses, canManageTasks, canManualStatusChange, canSetTaskPrice, isClockedInToday, isTaskAssignee } from '@/lib/tasks'
 import { todayIST } from '@/lib/clock'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
@@ -405,7 +405,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
   function canUpdateStatus(task: any) {
     if (!clockedIn) return false
     if (canEdit) return true
-    return isTaskAssignee(task, session.id)
+    return isTaskAssignee(task, session.id) && canManualStatusChange(task, session.role, session.id)
   }
 
   function canUpdateProgress(task: any) {
@@ -428,9 +428,15 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
 
   function renderStatus(task: any) {
     if (canUpdateStatus(task)) {
+      const options = allowedTaskStatuses(task, session.role)
+      if (options.length <= 1 && !canEdit) {
+        return (
+          <span style={{ background: STATUS_BG[task.status] || '#F3F4F6', color: STATUS_TEXT[task.status] || '#374151', fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 5 }}>{task.status}</span>
+        )
+      }
       return (
         <select value={task.status} onChange={e => updateTaskStatus(task.id, e.target.value)} style={{ ...statusSelectStyle, background: STATUS_BG[task.status] || statusSelectStyle.background, color: STATUS_TEXT[task.status] || statusSelectStyle.color }}>
-          {TASK_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+          {options.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       )
     }

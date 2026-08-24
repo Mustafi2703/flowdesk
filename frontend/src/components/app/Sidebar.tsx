@@ -18,7 +18,10 @@ const NAV_GROUPS: { label: string; ids: string[] }[] = [
 export default function Sidebar({ session }: { session: SessionUser }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem(SIDEBAR_KEY) === 'true'
+  })
   const [ready, setReady] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' })
@@ -27,10 +30,12 @@ export default function Sidebar({ session }: { session: SessionUser }) {
   const [pwSaving, setPwSaving] = useState(false)
 
   useEffect(() => {
-    const stored = localStorage.getItem(SIDEBAR_KEY)
-    if (stored === 'true') setCollapsed(true)
     setReady(true)
   }, [])
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--sf-sidebar-w', collapsed ? '76px' : '260px')
+  }, [collapsed])
 
   function toggleCollapsed() {
     setCollapsed((c) => {

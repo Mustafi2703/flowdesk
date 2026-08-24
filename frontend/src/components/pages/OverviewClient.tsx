@@ -158,8 +158,7 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const todayInTime = todayLog?.login_time || null
   const hoursTodayLabel = todayInTime ? `${liveHoursToday(todayLog).toFixed(1)}h` : '0h'
 
-  const myTasks = tasks.filter(t => t.assigned_to?.includes(session.id))
-  const scopeTasks = session.role === 'team' ? myTasks : tasks
+  const scopeTasks = tasks
   const overdue = scopeTasks.filter(t => t.due_date && t.due_date < today && t.status !== 'Completed')
   const dueToday = scopeTasks.filter(t => t.due_date === today && t.status !== 'Completed')
   const underReview = scopeTasks.filter(t => t.status === 'Under Review' || t.requires_review)
@@ -190,6 +189,30 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const dateStr = new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' })
   const roleDash = ROLE_DASH[session.role] || ROLE_DASH.team
   const openCount = openTasks.length
+  const firstName = (session.name || 'there').trim().split(/\s+/)[0] || 'there'
+
+  const heroSubtitle = useMemo(() => {
+    const bits: string[] = []
+    if (openCount > 0) bits.push(`${openCount} open task${openCount === 1 ? '' : 's'}`)
+    else bits.push('All caught up on open work')
+
+    if (dueToday.length) bits.push(`${dueToday.length} due today`)
+    if (overdue.length) bits.push(`${overdue.length} overdue`)
+
+    if (isAdmin) {
+      if (underReview.length) bits.push(`${underReview.length} in review`)
+      if (pendingLeav.length) bits.push(`${pendingLeav.length} leave pending`)
+    } else if (session.role === 'hr') {
+      if (pendingLeav.length) bits.push(`${pendingLeav.length} leave pending`)
+    } else if (session.role === 'accountant') {
+      const billable = scopeTasks.filter((t) => t.billable && t.status !== 'Completed').length
+      if (billable) bits.push(`${billable} billable in flight`)
+    } else if (session.role === 'team' && !dueToday.length && !overdue.length && openCount > 0) {
+      bits.push('Stay clocked in to update progress')
+    }
+
+    return bits.slice(0, 4).join(' · ')
+  }, [openCount, dueToday.length, overdue.length, underReview.length, pendingLeav.length, isAdmin, session.role, scopeTasks])
 
   if (loading) return <div style={{ color: 'var(--sf-muted)', padding: 40, textAlign: 'center' }}>Loading…</div>
 
@@ -216,8 +239,8 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
         <div className="sf-dash-hero-inner">
           <div>
             <NavIconBadge name={roleDash.icon} navId={roleDash.navId} className="sf-dash-hero-icon" />
-            <div className="sf-dash-hero-title">Good {greet}, {session.name.split(' ')[0]}</div>
-            <p className="sf-dash-hero-sub">{roleDash.blurb}</p>
+            <div className="sf-dash-hero-title">Good {greet}, {firstName}</div>
+            <p className="sf-dash-hero-sub">{heroSubtitle}</p>
             <span className="sf-dash-role-pill">{roleDash.tag} · {dateStr}</span>
           </div>
           <div className="sf-dash-hero-stats-row">

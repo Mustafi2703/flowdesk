@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
-import { PageShell, Section, StatCard, StatGrid } from '@/components/app/Section'
+import { PageShell } from '@/components/app/Section'
 import { EmptyState, DashTileIcon, NavIconBadge, type IconName } from '@/components/app/Icons'
 import { clockOutWithConfirm, todayIST } from '@/lib/clock'
 import { notifyAttendanceChanged } from '@/lib/attendance'
@@ -162,7 +162,6 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const scopeTasks = session.role === 'team' ? myTasks : tasks
   const overdue = scopeTasks.filter(t => t.due_date && t.due_date < today && t.status !== 'Completed')
   const dueToday = scopeTasks.filter(t => t.due_date === today && t.status !== 'Completed')
-  const flagged = scopeTasks.filter(t => ['Struggling', 'Needs Attention'].includes(t.status))
   const underReview = scopeTasks.filter(t => t.status === 'Under Review' || t.requires_review)
   const pendingLeav = leaves.filter(l => l.status === 'Pending')
   const isTeam = session.role === 'team'
@@ -191,7 +190,6 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const dateStr = new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' })
   const roleDash = ROLE_DASH[session.role] || ROLE_DASH.team
   const openCount = openTasks.length
-  const completedCount = scopeTasks.filter(t => t.status === 'Completed').length
 
   if (loading) return <div style={{ color: 'var(--sf-muted)', padding: 40, textAlign: 'center' }}>Loading…</div>
 
@@ -227,6 +225,7 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
             <div className="sf-dash-hero-stat"><span>{dueToday.length}</span><label>Due today</label></div>
             <div className="sf-dash-hero-stat"><span>{overdue.length}</span><label>Overdue</label></div>
             {isAdmin && <div className="sf-dash-hero-stat"><span>{underReview.length}</span><label>Review</label></div>}
+            {isAdmin && <div className="sf-dash-hero-stat"><span>{pendingLeav.length}</span><label>Leave pending</label></div>}
           </div>
         </div>
       </div>
@@ -374,81 +373,90 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
       </div>
 
       {isAdmin && (
-        <Section title="Email tools" subtitle="Test SMTP · send morning/evening briefs to all active users (test mode duplicates to EMAIL_TEST_RECIPIENT list)" flush style={{ marginTop: 16 }}>
-          <div style={{ padding: '12px 14px', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-            <button type="button" className="sf-btn sf-btn-ghost" disabled={!!emailBusy} onClick={() => runEmailAction('test')}>
-              {emailBusy === 'test' ? 'Sending…' : 'Test SMTP'}
-            </button>
-            <button type="button" className="sf-btn sf-btn-ghost" disabled={!!emailBusy} onClick={() => runEmailAction('morning-sample')}>
-              {emailBusy === 'morning-sample' ? 'Sending…' : 'Morning sample'}
-            </button>
-            <button type="button" className="sf-btn sf-btn-primary" disabled={!!emailBusy} onClick={() => runEmailAction('morning')}>
-              {emailBusy === 'morning' ? 'Sending…' : 'Morning → everyone'}
-            </button>
-            <button type="button" className="sf-btn sf-btn-primary" disabled={!!emailBusy} onClick={() => runEmailAction('evening')}>
-              {emailBusy === 'evening' ? 'Sending…' : 'Evening → everyone'}
-            </button>
-            {emailNotice && <span style={{ fontSize: 12, color: emailNotice.includes('fail') || emailNotice.includes('Could') ? 'var(--sf-danger)' : 'var(--sf-success)' }}>{emailNotice}</span>}
-          </div>
-        </Section>
-      )}
-
-      {isAdmin && (
-        <Section title="Google Drive" subtitle="Optional — connect your agency Google account for per-task folders" flush style={{ marginTop: 16 }}>
-          <div className="sf-drive-panel">
-            {!driveStatus ? (
-              <span style={{ color: 'var(--sf-muted)', fontSize: 13 }}>Loading Drive status…</span>
-            ) : !driveStatus.configured ? (
-              <p className="sf-drive-panel-text">
-                Drive OAuth is not configured on the backend yet. Set <code>GOOGLE_OAUTH_CLIENT_ID</code>, <code>GOOGLE_OAUTH_CLIENT_SECRET</code>, and <code>GOOGLE_OAUTH_REDIRECT_URI</code> on Railway (see <code>DRIVE_SETUP.md</code>). Files still work via in-app uploads (R2/Postgres).
+        <div className="sf-admin-desk">
+          <div className="sf-admin-desk-card">
+            <div className="sf-admin-desk-head">
+              <div>
+                <div className="sf-page-eyebrow">Operations</div>
+                <h3 className="sf-admin-desk-title">Email dispatch</h3>
+                <p className="sf-admin-desk-sub">Morning and evening briefs for the team</p>
+              </div>
+              <span className="sf-admin-badge sf-admin-badge-brand">SMTP</span>
+            </div>
+            <div className="sf-admin-desk-actions">
+              <button type="button" className="sf-btn sf-btn-ghost" disabled={!!emailBusy} onClick={() => runEmailAction('test')}>
+                {emailBusy === 'test' ? 'Sending…' : 'Test connection'}
+              </button>
+              <button type="button" className="sf-btn sf-btn-ghost" disabled={!!emailBusy} onClick={() => runEmailAction('morning-sample')}>
+                {emailBusy === 'morning-sample' ? 'Sending…' : 'Preview brief'}
+              </button>
+              <button type="button" className="sf-btn sf-btn-primary" disabled={!!emailBusy} onClick={() => runEmailAction('morning')}>
+                {emailBusy === 'morning' ? 'Sending…' : 'Send morning brief'}
+              </button>
+              <button type="button" className="sf-btn sf-btn-ghost" disabled={!!emailBusy} onClick={() => runEmailAction('evening')}>
+                {emailBusy === 'evening' ? 'Sending…' : 'Send evening brief'}
+              </button>
+            </div>
+            {emailNotice && (
+              <p className={`sf-admin-desk-notice${emailNotice.includes('fail') || emailNotice.includes('Could') ? ' is-error' : ''}`}>
+                {emailNotice}
               </p>
-            ) : driveStatus.connected ? (
-              <>
-                <p className="sf-drive-panel-text">
-                  Connected as <strong>{driveStatus.account_email || 'Google account'}</strong>.
-                  Owner/manager can create a Drive folder from any task&apos;s Files tab once connected.
-                </p>
-                {driveStatus.root_folder_url && (
-                  <a href={driveStatus.root_folder_url} target="_blank" rel="noreferrer" className="sf-btn sf-btn-ghost" style={{ textDecoration: 'none', fontSize: 12 }}>
-                    Open root folder
-                  </a>
-                )}
-                {session.role === 'owner' && (
-                  <button type="button" className="sf-btn sf-btn-ghost" disabled={driveBusy} onClick={disconnectDrive} style={{ color: 'var(--sf-danger)' }}>
-                    Disconnect
-                  </button>
-                )}
-              </>
-            ) : (
-              <>
-                <p className="sf-drive-panel-text">
-                  Not connected. {session.role === 'owner' ? 'Connect once to create task folders in your Google Drive.' : 'Ask the owner to connect Google Drive.'}
-                </p>
-                {session.role === 'owner' && (
-                  <button type="button" className="sf-btn sf-btn-primary" disabled={driveBusy} onClick={connectDrive}>
-                    {driveBusy ? 'Redirecting…' : 'Connect Google Drive'}
-                  </button>
-                )}
-              </>
             )}
           </div>
-        </Section>
-      )}
 
-      <StatGrid>
-        {isAdmin && <>
-          <StatCard label="Open" value={openCount} sub={`${completedCount} done`} accent="var(--sf-info)" />
-          <StatCard label="Overdue" value={overdue.length} accent="var(--sf-danger)" />
-          <StatCard label="Due today" value={dueToday.length} accent="var(--sf-warning)" />
-          <StatCard label="Under review" value={underReview.length} accent="#8B5CF6" />
-          <StatCard label="Leave pending" value={pendingLeav.length} accent="#8B5CF6" />
-        </>}
-        {isTeam && <>
-          <StatCard label="My tasks" value={myTasks.length} accent="var(--sf-accent)" />
-          <StatCard label="Due today" value={dueToday.length} accent="var(--sf-warning)" />
-          <StatCard label="In progress" value={myTasks.filter(t => t.status === 'In Progress').length} accent="var(--sf-info)" />
-        </>}
-      </StatGrid>
+          <div className="sf-admin-desk-card">
+            <div className="sf-admin-desk-head">
+              <div>
+                <div className="sf-page-eyebrow">Integrations</div>
+                <h3 className="sf-admin-desk-title">Google Drive</h3>
+                <p className="sf-admin-desk-sub">Per-task folders in your workspace</p>
+              </div>
+              <span className={`sf-admin-badge${driveStatus?.connected ? ' sf-admin-badge-ok' : ' sf-admin-badge-warn'}`}>
+                {!driveStatus ? '…' : driveStatus.connected ? 'Connected' : driveStatus.configured ? 'Not linked' : 'Not configured'}
+              </span>
+            </div>
+            <div className="sf-admin-desk-body">
+              {!driveStatus ? (
+                <p className="sf-admin-desk-copy">Checking connection…</p>
+              ) : driveStatus.connected ? (
+                <>
+                  <p className="sf-admin-desk-copy">
+                    Signed in as <strong>{driveStatus.account_email || 'Google account'}</strong>.
+                    Create folders from any task&apos;s Files tab.
+                  </p>
+                  <div className="sf-admin-desk-actions">
+                    {driveStatus.root_folder_url && (
+                      <a href={driveStatus.root_folder_url} target="_blank" rel="noreferrer" className="sf-btn sf-btn-ghost" style={{ textDecoration: 'none' }}>
+                        Open root folder
+                      </a>
+                    )}
+                    {session.role === 'owner' && (
+                      <button type="button" className="sf-btn sf-btn-ghost" disabled={driveBusy} onClick={disconnectDrive} style={{ color: 'var(--sf-danger)' }}>
+                        Disconnect
+                      </button>
+                    )}
+                  </div>
+                </>
+              ) : driveStatus.configured ? (
+                <>
+                  <p className="sf-admin-desk-copy">
+                    Drive is ready to connect. In-app file uploads continue to work without it.
+                  </p>
+                  {session.role === 'owner' && (
+                    <button type="button" className="sf-btn sf-btn-primary" disabled={driveBusy} onClick={connectDrive}>
+                      {driveBusy ? 'Redirecting…' : 'Connect Google Drive'}
+                    </button>
+                  )}
+                </>
+              ) : (
+                <p className="sf-admin-desk-copy">
+                  Drive is not set up on the server yet. Use task file uploads (R2/Postgres) in the meantime.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </PageShell>
   )
 }

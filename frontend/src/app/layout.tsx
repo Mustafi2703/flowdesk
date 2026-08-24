@@ -13,13 +13,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('sf-theme');if(t==='morning'||t==='night')document.documentElement.setAttribute('data-theme',t)}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('sf-theme');if(t==='morning'||t==='night')document.documentElement.setAttribute('data-theme',t);else document.documentElement.setAttribute('data-theme','morning')}catch(e){document.documentElement.setAttribute('data-theme','morning')}})();`,
           }}
         />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Manrope:wght@400;500;600;700&family=Sora:wght@600&family=Space+Grotesk:wght@500;600;700&display=swap"
           rel="stylesheet"
         />
       </head>

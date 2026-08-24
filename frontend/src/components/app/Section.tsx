@@ -40,9 +40,10 @@ export function PageShell({
   )
 }
 
-export function PageHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+export function PageHeader({ title, subtitle, eyebrow }: { title: string; subtitle?: string; eyebrow?: string }) {
   return (
     <div className="sf-page-header">
+      {eyebrow && <div className="sf-page-eyebrow">{eyebrow}</div>}
       <h1 className="sf-page-title">{title}</h1>
       {subtitle && <p className="sf-page-sub">{subtitle}</p>}
     </div>

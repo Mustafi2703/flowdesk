@@ -11,21 +11,19 @@ type ThemeContextValue = {
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: 'night',
+  theme: 'morning',
   setTheme: () => {},
 })
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeMode>('night')
+  const [theme, setThemeState] = useState<ThemeMode>('morning')
 
   useEffect(() => {
     const stored = localStorage.getItem('sf-theme') as ThemeMode | null
     const initial: ThemeMode =
       stored === 'morning' || stored === 'night'
         ? stored
-        : window.matchMedia('(prefers-color-scheme: light)').matches
-          ? 'morning'
-          : 'night'
+        : 'morning'
     setThemeState(initial)
     document.documentElement.setAttribute('data-theme', initial)
   }, [])

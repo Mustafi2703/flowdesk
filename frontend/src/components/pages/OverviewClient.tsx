@@ -57,6 +57,8 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const [emailBusy, setEmailBusy] = useState('')
   const [emailNotice, setEmailNotice] = useState('')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [driveStatus, setDriveStatus] = useState<any>(null)
+  const [driveBusy, setDriveBusy] = useState(false)
   const today = todayIST()
 
   useEffect(() => {
@@ -87,16 +89,48 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
     })
   }, [])
 
-  async function runEmailAction(kind: 'test' | 'morning' | 'evening') {
+  useEffect(() => {
+    if (!['owner', 'manager'].includes(session.role)) return
+    fetch('/api/drive/status')
+      .then(r => r.json())
+      .then(setDriveStatus)
+      .catch(() => setDriveStatus(null))
+  }, [session.role])
+
+  async function connectDrive() {
+    setDriveBusy(true)
+    const res = await fetch('/api/drive/connect')
+    const data = await res.json().catch(() => ({}))
+    setDriveBusy(false)
+    if (data.url) window.location.href = data.url
+    else alert(data.error || data.detail || 'Drive is not configured on the backend')
+  }
+
+  async function disconnectDrive() {
+    if (!window.confirm('Disconnect Google Drive? Existing task folder links stay on tasks.')) return
+    setDriveBusy(true)
+    await fetch('/api/drive/disconnect', { method: 'POST' })
+    const status = await fetch('/api/drive/status').then(r => r.json()).catch(() => null)
+    setDriveStatus(status)
+    setDriveBusy(false)
+  }
+
+  async function runEmailAction(kind: 'test' | 'morning' | 'morning-sample' | 'evening') {
     setEmailBusy(kind)
     setEmailNotice('')
-    const path = kind === 'test' ? '/api/emails/test' : kind === 'morning' ? '/api/emails/morning-digest' : '/api/emails/evening-digest'
+    const path =
+      kind === 'test' ? '/api/emails/test'
+      : kind === 'morning-sample' ? '/api/emails/test-morning-sample'
+      : kind === 'morning' ? '/api/emails/morning-digest'
+      : '/api/emails/evening-digest'
     const res = await fetch(path, { method: 'POST' })
     const data = await res.json().catch(() => ({}))
     setEmailBusy('')
     if (!res.ok || data.ok === false) setEmailNotice(data.error || data.detail || 'Could not send email')
-    else if (kind === 'test') setEmailNotice(`Test email sent to ${data.to}`)
-    else setEmailNotice(`${kind === 'morning' ? 'Morning' : 'Evening'} brief sent to ${data.sent} people`)
+    else if (kind === 'test') setEmailNotice(`Test sent to ${data.to}`)
+    else if (kind === 'morning-sample') setEmailNotice(`Morning sample sent to ${data.to}`)
+    else if (kind === 'morning') setEmailNotice(`Morning brief sent for ${data.sent} users${data.test_recipients?.length ? ` → ${data.test_recipients.join(', ')}` : ''}`)
+    else setEmailNotice(`Evening brief sent for ${data.sent} users`)
   }
 
   const clockIn = () => fetch('/api/attendance/clockin', { method: 'POST' }).then(async (r) => {
@@ -340,18 +374,63 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
       </div>
 
       {isAdmin && (
-        <Section title="Email tools" subtitle="Send briefs on demand" flush style={{ marginTop: 16 }}>
+        <Section title="Email tools" subtitle="Test SMTP · send morning/evening briefs to all active users (test mode duplicates to EMAIL_TEST_RECIPIENT list)" flush style={{ marginTop: 16 }}>
           <div style={{ padding: '12px 14px', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
             <button type="button" className="sf-btn sf-btn-ghost" disabled={!!emailBusy} onClick={() => runEmailAction('test')}>
-              {emailBusy === 'test' ? 'Sending…' : 'Test email'}
+              {emailBusy === 'test' ? 'Sending…' : 'Test SMTP'}
+            </button>
+            <button type="button" className="sf-btn sf-btn-ghost" disabled={!!emailBusy} onClick={() => runEmailAction('morning-sample')}>
+              {emailBusy === 'morning-sample' ? 'Sending…' : 'Morning sample'}
             </button>
             <button type="button" className="sf-btn sf-btn-primary" disabled={!!emailBusy} onClick={() => runEmailAction('morning')}>
-              {emailBusy === 'morning' ? 'Sending…' : 'Morning brief'}
+              {emailBusy === 'morning' ? 'Sending…' : 'Morning → everyone'}
             </button>
             <button type="button" className="sf-btn sf-btn-primary" disabled={!!emailBusy} onClick={() => runEmailAction('evening')}>
-              {emailBusy === 'evening' ? 'Sending…' : 'Evening brief'}
+              {emailBusy === 'evening' ? 'Sending…' : 'Evening → everyone'}
             </button>
             {emailNotice && <span style={{ fontSize: 12, color: emailNotice.includes('fail') || emailNotice.includes('Could') ? 'var(--sf-danger)' : 'var(--sf-success)' }}>{emailNotice}</span>}
+          </div>
+        </Section>
+      )}
+
+      {isAdmin && (
+        <Section title="Google Drive" subtitle="Optional — connect your agency Google account for per-task folders" flush style={{ marginTop: 16 }}>
+          <div className="sf-drive-panel">
+            {!driveStatus ? (
+              <span style={{ color: 'var(--sf-muted)', fontSize: 13 }}>Loading Drive status…</span>
+            ) : !driveStatus.configured ? (
+              <p className="sf-drive-panel-text">
+                Drive OAuth is not configured on the backend yet. Set <code>GOOGLE_OAUTH_CLIENT_ID</code>, <code>GOOGLE_OAUTH_CLIENT_SECRET</code>, and <code>GOOGLE_OAUTH_REDIRECT_URI</code> on Railway (see <code>DRIVE_SETUP.md</code>). Files still work via in-app uploads (R2/Postgres).
+              </p>
+            ) : driveStatus.connected ? (
+              <>
+                <p className="sf-drive-panel-text">
+                  Connected as <strong>{driveStatus.account_email || 'Google account'}</strong>.
+                  Owner/manager can create a Drive folder from any task&apos;s Files tab once connected.
+                </p>
+                {driveStatus.root_folder_url && (
+                  <a href={driveStatus.root_folder_url} target="_blank" rel="noreferrer" className="sf-btn sf-btn-ghost" style={{ textDecoration: 'none', fontSize: 12 }}>
+                    Open root folder
+                  </a>
+                )}
+                {session.role === 'owner' && (
+                  <button type="button" className="sf-btn sf-btn-ghost" disabled={driveBusy} onClick={disconnectDrive} style={{ color: 'var(--sf-danger)' }}>
+                    Disconnect
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="sf-drive-panel-text">
+                  Not connected. {session.role === 'owner' ? 'Connect once to create task folders in your Google Drive.' : 'Ask the owner to connect Google Drive.'}
+                </p>
+                {session.role === 'owner' && (
+                  <button type="button" className="sf-btn sf-btn-primary" disabled={driveBusy} onClick={connectDrive}>
+                    {driveBusy ? 'Redirecting…' : 'Connect Google Drive'}
+                  </button>
+                )}
+              </>
+            )}
           </div>
         </Section>
       )}

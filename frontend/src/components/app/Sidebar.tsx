@@ -8,6 +8,13 @@ import { Modal } from '@/components/app/Modal'
 
 const SIDEBAR_KEY = 'sf-sidebar-collapsed'
 
+const NAV_GROUPS: { label: string; ids: string[] }[] = [
+  { label: 'Workspace', ids: ['overview', 'calendar', 'tasks', 'updates', 'devboard'] },
+  { label: 'Clients', ids: ['brands', 'review'] },
+  { label: 'People', ids: ['team', 'performance', 'attendance', 'leave', 'announcements'] },
+  { label: 'Finance', ids: ['billing'] },
+]
+
 export default function Sidebar({ session }: { session: SessionUser }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -99,24 +106,38 @@ export default function Sidebar({ session }: { session: SessionUser }) {
         </button>
       </div>
 
-      <nav className="sf-sidebar-nav">
-        {nav.map(item => {
-          const active =
-            pathname === `/${item.id}` ||
-            (pathname.startsWith(`/${item.id}/`) && item.id !== 'overview')
-          const tone = navTone(item.id)
+      <nav className="sf-sidebar-nav" aria-label="Primary">
+        {NAV_GROUPS.map(group => {
+          const items = nav.filter(n => (group.ids as readonly string[]).includes(n.id))
+          if (!items.length) return null
           return (
-            <button
-              key={item.id}
-              type="button"
-              className={`sf-nav ${active ? 'active' : ''}`}
-              style={{ '--nav-fg': tone.fg } as CSSProperties}
-              onClick={() => router.push(`/${item.id}`)}
-              title={collapsed ? item.label : undefined}
-            >
-              <NavIconBadge name={item.icon} navId={item.id} active={active} />
-              <span className="sf-nav-label">{item.label}</span>
-            </button>
+            <div key={group.label} className="sf-sidebar-group">
+              {!collapsed && (
+                <div className="sf-sidebar-group-label" aria-hidden>
+                  {group.label}
+                </div>
+              )}
+              {items.map(item => {
+                const active =
+                  pathname === `/${item.id}` ||
+                  (pathname.startsWith(`/${item.id}/`) && item.id !== 'overview')
+                const tone = navTone(item.id)
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`sf-nav ${active ? 'active' : ''}`}
+                    style={{ '--nav-fg': tone.fg } as CSSProperties}
+                    onClick={() => router.push(`/${item.id}`)}
+                    title={collapsed ? item.label : undefined}
+                  >
+                    <NavIconBadge name={item.icon} navId={item.id} active={active} />
+                    <span className="sf-nav-label">{item.label}</span>
+                    {active && <span className="sf-nav-active-bar" aria-hidden />}
+                  </button>
+                )
+              })}
+            </div>
           )
         })}
       </nav>

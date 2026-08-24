@@ -147,6 +147,25 @@ def list_team(
     return db.scalars(stmt).all()
 
 
+@router.get("/roles")
+def list_system_roles(user: Profile = Depends(get_current_user)) -> dict[str, list[dict[str, str]]]:
+    """System roles for the Team UI (not org departments)."""
+    _require_team_view(user)
+    rows = [
+        ("owner", "Owner", "Full workspace — brands, prices, team, settings"),
+        ("manager", "Manager", "Delivery — tasks, brands, reviews; onboard Team only"),
+        ("team", "Team", "Assigned work — clock-in, Updates, uploads"),
+        ("hr", "HR", "People — leave, attendance, directory"),
+        ("accountant", "Accounts", "Billing — billable work and invoices"),
+    ]
+    return {
+        "roles": [
+            {"id": rid, "label": label, "description": desc}
+            for rid, label, desc in rows
+        ]
+    }
+
+
 @router.get("/assignable-roles")
 def assignable_roles(user: Profile = Depends(get_current_user)) -> dict[str, list[str]]:
     """Tells the UI which roles the current user is allowed to assign."""
@@ -214,6 +233,12 @@ def create_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unknown role: {payload.role}",
         ) from exc
+
+    if new_role is Role.DEVELOPER:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Developer is not an assignable role. Use Team.",
+        )
 
     if new_role not in allowed:
         raise HTTPException(
@@ -344,6 +369,16 @@ def update_user(
     # Owner can edit any user.
     if role is Role.OWNER:
         unset = payload.model_dump(exclude_unset=True)
+        if "role" in incoming and incoming["role"] is not None:
+            try:
+                next_role = Role(incoming["role"])
+            except ValueError as exc:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid role") from exc
+            if next_role is Role.DEVELOPER:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Developer is not assignable. Use Team.",
+                )
         if "email" in incoming and incoming["email"] is not None:
             new_email = str(incoming["email"]).lower().strip()
             clash = db.scalar(

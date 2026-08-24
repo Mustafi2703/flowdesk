@@ -1,7 +1,7 @@
 // @ts-nocheck
 'use client'
 import { useEffect, useState } from 'react'
-import { SessionUser, ROLE_COLORS, ROLE_LABELS } from '@/types'
+import { SessionUser, ROLE_COLORS, ROLE_LABELS, SYSTEM_ROLES, ROLE_DESCRIPTIONS } from '@/types'
 import { PageHeader, PageShell, PageTabs, PageToolbar, Section, StatCard, StatGrid } from '@/components/app/Section'
 import { Modal } from '@/components/app/Modal'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
@@ -10,8 +10,119 @@ import { formatApiError } from '@/lib/apiErrors'
 
 const TEAM_PANELS = [
   { id: 'members', label: 'Team members' },
+  { id: 'roles', label: 'Roles' },
   { id: 'departments', label: 'Departments' },
 ]
+
+function normalizeRole(role?: string | null) {
+  const r = String(role || 'team').toLowerCase()
+  if (r === 'developer') return 'team'
+  return (SYSTEM_ROLES as readonly string[]).includes(r) ? r : 'team'
+}
+
+function displayRoleLabel(role?: string | null) {
+  const r = String(role || '').toLowerCase()
+  if (r === 'developer') return 'Team (legacy)'
+  return ROLE_LABELS[r] || r || '—'
+}
+
+function UserFormFields({
+  mode,
+  sessionRole,
+  userForm,
+  setUserForm,
+  roleOptions,
+  managerOptions,
+  departmentSuggestions,
+  showOwnerFields,
+}: {
+  mode: 'create' | 'edit'
+  sessionRole: string
+  userForm: any
+  setUserForm: (fn: (f: any) => any) => void
+  roleOptions: string[]
+  managerOptions: any[]
+  departmentSuggestions: string[]
+  showOwnerFields: boolean
+}) {
+  return (
+    <div className="sf-team-user-form">
+      <div className="sf-team-user-form-section">
+        <div className="sf-team-user-form-section-title">Account</div>
+        <label className="sf-team-field">
+          <span>Full name</span>
+          <input required placeholder="Full name" value={userForm.name} onChange={e => setUserForm(f => ({ ...f, name: e.target.value }))} className="sf-input" />
+        </label>
+        {(mode === 'create' || showOwnerFields) && (
+          <label className="sf-team-field">
+            <span>Email</span>
+            <input required type="email" placeholder="name@company.com" value={userForm.email} onChange={e => setUserForm(f => ({ ...f, email: e.target.value }))} className="sf-input" />
+          </label>
+        )}
+        {(mode === 'create' || showOwnerFields) && (
+          <label className="sf-team-field">
+            <span>System role</span>
+            <select value={normalizeRole(userForm.role)} onChange={e => setUserForm(f => ({ ...f, role: e.target.value }))} className="sf-input">
+              {roleOptions.map(r => (
+                <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>
+              ))}
+            </select>
+            <span className="sf-team-field-hint">{ROLE_DESCRIPTIONS[normalizeRole(userForm.role)] || ''}</span>
+          </label>
+        )}
+        {mode === 'create' && (
+          <label className="sf-team-field">
+            <span>Password</span>
+            <input type="password" placeholder="Leave blank to auto-generate" value={userForm.password} onChange={e => setUserForm(f => ({ ...f, password: e.target.value }))} className="sf-input" />
+          </label>
+        )}
+        {showOwnerFields && mode === 'edit' && (
+          <label className="sf-team-field sf-team-field-check">
+            <input type="checkbox" checked={userForm.is_active} onChange={e => setUserForm(f => ({ ...f, is_active: e.target.checked }))} />
+            Active account
+          </label>
+        )}
+      </div>
+
+      <div className="sf-team-user-form-section">
+        <div className="sf-team-user-form-section-title">Org details</div>
+        <label className="sf-team-field">
+          <span>Designation</span>
+          <input placeholder="e.g. Designer, Content Strategist" value={userForm.designation} onChange={e => setUserForm(f => ({ ...f, designation: e.target.value }))} className="sf-input" />
+        </label>
+        <label className="sf-team-field">
+          <span>Department / squad</span>
+          <input
+            list="sf-team-dept-suggestions"
+            placeholder="e.g. Design, Content, Video"
+            value={userForm.department}
+            onChange={e => setUserForm(f => ({ ...f, department: e.target.value, department_id: '' }))}
+            className="sf-input"
+          />
+          <datalist id="sf-team-dept-suggestions">
+            {departmentSuggestions.map(d => <option key={d} value={d} />)}
+          </datalist>
+          <span className="sf-team-field-hint">Functional group — not the same as system role.</span>
+        </label>
+      </div>
+
+      {showOwnerFields && sessionRole === 'owner' && (
+        <div className="sf-team-user-form-section">
+          <div className="sf-team-user-form-section-title">Reporting line</div>
+          <PeoplePicker
+            users={managerOptions}
+            selectedIds={userForm.manager_ids || []}
+            onChange={(ids) => setUserForm(f => ({ ...f, manager_ids: ids, manager_id: ids[0] || '' }))}
+            variant="dropdown"
+            placeholder="Assign managers (optional)…"
+            emptyLabel="No managers available"
+            groupByRole={false}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
 
 const PRIORITY_RANK: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 }
 const PRIORITY_COLORS: Record<string, { bg: string; text: string; bar: string }> = {
@@ -63,11 +174,12 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   const [statusFilter, setStatusFilter] = useState('active')
   const [userForm, setUserForm] = useState({ name: '', email: '', role: 'team', department: '', department_id: '', designation: '', password: '', manager_id: '', manager_ids: [] as string[], is_active: true })
   const [deptForm, setDeptForm] = useState({ name: '', description: '', manager_id: '' })
-  const CORE_ROLES = ['owner', 'manager', 'team', 'hr', 'accountant']
+  const [systemRoles, setSystemRoles] = useState<{ id: string; label: string; description: string }[]>([])
   const today = todayIST()
   const canOnboard = ['owner', 'manager'].includes(role)
   const canManageDepartments = role === 'owner'
   const canViewDepartments = ['owner', 'manager', 'hr'].includes(role)
+  const canManageRoles = role === 'owner'
   const canReset = ['owner', 'hr', 'manager'].includes(role)
 
   function canResetUser(u: any) {
@@ -81,11 +193,12 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     setDeptError('')
     try {
       const teamUrl = `/api/team${role === 'owner' ? '?include_inactive=true' : ''}`
-      const [teamRes, tasksRes, attRes, rolesRes] = await Promise.all([
+      const [teamRes, tasksRes, attRes, rolesRes, sysRolesRes] = await Promise.all([
         fetch(teamUrl),
         fetch('/api/tasks'),
         fetch('/api/attendance'),
         fetch('/api/team/assignable-roles'),
+        canManageRoles ? fetch('/api/team/roles') : Promise.resolve(null),
       ])
       const u = await teamRes.json().catch(() => [])
       const t = await tasksRes.json().catch(() => [])
@@ -99,7 +212,12 @@ export default function TeamClient({ session }: { session: SessionUser }) {
       }
       setTasks(Array.isArray(t) ? t : [])
       setAttendance(Array.isArray(a) ? a : [])
-      setAssignableRoles(Array.isArray(roles.roles) ? roles.roles : [])
+      setAssignableRoles(Array.isArray(roles.roles) ? roles.roles.filter((r: string) => (SYSTEM_ROLES as readonly string[]).includes(r)) : [])
+
+      if (sysRolesRes) {
+        const sys = await sysRolesRes.json().catch(() => ({ roles: [] }))
+        setSystemRoles(Array.isArray(sys.roles) ? sys.roles : [])
+      }
 
       if (role === 'owner') {
         const mgrRes = await fetch('/api/team/managers')
@@ -136,7 +254,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   }
 
   function startCreateUser() {
-    setUserForm({ name: '', email: '', role: assignableRoles[0] || 'team', department: '', department_id: '', designation: '', password: '', manager_id: '', manager_ids: [], is_active: true })
+    setUserForm({ name: '', email: '', role: normalizeRole(assignableRoles[0] || 'team'), department: '', department_id: '', designation: '', password: '', manager_id: '', manager_ids: [], is_active: true })
     setEditingUser(null)
     setShowAdd(true)
     setShowDept(false)
@@ -171,7 +289,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     setUserForm({
       name: u.name || '',
       email: u.email || '',
-      role: u.role || 'team',
+      role: normalizeRole(u.role),
       department: u.department || '',
       department_id: deptMatch?.id || '',
       designation: u.designation || '',
@@ -187,27 +305,16 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     setError('')
   }
 
-  function pickDepartmentForUser(departmentId: string) {
-    const dept = departments.find((d: any) => d.id === departmentId)
-    setUserForm(f => ({
-      ...f,
-      department_id: departmentId,
-      department: dept?.name || '',
-      manager_id: role === 'owner' && dept?.manager_id ? dept.manager_id : f.manager_id,
-    }))
-  }
-
   async function addUser(e: any) {
     e.preventDefault()
     setSaving(true); setError(''); setNotice('')
     const payload: any = {
       name: userForm.name,
       email: userForm.email,
-      role: userForm.role,
+      role: normalizeRole(userForm.role),
       designation: userForm.designation || null,
     }
-    if (userForm.department_id) payload.department_id = userForm.department_id
-    else if (userForm.department) payload.department = userForm.department
+    if (userForm.department?.trim()) payload.department = userForm.department.trim()
     if (userForm.password?.trim() && userForm.password.trim().length >= 8) {
       payload.password = userForm.password.trim()
     }
@@ -234,10 +341,9 @@ export default function TeamClient({ session }: { session: SessionUser }) {
       name: userForm.name,
       designation: userForm.designation || null,
     }
-    if (userForm.department_id) payload.department_id = userForm.department_id
-    else if (userForm.department) payload.department = userForm.department
+    if (userForm.department?.trim()) payload.department = userForm.department.trim()
     if (role === 'owner') {
-      payload.role = userForm.role
+      payload.role = normalizeRole(userForm.role)
       payload.email = userForm.email
       payload.is_active = userForm.is_active
       payload.manager_ids = (userForm.manager_ids || []).map(String).filter(Boolean)
@@ -397,7 +503,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     if (statusFilter === 'active' && !u.is_active) return false
     if (statusFilter === 'inactive' && u.is_active) return false
     if (statusFilter === 'online' && !isOnline(u.id)) return false
-    if (roleFilter !== 'all' && u.role !== roleFilter) return false
+    if (roleFilter !== 'all' && normalizeRole(u.role) !== roleFilter) return false
     if (deptFilter !== 'all' && (u.department || '') !== deptFilter) return false
     const q = memberQuery.trim().toLowerCase()
     if (!q) return true
@@ -409,12 +515,27 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   const online = team.filter(u => isOnline(u.id)).length
   const managerName = (id: string | null) => team.find(u => u.id === id)?.name
 
+  const roleOptions = role === 'owner'
+    ? [...SYSTEM_ROLES]
+    : (assignableRoles.length ? assignableRoles : ['team']).filter(r => (SYSTEM_ROLES as readonly string[]).includes(r))
+  const managerPickList = sortedManagers.length
+    ? sortedManagers
+    : team.filter(u => ['owner', 'manager'].includes(u.role) && u.is_active !== false)
+
   const teamTabs = TEAM_PANELS
-    .filter(p => p.id !== 'departments' || canViewDepartments)
+    .filter(p => {
+      if (p.id === 'departments') return canViewDepartments
+      if (p.id === 'roles') return canManageRoles
+      return true
+    })
     .map(p => ({
       id: p.id,
       label: p.label,
-      count: p.id === 'departments' ? sortedDepartments.length : team.filter(u => u.is_active).length,
+      count: p.id === 'departments'
+        ? sortedDepartments.length
+        : p.id === 'roles'
+          ? SYSTEM_ROLES.length
+          : team.filter(u => u.is_active).length,
     }))
 
   return (
@@ -423,9 +544,13 @@ export default function TeamClient({ session }: { session: SessionUser }) {
         <div>
           <PageHeader
             title="Team"
-            subtitle={panel === 'departments' ? 'Org units with assigned managers' : `${team.filter(u => u.is_active).length} members · ${online} online`}
+            subtitle={
+              panel === 'departments' ? 'Org squads with optional lead'
+                : panel === 'roles' ? 'Five system roles — separate from department/squad'
+                : `${team.filter(u => u.is_active).length} members · ${online} online`
+            }
           />
-          {canViewDepartments && (
+          {(canViewDepartments || canManageRoles) && (
             <PageTabs
               tabs={teamTabs}
               active={panel}
@@ -452,29 +577,29 @@ export default function TeamClient({ session }: { session: SessionUser }) {
         open={showDept && panel === 'departments'}
         onClose={() => { setShowDept(false); setEditingDeptId(null) }}
         title={editingDeptId ? 'Edit department' : 'Create department'}
-        subtitle="Only Owner, Manager, Team, Accounts, and HR are allowed"
+        subtitle="Functional squad (Design, Content, etc.) — not the same as system role"
         footer={
           <>
             <button type="button" onClick={() => { setShowDept(false); setEditingDeptId(null) }} className="sf-btn sf-btn-ghost">Cancel</button>
-            <button type="submit" form="team-dept-form" disabled={saving} className="sf-btn sf-btn-primary">{saving ? 'Saving...' : (editingDeptId ? 'Save Department' : 'Create Department')}</button>
+            <button type="submit" form="team-dept-form" disabled={saving} className="sf-btn sf-btn-primary">{saving ? 'Saving...' : (editingDeptId ? 'Save department' : 'Create department')}</button>
           </>
         }
       >
         <form id="team-dept-form" onSubmit={saveDepartment}>
           <div style={{ display: 'grid', gap: 12 }}>
-            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Department
-              <select required value={deptForm.name} onChange={e => setDeptForm({ ...deptForm, name: e.target.value })} className="sf-input" style={{ marginTop: 6 }}>
-                <option value="">Select department</option>
-                {['Owner', 'Manager', 'Team', 'Accounts', 'HR'].map(n => <option key={n} value={n}>{n}</option>)}
-              </select>
+            <label className="sf-team-field">
+              <span>Department name</span>
+              <input required placeholder="e.g. Design, Content, Video" value={deptForm.name} onChange={e => setDeptForm({ ...deptForm, name: e.target.value })} className="sf-input" />
             </label>
-            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Description
-              <input placeholder="Optional" value={deptForm.description} onChange={e => setDeptForm({ ...deptForm, description: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
+            <label className="sf-team-field">
+              <span>Description</span>
+              <input placeholder="Optional" value={deptForm.description} onChange={e => setDeptForm({ ...deptForm, description: e.target.value })} className="sf-input" />
             </label>
-            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Manager
-              <select value={deptForm.manager_id} onChange={e => setDeptForm({ ...deptForm, manager_id: e.target.value })} className="sf-input" style={{ marginTop: 6 }}>
-                <option value="">Assign manager (optional)</option>
-                {sortedManagers.map((m: any) => <option key={m.id} value={m.id}>{m.name} ({m.role})</option>)}
+            <label className="sf-team-field">
+              <span>Squad lead (optional)</span>
+              <select value={deptForm.manager_id} onChange={e => setDeptForm({ ...deptForm, manager_id: e.target.value })} className="sf-input">
+                <option value="">No lead assigned</option>
+                {managerPickList.map((m: any) => <option key={m.id} value={m.id}>{m.name} ({displayRoleLabel(m.role)})</option>)}
               </select>
             </label>
           </div>
@@ -485,63 +610,26 @@ export default function TeamClient({ session }: { session: SessionUser }) {
         open={!!editingUser && panel === 'members'}
         onClose={() => setEditingUser(null)}
         title={editingUser ? `Edit ${editingUser.name}` : 'Edit user'}
-        subtitle="Update role, department, and reporting line"
+        subtitle="Update login role, designation, and reporting line"
+        width={520}
         footer={
           <>
             <button type="button" onClick={() => setEditingUser(null)} className="sf-btn sf-btn-ghost">Cancel</button>
-            <button type="submit" form="team-edit-user-form" disabled={saving} className="sf-btn sf-btn-primary">{saving ? 'Saving...' : 'Save Changes'}</button>
+            <button type="submit" form="team-edit-user-form" disabled={saving} className="sf-btn sf-btn-primary">{saving ? 'Saving…' : 'Save changes'}</button>
           </>
         }
       >
         <form id="team-edit-user-form" onSubmit={saveUser}>
-          <div style={{ display: 'grid', gap: 12 }}>
-            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Full name
-              <input required placeholder="Full name" value={userForm.name} onChange={e => setUserForm({ ...userForm, name: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
-            </label>
-            {role === 'owner' && (
-              <>
-                <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Email
-                  <input required type="email" value={userForm.email} onChange={e => setUserForm({ ...userForm, email: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
-                </label>
-                <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Role
-                  <select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value })} className="sf-input" style={{ marginTop: 6 }}>
-                    {CORE_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                  </select>
-                </label>
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>Managers (multi)</div>
-                  <PeoplePicker
-                    users={sortedManagers}
-                    selectedIds={userForm.manager_ids || []}
-                    onChange={(ids) => setUserForm({ ...userForm, manager_ids: ids, manager_id: ids[0] || '' })}
-                    variant="dropdown"
-                    placeholder="Select managers…"
-                    emptyLabel="No managers available"
-                    groupByRole={false}
-                  />
-                </div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--sf-text-secondary)', fontSize: 13 }}>
-                  <input type="checkbox" checked={userForm.is_active} onChange={e => setUserForm({ ...userForm, is_active: e.target.checked })} />
-                  Active account
-                </label>
-              </>
-            )}
-            {sortedDepartments.length > 0 ? (
-              <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Department
-                <select value={userForm.department_id} onChange={e => pickDepartmentForUser(e.target.value)} className="sf-input" style={{ marginTop: 6 }}>
-                  <option value="">Select department</option>
-                  {sortedDepartments.map((d: any) => <option key={d.id} value={d.id}>{d.name}{d.manager ? ` · ${d.manager.name}` : ''}</option>)}
-                </select>
-              </label>
-            ) : (
-              <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Department
-                <input placeholder="Department" value={userForm.department} onChange={e => setUserForm({ ...userForm, department: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
-              </label>
-            )}
-            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Designation
-              <input placeholder="Designation / responsibility" value={userForm.designation} onChange={e => setUserForm({ ...userForm, designation: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
-            </label>
-          </div>
+          <UserFormFields
+            mode="edit"
+            sessionRole={role}
+            userForm={userForm}
+            setUserForm={setUserForm}
+            roleOptions={roleOptions}
+            managerOptions={managerPickList}
+            departmentSuggestions={deptOptions}
+            showOwnerFields={role === 'owner'}
+          />
         </form>
       </Modal>
 
@@ -549,62 +637,52 @@ export default function TeamClient({ session }: { session: SessionUser }) {
         open={showAdd && panel === 'members'}
         onClose={() => setShowAdd(false)}
         title="Onboard new user"
-        subtitle={role === 'manager' ? 'New hires will report to you automatically' : 'Create a login for Owner, Manager, Team, HR, or Accounts'}
+        subtitle={role === 'manager' ? 'Creates a Team login reporting to you' : 'Pick one of five system roles — department is separate'}
+        width={520}
         footer={
           <>
             <button type="button" onClick={() => setShowAdd(false)} className="sf-btn sf-btn-ghost">Cancel</button>
-            <button type="submit" form="team-create-user-form" disabled={saving} className="sf-btn sf-btn-primary">{saving ? 'Creating...' : 'Create User'}</button>
+            <button type="submit" form="team-create-user-form" disabled={saving} className="sf-btn sf-btn-primary">{saving ? 'Creating…' : 'Create user'}</button>
           </>
         }
       >
         <form id="team-create-user-form" onSubmit={addUser}>
-          <div style={{ display: 'grid', gap: 12 }}>
-            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Full name
-              <input required placeholder="Full name" value={userForm.name} onChange={e => setUserForm({ ...userForm, name: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
-            </label>
-            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Email
-              <input required type="email" placeholder="Email" value={userForm.email} onChange={e => setUserForm({ ...userForm, email: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
-            </label>
-            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Role
-              <select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value })} className="sf-input" style={{ marginTop: 6 }}>
-                {(assignableRoles.length ? assignableRoles : ['team']).map(r => <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>)}
-              </select>
-            </label>
-            {sortedDepartments.length > 0 ? (
-              <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Department
-                <select value={userForm.department_id} onChange={e => pickDepartmentForUser(e.target.value)} className="sf-input" style={{ marginTop: 6 }}>
-                  <option value="">Select department</option>
-                  {sortedDepartments.map((d: any) => <option key={d.id} value={d.id}>{d.name}{d.manager ? ` · ${d.manager.name}` : ''}</option>)}
-                </select>
-              </label>
-            ) : (
-              <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Department
-                <input placeholder="Department" value={userForm.department} onChange={e => setUserForm({ ...userForm, department: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
-              </label>
-            )}
-            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Designation
-              <input placeholder="Designation / responsibility" value={userForm.designation} onChange={e => setUserForm({ ...userForm, designation: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
-            </label>
-            <label style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Password
-              <input type="password" placeholder="Blank = auto generate" value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} className="sf-input" style={{ marginTop: 6 }} />
-            </label>
-            {role === 'owner' && (
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--sf-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>Managers (multi)</div>
-                <PeoplePicker
-                  users={sortedManagers}
-                  selectedIds={userForm.manager_ids || []}
-                  onChange={(ids) => setUserForm({ ...userForm, manager_ids: ids, manager_id: ids[0] || '' })}
-                  variant="dropdown"
-                  placeholder="Select managers…"
-                  emptyLabel="No managers available"
-                  groupByRole={false}
-                />
-              </div>
-            )}
-          </div>
+          <UserFormFields
+            mode="create"
+            sessionRole={role}
+            userForm={userForm}
+            setUserForm={setUserForm}
+            roleOptions={roleOptions}
+            managerOptions={managerPickList}
+            departmentSuggestions={deptOptions}
+            showOwnerFields={role === 'owner'}
+          />
         </form>
       </Modal>
+
+      {panel === 'roles' && canManageRoles && (
+        <div className="sf-team-roles-grid">
+          {(systemRoles.length ? systemRoles : SYSTEM_ROLES.map(r => ({ id: r, label: ROLE_LABELS[r], description: ROLE_DESCRIPTIONS[r] }))).map((r: any) => {
+            const members = team.filter(u => normalizeRole(u.role) === r.id && u.is_active)
+            return (
+              <div key={r.id} className="sf-team-role-card" style={{ '--role-accent': ROLE_COLORS[r.id] || 'var(--sf-accent)' } as React.CSSProperties}>
+                <div className="sf-team-role-card-head">
+                  <span className="sf-team-role-card-badge">{r.label}</span>
+                  <span className="sf-team-role-card-count">{members.length} active</span>
+                </div>
+                <p className="sf-team-role-card-desc">{r.description || ROLE_DESCRIPTIONS[r.id]}</p>
+                <button
+                  type="button"
+                  className="sf-link-btn"
+                  onClick={() => { setPanel('members'); setRoleFilter(r.id); setMemberQuery('') }}
+                >
+                  View members →
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {panel === 'departments' && canViewDepartments && (
         <>
@@ -623,7 +701,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                   <div style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 15 }}>{d.name}</div>
                   {d.description && <div style={{ color: 'var(--sf-muted)', fontSize: 12, marginTop: 6 }}>{d.description}</div>}
                   <div style={{ color: 'var(--sf-muted-2)', fontSize: 11, marginTop: 10 }}>
-                    Manager: {d.manager?.name || '—'}
+                    Lead: {d.manager?.name || '—'}
                   </div>
                   <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 4 }}>
                     {d.member_count} member{d.member_count === 1 ? '' : 's'}
@@ -641,18 +719,18 @@ export default function TeamClient({ session }: { session: SessionUser }) {
             <div style={{ background: 'var(--sf-surface-2)', border: '1px dashed var(--sf-border)', borderRadius: 12, padding: 32, textAlign: 'center' }}>
               <p style={{ color: 'var(--sf-muted)', fontSize: 14, margin: '0 0 14px' }}>
                 {canManageDepartments
-                  ? 'No departments yet. Create one to group team members and assign a department manager.'
+                  ? 'No squads yet. Create Design, Content, Video, etc.'
                   : 'No departments configured yet.'}
               </p>
-                  {canManageDepartments && (
-                    <button type="button" onClick={startCreateDept} className="sf-btn sf-btn-primary">Create department</button>
-                  )}
+              {canManageDepartments && (
+                <button type="button" onClick={startCreateDept} className="sf-btn sf-btn-primary">Create department</button>
+              )}
             </div>
           )}
         </>
       )}
 
-          {panel === 'members' && (
+      {panel === 'members' && (
         <>
           <StatGrid>
             <StatCard label="Members" value={team.filter(u => u.is_active).length} accent="var(--sf-accent)" />
@@ -672,7 +750,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
               />
               <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="sf-input" style={{ width: 'auto', minWidth: 130 }}>
                 <option value="all">All roles</option>
-                {CORE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>)}
+                {SYSTEM_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>)}
               </select>
               <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} className="sf-input" style={{ width: 'auto', minWidth: 140 }}>
                 <option value="all">All departments</option>
@@ -725,7 +803,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                           <div style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 13 }}>{u.name}</div>
                           <div style={{ color: 'var(--sf-muted)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email}</div>
                           <div style={{ color: 'var(--sf-muted-2)', fontSize: 10, marginTop: 2 }}>
-                            {u.designation || ROLE_LABELS[u.role]}
+                            {u.designation || displayRoleLabel(u.role)}
                             {u.department ? ` · ${u.department}` : ''}
                           </div>
                         </div>

@@ -175,7 +175,14 @@ export default function TasksClient({ session }: { session: SessionUser }) {
 
   async function deleteTask(task: any) {
     if (!canDelete) return
-    if (!window.confirm(`Delete "${task.title}"? This cannot be undone.`)) return
+    if (task.status === 'Completed' && session.role !== 'owner') {
+      alert('Completed tasks can only be deleted by the owner. See DATA_RETENTION.md in the repo.')
+      return
+    }
+    const msg = task.status === 'Completed'
+      ? `Delete completed task "${task.title}"? This permanently removes files and revision history. Only the owner should do this.`
+      : `Delete "${task.title}"? This removes the task and all uploaded files.`
+    if (!window.confirm(msg)) return
     const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
@@ -302,7 +309,8 @@ export default function TasksClient({ session }: { session: SessionUser }) {
 
       {view === 'list' ? (
         <Section title="Task list" subtitle={`${filtered.length} tasks`} flush flex={1}>
-          <div className="sf-table-wrap" style={{ border:'none', borderRadius:0, boxShadow:'none', height:'100%' }}>
+          <div className="sf-list-scroll">
+          <div className="sf-table-wrap" style={{ border:'none', borderRadius:0, boxShadow:'none' }}>
             <table className="sf-table">
               <thead>
                 <tr>
@@ -423,6 +431,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
             {filtered.length === 0 && (
               <div style={{ color:'var(--sf-muted)', textAlign:'center', padding:48 }}>No tasks match your filters.</div>
             )}
+          </div>
           </div>
         </Section>
       ) : (

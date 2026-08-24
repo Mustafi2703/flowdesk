@@ -7,8 +7,10 @@ layer in the UI.
 
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -24,7 +26,9 @@ from app.models.brand import Brand
 from app.models.notification import Notification
 from app.models.profile import Profile
 from app.models.task import Task, TaskChat
+from app.models.attachment import FileAttachment
 from app.schemas.task import TaskChatSend, TaskCreate, TaskReviewDecision, TaskStatusUpdate, TaskUpdate
+from app.services import object_storage
 from app.services.review import next_review_version, review_history_entry
 from app.services.task_brief_email import send_task_brief_emails
 from app.utils.queues import DASHBOARD_CACHE
@@ -33,6 +37,7 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 dev_router = APIRouter(prefix="/dev-board", tags=["developer-board"])
 
 _IST = timezone(timedelta(hours=5, minutes=30))
+_UPLOAD_ROOT = Path(os.environ.get("UPLOAD_ROOT", str(Path(__file__).resolve().parents[4] / "uploads")))
 _ASSIGNEE_PROGRESS_FIELDS = frozenset(
     {"status", "checklist", "sub_tasks", "description", "external_links"}
 )
@@ -543,11 +548,31 @@ def delete_task(
     db: Session = Depends(get_db),
     user: Profile = Depends(get_current_user),
 ) -> dict[str, bool]:
-    if Role(user.role) not in {Role.OWNER, Role.MANAGER}:
+    role = Role(user.role)
+    if role not in {Role.OWNER, Role.MANAGER}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owner or manager can delete tasks")
     task = db.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    if task.status == "Completed" and role != Role.OWNER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Completed tasks can only be deleted by the owner. See DATA_RETENTION.md.",
+        )
+    attachments = db.scalars(
+        select(FileAttachment).where(
+            FileAttachment.entity_type == "task",
+            FileAttachment.entity_id == task_id,
+        )
+    ).all()
+    for row in attachments:
+        if getattr(row, "storage_backend", None) == "s3" and getattr(row, "storage_key", None):
+            if object_storage.storage_enabled():
+                object_storage.delete_object(row.storage_key)
+        path = _UPLOAD_ROOT / row.file_path
+        if path.exists():
+            path.unlink()
+        db.delete(row)
     db.delete(task)
     db.commit()
     DASHBOARD_CACHE.invalidate()

@@ -87,6 +87,17 @@ export const ROLE_LABELS: Record<string, string> = {
   hr: 'HR Manager', accountant: 'Accounts',
 }
 
+/** Canonical TMS roles — no legacy developer in UI. */
+export const SYSTEM_ROLES = ['owner', 'manager', 'team', 'hr', 'accountant'] as const
+
+export const ROLE_DESCRIPTIONS: Record<string, string> = {
+  owner: 'Full workspace access — brands, billing prices, team, and settings.',
+  manager: 'Delivery lead — tasks, brands, reviews; can onboard Team members only.',
+  team: 'Assigned tasks and brands only — clock-in, Updates, and file uploads.',
+  hr: 'People ops — leave, attendance, team directory (no task prices).',
+  accountant: 'Billing — billable flags and invoices; no rupee prices for managers.',
+}
+
 export const STATUS_BG: Record<string, string> = {
   'Not Started': '#F1F5F9', 'In Progress': '#DBEAFE', 'Under Review': '#F3E8FF',
   'Revision Needed': '#FFEDD5', 'Completed': '#DCFCE7', 'On Hold': '#F3F4F6',

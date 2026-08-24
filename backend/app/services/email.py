@@ -2,6 +2,9 @@
 
 Resend is the production path. The console provider is useful in local/dev
 and prevents accidental sends during setup.
+
+When EMAIL_TEST_RECIPIENT is set, supports comma-separated addresses so QA
+copies go to multiple inboxes (e.g. baibhab + hello@twinoxis.com).
 """
 
 from __future__ import annotations
@@ -14,16 +17,40 @@ import httpx
 from app.core.config import settings
 
 
+def test_recipient_list() -> list[str]:
+    """Parse EMAIL_TEST_RECIPIENT — comma or semicolon separated."""
+    raw = (settings.email_test_recipient or "").strip()
+    if not raw:
+        return []
+    parts: list[str] = []
+    for chunk in raw.replace(";", ",").split(","):
+        addr = chunk.strip()
+        if addr and addr.lower() not in {p.lower() for p in parts}:
+            parts.append(addr)
+    return parts
+
+
 def send_email(*, to: str, subject: str, html: str, text: str | None = None) -> None:
     intended = (to or "").strip()
-    override = (settings.email_test_recipient or "").strip()
-    if override:
-        to = override
-        if intended and intended.lower() != override.lower():
-            subject = f"[TEST → {intended}] {subject}"
+    test_targets = test_recipient_list()
+    recipients = test_targets if test_targets else ([intended] if intended else [])
 
+    if not recipients:
+        raise RuntimeError("No recipient email address")
+
+    for idx, target in enumerate(recipients):
+        subj = subject
+        if test_targets:
+            if intended and intended.lower() != target.lower():
+                subj = f"[TEST → {intended}] {subject}"
+            elif len(test_targets) > 1 and idx > 0:
+                subj = f"[TEST COPY {idx + 1}] {subject}"
+        _deliver_one(to=target, subject=subj, html=html, text=text)
+
+
+def _deliver_one(*, to: str, subject: str, html: str, text: str | None) -> None:
     if settings.email_provider == "console":
-        print(f"[email:console] to={to} intended={intended} subject={subject}\n{text or html}")  # noqa: T201
+        print(f"[email:console] to={to} subject={subject}\n{text or html}")  # noqa: T201
         return
 
     if settings.email_provider == "resend":

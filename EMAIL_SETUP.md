@@ -22,6 +22,14 @@ Railway backend already has:
 - `EMAIL_FROM=Scrumfolks TMS <baibhabmustafi@gmail.com>`
 - `EMAIL_TEST_RECIPIENT=baibhabmustafi@gmail.com` (every mail goes here while this is set)
 
+**Multiple test inboxes (comma-separated):**
+
+```
+EMAIL_TEST_RECIPIENT=baibhabmustafi@gmail.com,hello@twinoxis.com
+```
+
+Each outbound email is delivered to **both** addresses while this variable is set. Subjects are prefixed with `[TEST → intended@user]` so you can tell which team member the brief was for.
+
 **Missing:** `SMTP_PASSWORD`
 
 1. Open Google Account → Security → 2-Step Verification (must be on).

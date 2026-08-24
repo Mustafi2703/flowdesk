@@ -33,7 +33,9 @@ export function PageShell({
       className={`sf-page${fill ? ' sf-page-fill' : ''} ${className}`.trim()}
       style={style}
     >
-      {children}
+      <div className={fill ? 'sf-page-canvas sf-page-canvas-fill' : 'sf-page-canvas'}>
+        {children}
+      </div>
     </div>
   )
 }

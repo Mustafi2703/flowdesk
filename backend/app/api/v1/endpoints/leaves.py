@@ -17,6 +17,7 @@ from app.models.leave import LeaveRequest
 from app.models.notification import Notification
 from app.models.profile import Profile
 from app.schemas.leave import LeaveBalance, LeaveCreate, LeaveDecision
+from app.services.notification_email import send_leave_decision_email, send_leave_submitted_email
 from app.utils.queues import DASHBOARD_CACHE
 
 router = APIRouter(prefix="/leaves", tags=["leaves"])
@@ -122,8 +123,10 @@ def create_leave(
     db.add(leave)
     db.commit()
     db.refresh(leave)
-    admins = db.scalars(select(Profile).where(Profile.role.in_(["owner", "hr"]))).all()
-    for admin in admins:
+    reviewers = db.scalars(
+        select(Profile).where(Profile.role.in_(["owner", "hr", "manager"]), Profile.is_active.is_(True))
+    ).all()
+    for admin in reviewers:
         db.add(
             Notification(
                 user_id=admin.id,
@@ -133,6 +136,14 @@ def create_leave(
             )
         )
     db.commit()
+    send_leave_submitted_email(
+        recipients=reviewers,
+        applicant_name=user.name,
+        leave_type=payload.leave_type,
+        start_date=payload.start_date.isoformat(),
+        end_date=payload.end_date.isoformat(),
+        days=days,
+    )
     DASHBOARD_CACHE.invalidate()
     return _serialize(leave, user)
 
@@ -144,8 +155,8 @@ def decide_leave(
     db: Session = Depends(get_db),
     user: Profile = Depends(get_current_user),
 ) -> dict[str, Any]:
-    if Role(user.role) not in {Role.OWNER, Role.HR}:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only HR/owner can decide leaves")
+    if Role(user.role) not in {Role.OWNER, Role.MANAGER, Role.HR}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owner, manager, or HR can decide leaves")
     if payload.status not in {"Approved", "Rejected"}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Status must be Approved or Rejected")
     if payload.status == "Rejected" and len((payload.rejection_reason or "").strip()) < 2:
@@ -176,5 +187,16 @@ def decide_leave(
         )
     db.commit()
     db.refresh(leave)
+    if applicant:
+        send_leave_decision_email(
+            applicant=applicant,
+            leave_type=leave.leave_type,
+            start_date=leave.start_date.isoformat(),
+            end_date=leave.end_date.isoformat(),
+            days=leave.days,
+            decision=payload.status,
+            rejection_reason=leave.rejection_reason,
+            reviewer_name=user.name,
+        )
     DASHBOARD_CACHE.invalidate()
     return _serialize(leave, applicant)

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { SessionUser } from '@/types'
 import { EmptyState } from '@/components/app/Icons'
 import { PageHeader, PageShell, Section } from '@/components/app/Section'
+import { Modal } from '@/components/app/Modal'
+import { formatApiError } from '@/lib/apiErrors'
 
 export default function AnnouncementsClient({ session }: { session: SessionUser }) {
   const [items, setItems] = useState<any[]>([])
@@ -56,7 +58,23 @@ export default function AnnouncementsClient({ session }: { session: SessionUser 
         {items.length===0 && <EmptyState icon="announcements" title="No announcements yet." />}
         </div>
       </Section>
-      {showCreate && canPost && <CreateForm onClose={()=>setShowCreate(false)} onSaved={()=>{setShowCreate(false); load()}} />}
+      {showCreate && canPost && (
+        <Modal
+          open={showCreate}
+          onClose={() => setShowCreate(false)}
+          title="New announcement"
+          subtitle="Post a company-wide notice"
+          width={500}
+          footer={
+            <>
+              <button type="button" className="sf-btn sf-btn-ghost" onClick={() => setShowCreate(false)}>Cancel</button>
+              <button type="submit" form="sf-announcement-form" className="sf-btn sf-btn-primary">Post announcement</button>
+            </>
+          }
+        >
+          <CreateForm onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); load() }} />
+        </Modal>
+      )}
     </PageShell>
   )
 }
@@ -69,50 +87,48 @@ function CreateForm({ onClose, onSaved }: any) {
   const [imageUrl, setImageUrl] = useState('')
   const [linkUrl, setLinkUrl] = useState('')
   const [saving, setSaving] = useState(false)
-  const sInp = { width:'100%',padding:'9px 12px',background:'var(--sf-surface-2)',border:'1px solid #2A2A45',borderRadius:8,color:'var(--sf-text)',fontSize:13,outline:'none',fontFamily:"'DM Sans',sans-serif" }
-  async function save() {
-    if (!t.trim()||!b.trim()) return
+  const [error, setError] = useState('')
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault()
+    if (!t.trim() || !b.trim()) return
     setSaving(true)
-    const res = await fetch('/api/announcements',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,body:b,priority:p,event_date:eventDate||null,image_url:imageUrl||null,link_url:linkUrl||null})})
+    setError('')
+    const res = await fetch('/api/announcements', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: t, body: b, priority: p, event_date: eventDate || null, image_url: imageUrl || null, link_url: linkUrl || null }),
+    })
     const data = await res.json().catch(() => ({}))
     setSaving(false)
-    if (!res.ok) { alert(data.error || data.detail || 'Could not post announcement'); return }
+    if (!res.ok) {
+      setError(formatApiError(data, 'Could not post announcement'))
+      return
+    }
     onSaved()
   }
+
   return (
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}} onClick={onClose}>
-      <div style={{background:'var(--sf-surface)',border:'1px solid var(--sf-border)',borderRadius:16,padding:28,width:'100%',maxWidth:500}} onClick={e=>e.stopPropagation()}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-          <h3 style={{color:'var(--sf-text)',fontFamily:"'Space Grotesk',sans-serif",fontSize:18,fontWeight:700}}>New Announcement</h3>
-          <button onClick={onClose} style={{background:'none',border:'none',color:'var(--sf-muted)',cursor:'pointer',fontSize:22}}>×</button>
-        </div>
-        {[['Title *',t,setT,false],['Message *',b,setB,true]].map(([l,v,s,m]) => (
-          <div key={String(l)} style={{marginBottom:12}}>
-            <label style={{color:'var(--sf-muted)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:5,display:'block'}}>{l}</label>
-            {m ? <textarea value={String(v)} onChange={e=>(s as any)(e.target.value)} rows={4} style={{...sInp,resize:'vertical' as const}} /> : <input value={String(v)} onChange={e=>(s as any)(e.target.value)} style={sInp} />}
-          </div>
-        ))}
-        <div style={{marginBottom:12}}>
-          <label style={{color:'var(--sf-muted)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:5,display:'block'}}>Event date</label>
-          <input type="date" value={eventDate} onChange={e=>setEventDate(e.target.value)} style={sInp} />
-        </div>
-        <div style={{marginBottom:12}}>
-          <label style={{color:'var(--sf-muted)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:5,display:'block'}}>Image URL</label>
-          <input value={imageUrl} onChange={e=>setImageUrl(e.target.value)} placeholder="https://…/image.jpg" style={sInp} />
-        </div>
-        <div style={{marginBottom:12}}>
-          <label style={{color:'var(--sf-muted)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:5,display:'block'}}>Link URL</label>
-          <input value={linkUrl} onChange={e=>setLinkUrl(e.target.value)} placeholder="https://…" style={sInp} />
-        </div>
-        <div style={{marginBottom:16}}>
-          <label style={{color:'var(--sf-muted)',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:5,display:'block'}}>Priority</label>
-          <select value={p} onChange={e=>setP(e.target.value)} style={{...sInp,cursor:'pointer'}}>{['Normal','Important','Urgent'].map(o=><option key={o}>{o}</option>)}</select>
-        </div>
-        <div style={{display:'flex',gap:8}}>
-          <button onClick={save} disabled={!t||!b||saving} style={{padding:'10px 20px',background:'var(--sf-accent)',border:'none',borderRadius:9,color:'var(--sf-text)',fontWeight:700,fontSize:13,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>{saving?'Posting…':'Post Announcement'}</button>
-          <button onClick={onClose} style={{padding:'10px 20px',background:'var(--sf-surface-2)',border:'1px solid #2A2A45',borderRadius:9,color:'#A0A0C0',fontWeight:600,fontSize:13,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>Cancel</button>
-        </div>
+    <form id="sf-announcement-form" onSubmit={save}>
+      {error && <div className="sf-notice sf-notice-error" style={{ marginBottom: 12 }}>{error}</div>}
+      <label className="sf-label">Title *</label>
+      <input className="sf-input" value={t} onChange={e => setT(e.target.value)} required style={{ marginBottom: 12 }} />
+      <label className="sf-label">Message *</label>
+      <textarea className="sf-input" value={b} onChange={e => setB(e.target.value)} rows={4} required style={{ marginBottom: 12, resize: 'vertical' }} />
+      <label className="sf-label">Event date</label>
+      <input type="date" className="sf-input" value={eventDate} onChange={e => setEventDate(e.target.value)} style={{ marginBottom: 12 }} />
+      <label className="sf-label">Image URL</label>
+      <input className="sf-input" value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="https://…/image.jpg" style={{ marginBottom: 12 }} />
+      <label className="sf-label">Link URL</label>
+      <input className="sf-input" value={linkUrl} onChange={e => setLinkUrl(e.target.value)} placeholder="https://…" style={{ marginBottom: 12 }} />
+      <label className="sf-label">Priority</label>
+      <select className="sf-input" value={p} onChange={e => setP(e.target.value)} style={{ marginBottom: 4 }}>
+        {['Normal', 'Important', 'Urgent'].map(o => <option key={o}>{o}</option>)}
+      </select>
+      <div style={{ display: 'none' }}>
+        <button type="button" onClick={onClose} />
+        <button type="submit" disabled={!t || !b || saving}>{saving ? 'Posting…' : 'Post'}</button>
       </div>
-    </div>
+    </form>
   )
 }

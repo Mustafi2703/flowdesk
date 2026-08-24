@@ -25,6 +25,7 @@ from app.models.notification import Notification
 from app.models.profile import Profile
 from app.models.task import Task
 from app.services import object_storage
+from app.services.notification_email import send_file_review_email
 from app.services.review import next_review_version, review_history_entry
 from app.utils.queues import DASHBOARD_CACHE
 
@@ -430,6 +431,19 @@ def review_attachment(
                 )
     db.commit()
     db.refresh(row)
+    if row.entity_type == "task":
+        task = db.get(Task, row.entity_id)
+        if task:
+            send_file_review_email(
+                db,
+                task=task,
+                file_name=row.file_name,
+                review_status=payload.review_status,
+                review_notes=notes,
+                version=current_version,
+                reviewer_name=user.name,
+                assignee_ids=task.assigned_to or [],
+            )
     DASHBOARD_CACHE.invalidate()
     return _serialize(row)
 

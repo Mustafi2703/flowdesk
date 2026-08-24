@@ -71,7 +71,7 @@ export function Modal({
             className="sf-btn sf-btn-ghost sf-modal-close"
             aria-label="Close"
           >
-            ×
+            ✕
           </button>
         </div>
         <div className="sf-modal-body">{children}</div>

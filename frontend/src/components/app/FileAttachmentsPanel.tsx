@@ -144,10 +144,22 @@ export function FileAttachmentsPanel({
                 <div className="sf-files-row-name" title={f.file_name}>{f.file_name}</div>
                 <div className="sf-files-row-meta">
                   {fmtSize(f.file_size || 0)}
+                  {f.created_at ? ` · ${new Date(f.created_at).toLocaleString()}` : ''}
                   {f.review_status ? ` · ${f.review_status}` : ''}
                   {f.review_version ? ` · v${f.review_version}` : ''}
                 </div>
               </button>
+              {(f.review_history || []).length > 0 && (
+                <ul className="sf-review-history sf-review-history-compact">
+                  {[...(f.review_history || [])].reverse().slice(0, 4).map((h: any, i: number) => (
+                    <li key={`${h.version}-${h.at}-${i}`} className={`sf-review-history-item sf-review-history-${h.status}`}>
+                      <span>v{h.version} {h.status}</span>
+                      <span>{h.at ? new Date(h.at).toLocaleString() : ''}</span>
+                      {h.notes ? <span className="sf-review-history-notes-inline">{h.notes}</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
               <div className="sf-doc-actions">
                 <button type="button" onClick={() => setViewing(f)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px' }}>View</button>
                 <a

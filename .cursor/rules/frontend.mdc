@@ -1,0 +1,16 @@
+---
+description: Next.js UI, proxy routes, and session usage
+globs: frontend/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Frontend
+
+- Pages under `src/app/(dashboard)/` load `getSession()` / `requireRole()` then render `*Client.tsx`.
+- New backend endpoints need `src/app/api/**/route.ts` that `proxy()` to `/api/v1/...`.
+- Do not call FastAPI from the browser. Do not create a second login cookie in Next.
+- Middleware only checks that `sf_sess` exists. JWT verify is `src/lib/auth.ts` + FastAPI.
+- Login page: email + password form only (`src/app/login/page.tsx`).
+- Updates: stacked header (title, tools, status, review, Drive, composer). Do not put Approve/Reject/Close in one wrapping row beside the title.
+- Brand logo upload replaces the existing logo. Exclude the logo attachment from the documents list.
+- Nav/roles: `NAV_ITEMS` in `src/types/index.ts`. Hide price UI unless `canSetTaskPrice`.

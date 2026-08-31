@@ -1,0 +1,19 @@
+---
+description: Scrumfolks TMS core rules for every Cursor session
+alwaysApply: true
+---
+
+# Scrumfolks TMS
+
+Monorepo: `frontend/` (Next.js) + `backend/` (FastAPI). Production is Railway from GitHub `main`.
+
+Read `CURSOR_CONTEXT.md` before auth, session, email, tasks, or brands work.
+
+- Sign-in is email + password only. Never restore demo role buttons on `/login`.
+- Never commit secrets or `SEED_PASSWORD`.
+- Never set `RESET_WORKSPACE=true` on production unless the user asks.
+- Browser → `/api/*` proxy → FastAPI `/api/v1/*`. No direct DB from the UI.
+- Session is HttpOnly cookie `sf_sess` issued by FastAPI. Same `JWT_SECRET` on both apps.
+- Prices: Owner and Accountant only. Managers see billable flags, not rupees.
+- Clock-in required before task status/progress/review.
+- Prefer editing existing modules over new parallel systems.

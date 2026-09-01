@@ -13,6 +13,7 @@ export function Modal({
   width = 560,
   zIndex = 100,
   size = 'default',
+  panelClassName,
 }: {
   open: boolean
   onClose: () => void
@@ -23,6 +24,7 @@ export function Modal({
   width?: number | string
   zIndex?: number
   size?: 'default' | 'wide' | 'full'
+  panelClassName?: string
 }) {
   useEffect(() => {
     if (!open) return
@@ -44,6 +46,7 @@ export function Modal({
     'sf-modal-panel',
     size === 'wide' ? 'sf-modal-panel-wide' : '',
     size === 'full' ? 'sf-modal-panel-full' : '',
+    panelClassName || '',
   ].filter(Boolean).join(' ')
 
   const panelStyle = size === 'default' && width !== 560

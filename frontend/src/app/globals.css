@@ -843,6 +843,192 @@ html[data-theme='morning'] body {
 }
 
 /* ── Workflow dashboard (brand list + detail) ─────────────────── */
+.sf-workflow-page .sf-page-canvas {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sf-workflow-brand-section {
+  border: 1px solid var(--sf-border);
+  border-radius: 16px;
+  background: var(--sf-surface);
+  box-shadow: var(--sf-shadow);
+  overflow: hidden;
+}
+
+.sf-workflow-brand-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--sf-border);
+  background: var(--sf-surface-2);
+}
+
+.sf-workflow-brand-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 280px;
+  justify-content: flex-end;
+}
+
+.sf-workflow-brand-select {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--sf-border);
+  background: var(--sf-input-bg);
+  color: var(--sf-text);
+  font-size: 12px;
+  font-family: inherit;
+  min-width: 140px;
+}
+
+.sf-workflow-brand-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 10px;
+  padding: 12px;
+  max-height: min(560px, 62vh);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sf-workflow-brand-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--sf-border);
+  border-radius: 12px;
+  background: var(--sf-surface-2);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  min-width: 0;
+  transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.sf-workflow-brand-card:hover {
+  background: var(--sf-surface-hover);
+  border-color: color-mix(in srgb, var(--sf-accent) 28%, var(--sf-border));
+  box-shadow: var(--sf-shadow);
+}
+
+.sf-workflow-empty--wide {
+  grid-column: 1 / -1;
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--sf-muted);
+  font-size: 13px;
+}
+
+.sf-workflow-modal-detail {
+  min-width: 0;
+}
+
+.sf-workflow-modal-hero {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--sf-border);
+}
+
+.sf-workflow-modal-hero-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.sf-workflow-modal-statline {
+  font-size: 13px;
+  color: var(--sf-muted);
+  line-height: 1.45;
+}
+
+.sf-workflow-modal-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--sf-text-secondary);
+}
+
+.sf-workflow-modal-contact a {
+  color: var(--sf-accent);
+}
+
+.sf-workflow-modal-desc {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--sf-text-secondary);
+  margin: 0 0 16px;
+  overflow-wrap: anywhere;
+}
+
+.sf-workflow-section-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--sf-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+
+.sf-workflow-modal-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: min(320px, 40vh);
+  overflow-y: auto;
+  padding-right: 2px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sf-workflow-modal-task-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--sf-border);
+  background: var(--sf-surface-2);
+  text-decoration: none;
+  color: inherit;
+}
+
+.sf-workflow-modal-task-row:hover {
+  border-color: color-mix(in srgb, var(--sf-accent) 25%, var(--sf-border));
+  background: var(--sf-surface-hover);
+}
+
+.sf-workflow-modal-task-title {
+  font-size: 13px;
+  color: var(--sf-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.sf-modal-panel-full.sf-workflow-brand-modal {
+  width: min(920px, 100%);
+  max-height: min(94vh, 920px);
+}
+
+.sf-modal-panel-full.sf-workflow-brand-modal .sf-modal-body {
+  padding: 18px 22px 22px;
+}
+
 .sf-workflow-page.sf-page-fill {
   flex: 1 1 0;
   min-height: 0;

@@ -39,7 +39,7 @@ function WorkflowBrandDetail({
   canEdit,
   savingStage,
   onSetStage,
-  compact = false,
+  inModal = false,
 }: {
   brand: any
   tasks: any[]
@@ -47,7 +47,7 @@ function WorkflowBrandDetail({
   canEdit: boolean
   savingStage: boolean
   onSetStage: (stage: string) => void
-  compact?: boolean
+  inModal?: boolean
 }) {
   const stage = brand.workflow_stage || 'assigned'
   const brandTasks = tasks.filter(t => String(t.brand_id) === String(brand.id))
@@ -60,132 +60,137 @@ function WorkflowBrandDetail({
     .filter(Boolean)
   const done = brandTasks.filter(t => t.status === 'Completed').length
 
-  return (
+  const inner = (
     <>
-      {!compact && (
-        <div className="sf-workflow-detail-head">
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', minWidth: 0 }}>
-            <BrandLogoMark brand={brand} size={48} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, fontWeight: 700, color: 'var(--sf-text)' }}>
-                {brand.name}
-              </div>
-              <div style={{ color: 'var(--sf-muted)', fontSize: 12, marginTop: 2 }}>
-                {brandTasks.length} tasks · {open} open · {done} done · {brand.priority || 'P3'}
-              </div>
+      {inModal && (
+        <div className="sf-workflow-modal-hero">
+          <BrandLogoMark brand={brand} size={52} />
+          <div className="sf-workflow-modal-hero-copy">
+            <div className="sf-workflow-modal-statline">
+              {brandTasks.length} tasks · {open} open · {done} done · {brand.priority || 'P3'}
             </div>
+            {(brand.contact_email || managers.length > 0) && (
+              <div className="sf-workflow-modal-contact">
+                {brand.contact_email && (
+                  <span>Client: <a href={`mailto:${brand.contact_email}`}>{brand.contact_email}</a></span>
+                )}
+                {managers.length > 0 && (
+                  <span>Managers: {managers.map((u: any) => u.name).join(', ')}</span>
+                )}
+              </div>
+            )}
           </div>
-          <Link href="/brands" className="sf-btn sf-btn-ghost" style={{ fontSize: 11, flexShrink: 0 }}>
-            Open brand →
-          </Link>
         </div>
       )}
 
-      <div className={compact ? undefined : 'sf-workflow-detail-body'}>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
-          <span className="sf-workflow-row-stage" style={{ '--wf-stage': STAGE_COLORS[stage] || '#20b2aa' } as React.CSSProperties}>
-            {stageLabel(stage)}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+        <span className="sf-workflow-row-stage" style={{ '--wf-stage': STAGE_COLORS[stage] || '#20b2aa' } as React.CSSProperties}>
+          {stageLabel(stage)}
+        </span>
+        {brand.client_type && (
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 999, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', color: 'var(--sf-muted)' }}>
+            {brand.client_type}
           </span>
-          {brand.client_type && (
-            <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 999, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', color: 'var(--sf-muted)' }}>
-              {brand.client_type}
-            </span>
-          )}
-          {(members.length + managers.length) > 0 && (
-            <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 999, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', color: 'var(--sf-muted)' }}>
-              {members.length + managers.length} people
-            </span>
-          )}
-        </div>
-
-        {brand.description && (
-          <p style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--sf-text-secondary)', margin: '0 0 14px' }}>
-            {brand.description}
-          </p>
         )}
-
-        {(brand.contact_email || managers.length > 0) && (
-          <div style={{ display: 'grid', gap: 6, marginBottom: 14, fontSize: 12 }}>
-            {brand.contact_email && (
-              <div><span style={{ color: 'var(--sf-muted)' }}>Client: </span><a href={`mailto:${brand.contact_email}`} style={{ color: 'var(--sf-accent)' }}>{brand.contact_email}</a></div>
-            )}
-            {managers.length > 0 && (
-              <div style={{ color: 'var(--sf-text-secondary)' }}><span style={{ color: 'var(--sf-muted)' }}>Managers: </span>{managers.map((u: any) => u.name).join(', ')}</div>
-            )}
-          </div>
-        )}
-
-        {canEdit && (
-          <>
-            <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--sf-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-              Update stage
-            </div>
-            <div className="sf-workflow-stage-grid">
-              {STAGE_ORDER.map(s => {
-                const active = stage === s
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    disabled={savingStage}
-                    onClick={() => onSetStage(s)}
-                    className={`sf-workflow-stage-btn${active ? ' is-active' : ''}`}
-                    style={active ? { background: STAGE_COLORS[s], borderColor: STAGE_COLORS[s] } : undefined}
-                  >
-                    {stageLabel(s)}
-                  </button>
-                )
-              })}
-            </div>
-          </>
-        )}
-
-        <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--sf-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-          Team ({members.length})
-        </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
-          {members.length === 0 ? (
-            <span style={{ fontSize: 12, color: 'var(--sf-muted)' }}>No team allocated — assign on Brands page.</span>
-          ) : members.map((u: any) => (
-            <span key={u.id} style={{ fontSize: 11, padding: '4px 8px', borderRadius: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)' }}>
-              {u.name}
-            </span>
-          ))}
-        </div>
-
-        <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--sf-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-          Tasks
-        </div>
-        {brandTasks.length === 0 ? (
-          <div style={{ color: 'var(--sf-muted)', fontSize: 13 }}>No tasks on this brand yet.</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {brandTasks.slice(0, 20).map(t => (
-              <Link
-                key={t.id}
-                href={`/tasks/${t.id}`}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  gap: 10,
-                  padding: '9px 10px',
-                  borderRadius: 8,
-                  border: '1px solid var(--sf-border)',
-                  background: 'var(--sf-surface-2)',
-                  textDecoration: 'none',
-                  color: 'inherit',
-                }}
-              >
-                <span style={{ fontSize: 13, color: 'var(--sf-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
-                <span style={{ background: STATUS_BG[t.status] || '#F3F4F6', color: STATUS_TEXT[t.status] || '#374151', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, flexShrink: 0 }}>{t.status}</span>
-              </Link>
-            ))}
-            {brandTasks.length > 20 && (
-              <div style={{ fontSize: 11, color: 'var(--sf-muted)', marginTop: 4 }}>+{brandTasks.length - 20} more on Brands / Tasks</div>
-            )}
-          </div>
+        {(members.length + managers.length) > 0 && (
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 999, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', color: 'var(--sf-muted)' }}>
+            {members.length + managers.length} people
+          </span>
         )}
       </div>
+
+      {brand.description && (
+        <p className="sf-workflow-modal-desc">{brand.description}</p>
+      )}
+
+      {!inModal && (brand.contact_email || managers.length > 0) && (
+        <div style={{ display: 'grid', gap: 6, marginBottom: 14, fontSize: 12 }}>
+          {brand.contact_email && (
+            <div><span style={{ color: 'var(--sf-muted)' }}>Client: </span><a href={`mailto:${brand.contact_email}`} style={{ color: 'var(--sf-accent)' }}>{brand.contact_email}</a></div>
+          )}
+          {managers.length > 0 && (
+            <div style={{ color: 'var(--sf-text-secondary)' }}><span style={{ color: 'var(--sf-muted)' }}>Managers: </span>{managers.map((u: any) => u.name).join(', ')}</div>
+          )}
+        </div>
+      )}
+
+      {canEdit && (
+        <>
+          <div className="sf-workflow-section-label">Update stage</div>
+          <div className="sf-workflow-stage-grid">
+            {STAGE_ORDER.map(s => {
+              const active = stage === s
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  disabled={savingStage}
+                  onClick={() => onSetStage(s)}
+                  className={`sf-workflow-stage-btn${active ? ' is-active' : ''}`}
+                  style={active ? { background: STAGE_COLORS[s], borderColor: STAGE_COLORS[s] } : undefined}
+                >
+                  {stageLabel(s)}
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+
+      <div className="sf-workflow-section-label">Team ({members.length})</div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+        {members.length === 0 ? (
+          <span style={{ fontSize: 12, color: 'var(--sf-muted)' }}>No team allocated — assign on Brands page.</span>
+        ) : members.map((u: any) => (
+          <span key={u.id} style={{ fontSize: 11, padding: '4px 8px', borderRadius: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)' }}>
+            {u.name}
+          </span>
+        ))}
+      </div>
+
+      <div className="sf-workflow-section-label">Tasks ({brandTasks.length})</div>
+      {brandTasks.length === 0 ? (
+        <div style={{ color: 'var(--sf-muted)', fontSize: 13 }}>No tasks on this brand yet.</div>
+      ) : (
+        <div className="sf-workflow-modal-tasks">
+          {brandTasks.map(t => (
+            <Link
+              key={t.id}
+              href={`/tasks/${t.id}`}
+              className="sf-workflow-modal-task-row"
+            >
+              <span className="sf-workflow-modal-task-title">{t.title}</span>
+              <span style={{ background: STATUS_BG[t.status] || '#F3F4F6', color: STATUS_TEXT[t.status] || '#374151', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, flexShrink: 0 }}>{t.status}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </>
+  )
+
+  if (inModal) {
+    return <div className="sf-workflow-modal-detail">{inner}</div>
+  }
+
+  return (
+    <>
+      <div className="sf-workflow-detail-head">
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', minWidth: 0 }}>
+          <BrandLogoMark brand={brand} size={48} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, fontWeight: 700, color: 'var(--sf-text)' }}>
+              {brand.name}
+            </div>
+            <div style={{ color: 'var(--sf-muted)', fontSize: 12, marginTop: 2 }}>
+              {brandTasks.length} tasks · {open} open · {done} done · {brand.priority || 'P3'}
+            </div>
+          </div>
+        </div>
+        <Link href="/brands" className="sf-btn sf-btn-ghost" style={{ fontSize: 11, flexShrink: 0 }}>
+          Open brand →
+        </Link>
+      </div>
+      <div className="sf-workflow-detail-body">{inner}</div>
     </>
   )
 }
@@ -218,16 +223,6 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
 
   useEffect(() => { load() }, [])
 
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 960px)')
-    const sync = () => {
-      if (!mq.matches) setDetailOpen(false)
-    }
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [])
-
   const filteredBrands = useMemo(() => {
     const q = search.trim().toLowerCase()
     return brands.filter((b) => {
@@ -237,15 +232,6 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
       return true
     })
   }, [brands, stageFilter, search])
-
-  useEffect(() => {
-    if (filteredBrands.length === 0) {
-      setSelectedId(null)
-      return
-    }
-    const stillVisible = selectedId && filteredBrands.some(b => String(b.id) === String(selectedId))
-    if (!stillVisible) setSelectedId(String(filteredBrands[0].id))
-  }, [filteredBrands, selectedId])
 
   const activeTasks = tasks.filter(t => t.status !== 'Completed')
   const awaitingApproval = brands.filter(b => (b.workflow_stage || 'assigned') === 'approval').length
@@ -303,17 +289,15 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
 
   const selected = brands.find(b => String(b.id) === String(selectedId))
 
-  function selectBrand(id: string, openDetail = false) {
+  function selectBrand(id: string) {
     setSelectedId(id)
-    if (openDetail && typeof window !== 'undefined' && window.matchMedia('(max-width: 960px)').matches) {
-      setDetailOpen(true)
-    }
+    setDetailOpen(true)
   }
 
   if (loading) return <div style={{ color: 'var(--sf-muted)', padding: 40, textAlign: 'center' }}>Loading workflow…</div>
 
   return (
-    <PageShell fill className="sf-workflow-page">
+    <PageShell className="sf-workflow-page">
       <PageHeader
         title="Workflow Dashboard"
         subtitle="Pick a brand from the list — stages, tasks, and capacity in one place"
@@ -373,98 +357,85 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
         )}
       </div>
 
-      <div className="sf-workflow-workspace">
-        <aside className="sf-workflow-roster" aria-label="Brand list">
-          <div className="sf-workflow-roster-head">
-            <h2 className="sf-workflow-roster-title">Brands ({filteredBrands.length})</h2>
-            <div className="sf-workflow-roster-filters">
-              <select
-                value={stageFilter}
-                onChange={e => setStageFilter(e.target.value)}
-                aria-label="Filter by workflow stage"
-              >
-                {STAGES.map(s => (
-                  <option key={s.id} value={s.id}>{s.label}</option>
-                ))}
-              </select>
-              <select
-                value={selectedId || ''}
-                onChange={e => selectBrand(e.target.value)}
-                aria-label="Jump to brand"
-              >
-                {filteredBrands.map(b => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
+      <section className="sf-workflow-brand-section" aria-label="Brand list">
+        <div className="sf-workflow-brand-head">
+          <h2 className="sf-workflow-roster-title">Brands ({filteredBrands.length}{search.trim() || stageFilter !== 'all' ? ` of ${brands.length}` : ''})</h2>
+          <div className="sf-workflow-brand-filters">
+            <select
+              value={stageFilter}
+              onChange={e => setStageFilter(e.target.value)}
+              aria-label="Filter by workflow stage"
+              className="sf-workflow-brand-select"
+            >
+              {STAGES.map(s => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
+            </select>
+            <div className="sf-perf-search-wrap">
+              <input
+                type="search"
+                className="sf-perf-search"
+                placeholder="Search brands…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                aria-label="Search brands"
+              />
             </div>
-            <input
-              type="search"
-              className="sf-workflow-roster-search"
-              placeholder="Search brands…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              aria-label="Search brands"
-            />
           </div>
-          <div className="sf-workflow-roster-list">
-            {filteredBrands.length === 0 ? (
-              <div className="sf-workflow-empty">No brands match this filter.</div>
-            ) : filteredBrands.map((brand) => {
-              const stage = brand.workflow_stage || 'assigned'
-              const brandTasks = tasks.filter(t => String(t.brand_id) === String(brand.id))
-              const open = brandTasks.filter(t => t.status !== 'Completed').length
-              const done = brandTasks.filter(t => t.status === 'Completed').length
-              const people = (brand.assigned_members || []).length + (brand.assigned_managers || []).length
-              const active = String(selectedId) === String(brand.id)
-              return (
-                <button
-                  key={brand.id}
-                  type="button"
-                  className={`sf-workflow-row${active ? ' is-active' : ''}`}
-                  style={{ '--wf-stage': STAGE_COLORS[stage] || '#20b2aa' } as React.CSSProperties}
-                  onClick={() => selectBrand(String(brand.id), true)}
-                >
-                  <BrandLogoMark brand={brand} size={32} />
-                  <div className="sf-workflow-row-copy">
-                    <div className="sf-workflow-row-name">{brand.name}</div>
-                    <div className="sf-workflow-row-meta">
-                      {brandTasks.length} tasks · {open} open · {done} done · {brand.priority || 'P3'}
-                    </div>
-                    <div className="sf-workflow-row-sub">
-                      {[brand.client_type, people > 0 ? `${people} people` : null, stageLabel(stage)].filter(Boolean).join(' · ')}
-                    </div>
-                  </div>
-                  <span className="sf-workflow-row-stage">{stageLabel(stage)}</span>
-                </button>
-              )
-            })}
-          </div>
-        </aside>
-
-        <div className="sf-workflow-detail sf-workflow-detail--desktop">
-          {selected ? (
-            <WorkflowBrandDetail
-              brand={selected}
-              tasks={tasks}
-              users={users}
-              canEdit={canEdit}
-              savingStage={savingStage}
-              onSetStage={(s) => setStage(selected.id, s)}
-            />
-          ) : (
-            <div className="sf-workflow-empty">Select a brand from the list to view stage and tasks.</div>
-          )}
         </div>
-      </div>
+        <div className="sf-workflow-brand-grid">
+          {filteredBrands.length === 0 ? (
+            <div className="sf-workflow-empty sf-workflow-empty--wide">No brands match this filter.</div>
+          ) : filteredBrands.map((brand) => {
+            const stage = brand.workflow_stage || 'assigned'
+            const brandTasks = tasks.filter(t => String(t.brand_id) === String(brand.id))
+            const open = brandTasks.filter(t => t.status !== 'Completed').length
+            const done = brandTasks.filter(t => t.status === 'Completed').length
+            const people = (brand.assigned_members || []).length + (brand.assigned_managers || []).length
+            return (
+              <button
+                key={brand.id}
+                type="button"
+                className="sf-workflow-brand-card"
+                style={{ '--wf-stage': STAGE_COLORS[stage] || '#20b2aa' } as React.CSSProperties}
+                onClick={() => selectBrand(String(brand.id))}
+              >
+                <BrandLogoMark brand={brand} size={36} />
+                <div className="sf-workflow-row-copy">
+                  <div className="sf-workflow-row-name">{brand.name}</div>
+                  <div className="sf-workflow-row-meta">
+                    {brandTasks.length} tasks · {open} open · {done} done · {brand.priority || 'P3'}
+                  </div>
+                  <div className="sf-workflow-row-sub">
+                    {[brand.client_type, people > 0 ? `${people} people` : null, stageLabel(stage)].filter(Boolean).join(' · ')}
+                  </div>
+                </div>
+                <span className="sf-workflow-row-stage">{stageLabel(stage)}</span>
+              </button>
+            )
+          })}
+        </div>
+      </section>
 
       {detailOpen && selected && (
         <Modal
           open
           onClose={() => setDetailOpen(false)}
           title={selected.name}
-          subtitle={`${selected.priority || 'P3'} · ${stageLabel(selected.workflow_stage || 'assigned')}`}
-          size="wide"
+          subtitle={`${selected.priority || 'P3'} · ${stageLabel(selected.workflow_stage || 'assigned')} · ${selected.client_type || 'Client'}`}
+          size="full"
+          panelClassName="sf-workflow-brand-modal"
           zIndex={90}
+          footer={
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', width: '100%' }}>
+              <Link href="/brands" className="sf-btn sf-btn-ghost" onClick={() => setDetailOpen(false)}>
+                Open full brand page →
+              </Link>
+              <button type="button" className="sf-btn sf-btn-primary" onClick={() => setDetailOpen(false)}>
+                Close
+              </button>
+            </div>
+          }
         >
           <WorkflowBrandDetail
             brand={selected}
@@ -473,7 +444,7 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
             canEdit={canEdit}
             savingStage={savingStage}
             onSetStage={(s) => setStage(selected.id, s)}
-            compact
+            inModal
           />
         </Modal>
       )}

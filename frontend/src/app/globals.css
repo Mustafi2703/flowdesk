@@ -843,18 +843,26 @@ html[data-theme='morning'] body {
 }
 
 /* ── Workflow dashboard (brand list + detail) ─────────────────── */
+.sf-workflow-page.sf-page-fill {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .sf-workflow-page .sf-page-canvas-fill {
   display: flex;
   flex-direction: column;
+  flex: 1 1 0;
   min-height: 0;
   height: 100%;
+  overflow: hidden;
 }
 
 .sf-workflow-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
   flex-shrink: 0;
 }
 
@@ -862,14 +870,18 @@ html[data-theme='morning'] body {
   display: grid;
   grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
   gap: 14px;
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
+  overflow: hidden;
+  align-items: stretch;
 }
 
 .sf-workflow-roster {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  height: 100%;
+  max-height: 100%;
   border: 1px solid var(--sf-border);
   border-radius: 16px;
   background: var(--sf-surface);
@@ -882,6 +894,24 @@ html[data-theme='morning'] body {
   border-bottom: 1px solid var(--sf-border);
   background: var(--sf-surface-2);
   flex-shrink: 0;
+}
+
+.sf-workflow-roster-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.sf-workflow-roster-filters select {
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--sf-border);
+  background: var(--sf-input-bg);
+  color: var(--sf-text);
+  font-size: 11px;
+  font-family: inherit;
+  min-width: 0;
 }
 
 .sf-workflow-roster-title {
@@ -989,6 +1019,15 @@ html[data-theme='morning'] body {
   white-space: nowrap;
 }
 
+.sf-workflow-row-sub {
+  margin-top: 2px;
+  font-size: 10px;
+  color: var(--sf-muted-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .sf-workflow-row-stage {
   flex-shrink: 0;
   font-size: 9px;
@@ -1003,6 +1042,8 @@ html[data-theme='morning'] body {
 .sf-workflow-detail {
   min-width: 0;
   min-height: 0;
+  height: 100%;
+  max-height: 100%;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--sf-border);
@@ -1032,8 +1073,24 @@ html[data-theme='morning'] body {
 }
 
 .sf-workflow-capacity {
-  margin-bottom: 14px;
+  margin-bottom: 12px;
   flex-shrink: 0;
+  border: 1px solid var(--sf-border);
+  border-radius: 12px;
+  background: var(--sf-surface);
+  padding: 10px 12px;
+}
+
+.sf-workflow-capacity.is-open {
+  max-height: 200px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sf-workflow-capacity.is-open .sf-workflow-capacity-track {
+  flex: 1;
+  min-height: 0;
 }
 
 .sf-workflow-capacity-toggle {
@@ -3758,6 +3815,15 @@ html[data-theme='morning'] .sf-table tr:hover td {
 
 .sf-sidebar--collapsed .sf-nav-footer {
   align-items: center;
+}
+
+.sf-sidebar--collapsed .sf-nav-active-bar {
+  display: none;
+}
+
+.sf-sidebar--collapsed .sf-sidebar-footer .sf-nav {
+  width: auto;
+  align-self: center;
 }
 
 .sf-nav-footer .sf-nav-icon-badge {

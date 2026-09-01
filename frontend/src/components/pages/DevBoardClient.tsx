@@ -55,6 +55,10 @@ function WorkflowBrandDetail({
   const members = (brand.assigned_members || [])
     .map((id: string) => users.find(u => String(u.id) === String(id)))
     .filter(Boolean)
+  const managers = (brand.assigned_managers || [])
+    .map((id: string) => users.find(u => String(u.id) === String(id)))
+    .filter(Boolean)
+  const done = brandTasks.filter(t => t.status === 'Completed').length
 
   return (
     <>
@@ -67,7 +71,7 @@ function WorkflowBrandDetail({
                 {brand.name}
               </div>
               <div style={{ color: 'var(--sf-muted)', fontSize: 12, marginTop: 2 }}>
-                {brandTasks.length} tasks · {open} open · {brand.priority || 'P3'}
+                {brandTasks.length} tasks · {open} open · {done} done · {brand.priority || 'P3'}
               </div>
             </div>
           </div>
@@ -87,7 +91,29 @@ function WorkflowBrandDetail({
               {brand.client_type}
             </span>
           )}
+          {(members.length + managers.length) > 0 && (
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 999, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', color: 'var(--sf-muted)' }}>
+              {members.length + managers.length} people
+            </span>
+          )}
         </div>
+
+        {brand.description && (
+          <p style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--sf-text-secondary)', margin: '0 0 14px' }}>
+            {brand.description}
+          </p>
+        )}
+
+        {(brand.contact_email || managers.length > 0) && (
+          <div style={{ display: 'grid', gap: 6, marginBottom: 14, fontSize: 12 }}>
+            {brand.contact_email && (
+              <div><span style={{ color: 'var(--sf-muted)' }}>Client: </span><a href={`mailto:${brand.contact_email}`} style={{ color: 'var(--sf-accent)' }}>{brand.contact_email}</a></div>
+            )}
+            {managers.length > 0 && (
+              <div style={{ color: 'var(--sf-text-secondary)' }}><span style={{ color: 'var(--sf-muted)' }}>Managers: </span>{managers.map((u: any) => u.name).join(', ')}</div>
+            )}
+          </div>
+        )}
 
         {canEdit && (
           <>
@@ -173,7 +199,7 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [savingStage, setSavingStage] = useState(false)
-  const [showCapacity, setShowCapacity] = useState(false)
+  const [showCapacity, setShowCapacity] = useState(true)
   const [detailOpen, setDetailOpen] = useState(false)
   const canEdit = ['owner', 'manager'].includes(session.role)
 
@@ -285,14 +311,14 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
         <StatCard label="Completed today" value={completedToday} accent="#26de81" />
       </div>
 
-      <div className="sf-workflow-capacity">
+      <div className={`sf-workflow-capacity${showCapacity ? ' is-open' : ''}`}>
         <button type="button" className="sf-workflow-capacity-toggle" onClick={() => setShowCapacity(v => !v)}>
-          <span>Team capacity</span>
+          <span>Team capacity ({capacity.length} members)</span>
           <span style={{ fontSize: 11, color: 'var(--sf-muted)' }}>{showCapacity ? 'Hide' : 'Show'}</span>
         </button>
         {showCapacity && (
           capacity.length === 0 ? (
-            <div style={{ color: 'var(--sf-muted)', fontSize: 13 }}>No team members yet.</div>
+            <div style={{ color: 'var(--sf-muted)', fontSize: 13, paddingTop: 8 }}>No team members yet.</div>
           ) : (
             <div className="sf-workflow-capacity-track">
               {capacity.map(({ user, open, cap, pct }) => (
@@ -319,19 +345,25 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
         <aside className="sf-workflow-roster" aria-label="Brand list">
           <div className="sf-workflow-roster-head">
             <h2 className="sf-workflow-roster-title">Brands ({filteredBrands.length})</h2>
-            <div className="sf-workflow-stage-tabs" role="tablist" aria-label="Filter by stage">
-              {STAGES.map(s => (
-                <button
-                  key={s.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={stageFilter === s.id}
-                  className={`sf-workflow-stage-tab${stageFilter === s.id ? ' is-active' : ''}`}
-                  onClick={() => setStageFilter(s.id)}
-                >
-                  {s.label}
-                </button>
-              ))}
+            <div className="sf-workflow-roster-filters">
+              <select
+                value={stageFilter}
+                onChange={e => setStageFilter(e.target.value)}
+                aria-label="Filter by workflow stage"
+              >
+                {STAGES.map(s => (
+                  <option key={s.id} value={s.id}>{s.label}</option>
+                ))}
+              </select>
+              <select
+                value={selectedId || ''}
+                onChange={e => selectBrand(e.target.value)}
+                aria-label="Jump to brand"
+              >
+                {filteredBrands.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
             </div>
             <input
               type="search"
@@ -349,6 +381,8 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
               const stage = brand.workflow_stage || 'assigned'
               const brandTasks = tasks.filter(t => String(t.brand_id) === String(brand.id))
               const open = brandTasks.filter(t => t.status !== 'Completed').length
+              const done = brandTasks.filter(t => t.status === 'Completed').length
+              const people = (brand.assigned_members || []).length + (brand.assigned_managers || []).length
               const active = String(selectedId) === String(brand.id)
               return (
                 <button
@@ -362,7 +396,10 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
                   <div className="sf-workflow-row-copy">
                     <div className="sf-workflow-row-name">{brand.name}</div>
                     <div className="sf-workflow-row-meta">
-                      {brandTasks.length} tasks · {open} open · {brand.priority || 'P3'}
+                      {brandTasks.length} tasks · {open} open · {done} done · {brand.priority || 'P3'}
+                    </div>
+                    <div className="sf-workflow-row-sub">
+                      {[brand.client_type, people > 0 ? `${people} people` : null, stageLabel(stage)].filter(Boolean).join(' · ')}
                     </div>
                   </div>
                   <span className="sf-workflow-row-stage">{stageLabel(stage)}</span>

@@ -18,10 +18,7 @@ const NAV_GROUPS: { label: string; ids: string[] }[] = [
 export default function Sidebar({ session }: { session: SessionUser }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return localStorage.getItem(SIDEBAR_KEY) === 'true'
-  })
+  const [collapsed, setCollapsed] = useState(false)
   const [ready, setReady] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' })
@@ -30,13 +27,17 @@ export default function Sidebar({ session }: { session: SessionUser }) {
   const [pwSaving, setPwSaving] = useState(false)
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--sf-sidebar-w', collapsed ? '76px' : '260px')
+    const stored = localStorage.getItem(SIDEBAR_KEY) === 'true'
+    setCollapsed(stored)
+    document.documentElement.style.setProperty('--sf-sidebar-w', stored ? '76px' : '260px')
+    document.documentElement.dataset.sidebarCollapsed = stored ? 'true' : 'false'
     setReady(true)
   }, [])
 
   useEffect(() => {
     if (!ready) return
     document.documentElement.style.setProperty('--sf-sidebar-w', collapsed ? '76px' : '260px')
+    document.documentElement.dataset.sidebarCollapsed = collapsed ? 'true' : 'false'
   }, [collapsed, ready])
 
   function toggleCollapsed() {
@@ -91,10 +92,14 @@ export default function Sidebar({ session }: { session: SessionUser }) {
 
   const roleColor = ROLE_COLORS[session.role] || 'var(--sf-accent)'
 
+  const sidebarWidth = collapsed ? 76 : 260
+
   return (
     <aside
       className={`sf-sidebar${collapsed ? ' sf-sidebar--collapsed' : ''}${ready ? ' sf-sidebar--ready' : ''}`}
+      style={{ width: sidebarWidth, minWidth: sidebarWidth, maxWidth: sidebarWidth }}
       aria-label="Main navigation"
+      aria-expanded={!collapsed}
     >
       <div className="sf-sidebar-brand-row">
         <div className="sf-sidebar-logo" aria-hidden>S</div>

@@ -1185,11 +1185,21 @@ html[data-theme='morning'] body {
 }
 
 /* ── Performance page (scrollable team table) ─────────────────── */
-.sf-perf-page .sf-page-canvas-fill {
+.sf-perf-page.sf-page-fill,
+.sf-attendance-page.sf-page-fill {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sf-perf-page .sf-page-canvas-fill,
+.sf-attendance-page .sf-page-canvas-fill {
   display: flex;
   flex-direction: column;
+  flex: 1 1 0;
   min-height: 0;
   height: 100%;
+  overflow: hidden;
 }
 
 .sf-perf-toolbar {
@@ -1360,6 +1370,243 @@ html[data-theme='morning'] body {
   text-align: center;
   color: var(--sf-muted);
   font-size: 13px;
+}
+
+.sf-perf-workspace {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  gap: 14px;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  align-items: stretch;
+}
+
+.sf-perf-roster {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  border: 1px solid var(--sf-border);
+  border-radius: 16px;
+  background: var(--sf-surface);
+  box-shadow: var(--sf-shadow);
+  overflow: hidden;
+}
+
+.sf-perf-roster-head {
+  padding: 12px;
+  border-bottom: 1px solid var(--sf-border);
+  background: var(--sf-surface-2);
+  flex-shrink: 0;
+}
+
+.sf-perf-roster-title {
+  margin: 0 0 8px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sf-text);
+}
+
+.sf-perf-roster-list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sf-perf-roster-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  min-width: 0;
+}
+
+.sf-perf-roster-row:hover {
+  background: var(--sf-surface-hover);
+  border-color: var(--sf-border);
+}
+
+.sf-perf-roster-row.is-active {
+  background: color-mix(in srgb, var(--sf-accent) 10%, var(--sf-surface));
+  border-color: color-mix(in srgb, var(--sf-accent) 30%, var(--sf-border));
+}
+
+.sf-perf-roster-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.sf-perf-roster-stats {
+  margin-top: 2px;
+  font-size: 10px;
+  color: var(--sf-muted-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sf-perf-detail {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  border: 1px solid var(--sf-border);
+  border-radius: 16px;
+  background: var(--sf-surface);
+  box-shadow: var(--sf-shadow);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.sf-perf-detail-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 18px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sf-perf-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--sf-border);
+}
+
+.sf-perf-detail-name {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--sf-text);
+}
+
+.sf-perf-detail-card,
+.sf-perf-chart-card {
+  background: var(--sf-surface-2);
+  border: 1px solid var(--sf-border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.sf-perf-chart-card {
+  margin-bottom: 0;
+}
+
+.sf-perf-detail-card-title {
+  color: var(--sf-muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 12px;
+}
+
+.sf-attendance-log-wrap {
+  border: 1px solid var(--sf-border);
+  border-radius: 10px;
+  overflow: auto;
+  max-height: 100%;
+}
+
+.sf-attendance-log-head,
+.sf-attendance-log-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 0.8fr;
+  gap: 8px;
+  padding: 10px 14px;
+  align-items: center;
+  min-width: 480px;
+}
+
+.sf-attendance-log-head {
+  position: sticky;
+  top: 0;
+  background: var(--sf-surface-2);
+  border-bottom: 1px solid var(--sf-border);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sf-muted);
+}
+
+.sf-attendance-log-row {
+  border-bottom: 1px solid var(--sf-border);
+  font-size: 13px;
+  color: var(--sf-text-secondary);
+}
+
+.sf-attendance-log-row.is-today {
+  background: color-mix(in srgb, var(--sf-accent) 6%, transparent);
+}
+
+.sf-workflow-analytics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.sf-workflow-analytics-card {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--sf-border);
+  background: var(--sf-surface);
+}
+
+.sf-workflow-analytics-val {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--sf-text);
+}
+
+.sf-workflow-analytics-label {
+  font-size: 10px;
+  color: var(--sf-muted);
+  margin-top: 2px;
+}
+
+.sf-workflow-capacity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+  padding-top: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+@media (max-width: 960px) {
+  .sf-perf-detail--desktop,
+  .sf-workflow-detail--desktop {
+    display: none;
+  }
+
+  .sf-perf-workspace,
+  .sf-workflow-workspace {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Brand detail page (opened client) */

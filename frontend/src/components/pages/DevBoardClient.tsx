@@ -269,6 +269,21 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
     }).sort((a, b) => b.pct - a.pct)
   }, [users, tasks])
 
+  const stageAnalytics = useMemo(() => {
+    return STAGE_ORDER.map(stageId => {
+      const count = brands.filter(b => (b.workflow_stage || 'assigned') === stageId).length
+      const withTasks = brands.filter(b => {
+        if ((b.workflow_stage || 'assigned') !== stageId) return false
+        return tasks.some(t => String(t.brand_id) === String(b.id))
+      }).length
+      return { stageId, count, withTasks, label: stageLabel(stageId), color: STAGE_COLORS[stageId] }
+    })
+  }, [brands, tasks])
+
+  const brandsWithOpenTasks = useMemo(() => {
+    return brands.filter(b => tasks.some(t => String(t.brand_id) === String(b.id) && t.status !== 'Completed')).length
+  }, [brands, tasks])
+
   async function setStage(brandId: string, workflow_stage: string) {
     if (!canEdit) return
     setSavingStage(true)
@@ -306,27 +321,44 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
 
       <div className="sf-workflow-summary">
         <StatCard label="Total brands" value={brands.length} accent="#d4a574" />
-        <StatCard label="Active tasks" value={activeTasks.length} accent="#20b2aa" />
+        <StatCard label="Brands with open work" value={brandsWithOpenTasks} accent="#20b2aa" />
+        <StatCard label="Active tasks" value={activeTasks.length} accent="#3B82F6" />
         <StatCard label="Awaiting approval" value={awaitingApproval} accent="#ffa502" />
-        <StatCard label="Completed today" value={completedToday} accent="#26de81" />
+      </div>
+
+      <div className="sf-workflow-analytics">
+        {stageAnalytics.map(({ stageId, count, withTasks, label, color }) => (
+          <button
+            key={stageId}
+            type="button"
+            className="sf-workflow-analytics-card"
+            onClick={() => setStageFilter(stageId)}
+            style={{ borderColor: stageFilter === stageId ? color : undefined }}
+          >
+            <div className="sf-workflow-analytics-val" style={{ color }}>{count}</div>
+            <div className="sf-workflow-analytics-label">{label}</div>
+            <div className="sf-workflow-analytics-label">{withTasks} with tasks</div>
+          </button>
+        ))}
       </div>
 
       <div className={`sf-workflow-capacity${showCapacity ? ' is-open' : ''}`}>
         <button type="button" className="sf-workflow-capacity-toggle" onClick={() => setShowCapacity(v => !v)}>
-          <span>Team capacity ({capacity.length} members)</span>
+          <span>Team capacity ({capacity.length} members · {capacity.filter(c => c.pct >= 85).length} near limit)</span>
           <span style={{ fontSize: 11, color: 'var(--sf-muted)' }}>{showCapacity ? 'Hide' : 'Show'}</span>
         </button>
         {showCapacity && (
           capacity.length === 0 ? (
             <div style={{ color: 'var(--sf-muted)', fontSize: 13, paddingTop: 8 }}>No team members yet.</div>
           ) : (
-            <div className="sf-workflow-capacity-track">
+            <div className="sf-workflow-capacity-grid">
               {capacity.map(({ user, open, cap, pct }) => (
                 <div key={user.id} className="sf-workflow-capacity-card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 12 }}>
-                    <span style={{ fontWeight: 600 }}>{user.name}</span>
-                    <span style={{ color: 'var(--sf-muted)' }}>{open}/{cap} · {pct}%</span>
+                    <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 8 }}>{user.name}</span>
+                    <span style={{ color: 'var(--sf-muted)', flexShrink: 0 }}>{open}/{cap} · {pct}%</span>
                   </div>
+                  <div style={{ fontSize: 10, color: 'var(--sf-muted)', marginBottom: 6 }}>{user.designation || 'Team'}</div>
                   <div style={{ height: 6, background: 'var(--sf-border)', borderRadius: 3, overflow: 'hidden' }}>
                     <div style={{
                       width: `${pct}%`,

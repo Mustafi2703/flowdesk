@@ -30,6 +30,7 @@ from app.models.attachment import FileAttachment
 from app.schemas.task import TaskChatSend, TaskCreate, TaskReviewDecision, TaskStatusUpdate, TaskUpdate
 from app.services import object_storage
 from app.services.review import next_review_version, review_history_entry
+from app.services.task_activity import describe_task_update, log_task_activity, notify_task_stakeholders
 from app.services.task_brief_email import send_task_brief_emails
 from app.utils.queues import DASHBOARD_CACHE
 
@@ -446,6 +447,16 @@ def update_task(
     ]
     db.commit()
     db.refresh(task)
+    activity = describe_task_update(update)
+    if activity:
+        log_task_activity(
+            db,
+            task,
+            user,
+            activity,
+            notif_type="task" if "status" in update else "chat",
+        )
+        db.commit()
     # Notify newly assigned people when managers re-assign on edit.
     if "assigned_to" in update:
         new_assignees = {str(uid) for uid in (task.assigned_to or [])} - previous_assignees
@@ -466,31 +477,6 @@ def update_task(
                 assigner=user,
                 assignee_ids=[uuid.UUID(aid) for aid in new_assignees],
             )
-    if task.status == "Under Review":
-        targets = {*(task.assigned_managers or []), *( [task.created_by] if task.created_by else [] )}
-        for manager_id in targets:
-            if not manager_id or manager_id == user.id:
-                continue
-            db.add(
-                Notification(
-                    user_id=manager_id,
-                    message=f'Task "{task.title}" is under review',
-                    type="task",
-                    link=f"/tasks/{task.id}",
-                )
-            )
-        db.commit()
-    if task.status in {"Struggling", "Needs Attention"}:
-        for manager_id in task.assigned_managers or []:
-            db.add(
-                Notification(
-                    user_id=manager_id,
-                    message=f'Task "{task.title}" flagged as {task.status}',
-                    type="task",
-                    link=f"/tasks/{task.id}",
-                )
-            )
-        db.commit()
     DASHBOARD_CACHE.invalidate()
     brands = _brand_map(db, [task.brand_id] if task.brand_id else [])
     people = _people_map(db, [task.created_by, task.assigned_by])
@@ -558,16 +544,12 @@ def review_task(
             "at": datetime.now(timezone.utc).isoformat(),
         },
     ]
-    for assignee_id in task.assigned_to or []:
-        db.add(
-            Notification(
-                user_id=assignee_id,
-                message=f'Task "{task.title}" {payload.decision} · v{current_version}'
-                + (f": {notes}" if notes else ""),
-                type="task",
-                link=f"/tasks/{task.id}",
-            )
-        )
+    review_line = (
+        f"Review approved (v{current_version})"
+        if payload.decision == "approved"
+        else f"Review rejected (v{current_version})" + (f": {notes}" if notes else "")
+    )
+    log_task_activity(db, task, user, review_line, notif_type="review")
     db.commit()
     db.refresh(task)
     DASHBOARD_CACHE.invalidate()
@@ -643,6 +625,8 @@ def close_updates(
             "at": datetime.now(timezone.utc).isoformat(),
         },
     ]
+    if not purge:
+        log_task_activity(db, task, user, "Updates channel closed", notify=True, notif_type="chat")
     db.commit()
     db.refresh(task)
     DASHBOARD_CACHE.invalidate()
@@ -676,6 +660,7 @@ def reopen_updates(
             "at": datetime.now(timezone.utc).isoformat(),
         },
     ]
+    log_task_activity(db, task, user, "Updates channel reopened", notify=True, notif_type="chat")
     db.commit()
     db.refresh(task)
     DASHBOARD_CACHE.invalidate()
@@ -763,50 +748,19 @@ def send_chat(
     db.commit()
     db.refresh(chat)
 
-    def _as_uuid(value: Any) -> uuid.UUID | None:
-        if value is None:
-            return None
-        try:
-            return value if isinstance(value, uuid.UUID) else uuid.UUID(str(value))
-        except (TypeError, ValueError):
-            return None
-
-    recipients: set[uuid.UUID] = set()
-    for raw in (*(task.assigned_to or []), *(task.assigned_managers or [])):
-        uid = _as_uuid(raw)
-        if uid:
-            recipients.add(uid)
-    for raw in (task.created_by, task.assigned_by):
-        uid = _as_uuid(raw)
-        if uid:
-            recipients.add(uid)
-    # Sub-task assignees on this task
-    for sub in task.sub_tasks or []:
-        for raw in sub.get("assigned_to") or []:
-            uid = _as_uuid(raw)
-            if uid:
-                recipients.add(uid)
-    if task.brand_id:
-        brand = db.get(Brand, task.brand_id)
-        if brand:
-            for raw in (*(brand.assigned_members or []), *(getattr(brand, "assigned_managers", None) or [])):
-                uid = _as_uuid(raw)
-                if uid:
-                    recipients.add(uid)
-    recipients.discard(user.id)
-
     preview = (chat.message or "").strip()
     if len(preview) > 80:
         preview = preview[:77] + "…"
-    for recipient in recipients:
-        db.add(
-            Notification(
-                user_id=recipient,
-                message=f'{user.name} on "{task.title}": {preview}' if preview else f'{user.name} sent a message in "{task.title}"',
-                type="chat",
-                link=f"/updates?task={task.id}",
-            )
-        )
+    notif_msg = f'{user.name} on "{task.title}": {preview}' if preview else f'{user.name} sent a message in "{task.title}"'
+    notify_task_stakeholders(
+        db,
+        task,
+        user,
+        notif_msg,
+        notif_type="chat",
+        link=f"/updates?task={task.id}",
+        exclude_user_id=user.id,
+    )
     db.commit()
     return {
         "id": str(chat.id),

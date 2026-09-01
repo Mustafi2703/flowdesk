@@ -189,6 +189,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
       return
     }
     await loadFeed()
+    if (selectedTaskId) await loadThread(selectedTaskId, true)
   }
 
   async function decideReview(decision: 'approved' | 'rejected') {
@@ -209,6 +210,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     }
     setReviewNotes('')
     await loadFeed()
+    if (selectedTaskId) await loadThread(selectedTaskId, true)
   }
 
   const { channels, channelTotal } = useMemo(() => {
@@ -242,6 +244,13 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     )
     return { channels: filtered, channelTotal: rows.length }
   }, [tasks, updates, query, showClosed])
+
+  useEffect(() => {
+    if (loading || deepLinkHandled.current) return
+    if (searchParams.get('task')) return
+    if (selectedTaskId || channels.length === 0) return
+    loadThread(channels[0].task.id)
+  }, [loading, channels, selectedTaskId, searchParams])
 
   const selectedTask = tasks.find((t) => t.id === selectedTaskId)
   const assigneeNames = (selectedTask?.assigned_to || [])
@@ -433,6 +442,18 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                     <div className="sf-upd-empty">This is the start of #{selectedTask.title}.</div>
                   )}
                   {thread.map((m) => (
+                    m.type === 'system' ? (
+                      <div key={m.id} className="sf-upd-activity">
+                        <span className="sf-upd-activity-dot" aria-hidden />
+                        <div className="sf-upd-activity-body">
+                          <span className="sf-upd-activity-who">{m.sender?.name || 'System'}</span>
+                          <span className="sf-upd-activity-text"><MessageText text={m.message || ''} /></span>
+                          <span className="sf-upd-activity-time">
+                            {new Date(m.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
                     <div key={m.id} className="sf-upd-msg">
                       <div
                         className="sf-upd-msg-avatar"
@@ -450,6 +471,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                         </div>
                       </div>
                     </div>
+                    )
                   ))}
                 </div>
 

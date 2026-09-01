@@ -21,12 +21,12 @@ from app.db.session import get_db
 from app.models.attachment import FileAttachment
 from app.models.attendance import AttendanceLog
 from app.models.brand import Brand
-from app.models.notification import Notification
 from app.models.profile import Profile
 from app.models.task import Task
 from app.services import object_storage
 from app.services.notification_email import send_file_review_email
 from app.services.review import next_review_version, review_history_entry
+from app.services.task_activity import log_task_activity
 from app.utils.queues import DASHBOARD_CACHE
 
 router = APIRouter(prefix="/attachments", tags=["attachments"])
@@ -196,20 +196,6 @@ def _advance_task_after_upload(db: Session, task: Task, user: Profile) -> str | 
         ]
         db.commit()
         db.refresh(task)
-        if changed == "Under Review":
-            targets = {*(task.assigned_managers or []), *([task.created_by] if task.created_by else [])}
-            for manager_id in targets:
-                if not manager_id or manager_id == user.id:
-                    continue
-                db.add(
-                    Notification(
-                        user_id=manager_id,
-                        message=f'"{task.title}" ready for review — new file uploaded',
-                        type="task",
-                        link=f"/tasks/{task.id}",
-                    )
-                )
-            db.commit()
     return changed
 
 
@@ -391,15 +377,14 @@ def review_attachment(
                 )
                 task.review_history = task_history
                 task.review_version = next_review_version(task.review_version or "1")
-                for assignee_id in task.assigned_to or []:
-                    db.add(
-                        Notification(
-                            user_id=assignee_id,
-                            message=f'File "{row.file_name}" on "{task.title}" was rejected (v{current_version}): {notes}',
-                            type="task",
-                            link=f"/tasks/{task.id}",
-                        )
-                    )
+                log_task_activity(
+                    db,
+                    task,
+                    user,
+                    f'File "{row.file_name}" rejected (v{current_version})'
+                    + (f": {notes}" if notes else ""),
+                    notif_type="review",
+                )
     elif payload.review_status == "approved" and row.entity_type == "task":
         task = db.get(Task, row.entity_id)
         if task:
@@ -415,15 +400,14 @@ def review_attachment(
                 )
             )
             task.review_history = task_history
-            for assignee_id in task.assigned_to or []:
-                db.add(
-                    Notification(
-                        user_id=assignee_id,
-                        message=f'File "{row.file_name}" on "{task.title}" was approved (v{current_version})',
-                        type="task",
-                        link=f"/tasks/{task.id}",
-                    )
-                )
+            log_task_activity(
+                db,
+                task,
+                user,
+                f'File "{row.file_name}" approved (v{current_version})'
+                + (f": {notes}" if notes else ""),
+                notif_type="review",
+            )
     db.commit()
     db.refresh(row)
     if row.entity_type == "task":
@@ -480,6 +464,17 @@ async def upload_attachment(
         task = db.get(Task, entity_id)
         if task:
             task_status = _advance_task_after_upload(db, task, user)
+            msg = f'Uploaded "{row.file_name}"'
+            if task_status:
+                msg += f" · status → {task_status}"
+            log_task_activity(
+                db,
+                task,
+                user,
+                msg,
+                notif_type="review" if task.requires_review else "chat",
+            )
+            db.commit()
     payload = _serialize(row)
     if task_status:
         payload["task_status"] = task_status

@@ -32,7 +32,8 @@ export function resolveNotificationLink(link?: string | null, type?: string | nu
 
 export function notificationActionLabel(type?: string | null): string {
   if (type === 'chat') return 'Open in Updates'
-  if (type === 'task') return 'View task'
+  if (type === 'review') return 'Open in Updates'
+  if (type === 'task') return 'Open in Updates'
   if (type === 'leave') return 'Open leave'
   if (type === 'announcement') return 'Read announcement'
   return 'Open'

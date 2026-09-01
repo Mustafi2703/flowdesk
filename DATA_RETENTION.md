@@ -16,7 +16,8 @@ Completed tasks auto-close the Updates channel but **do not** purge chat until a
 - Every upload is a separate `file_attachments` row with `created_at`, `review_version`, and `review_history` (status, notes, reviewer, **timestamp**).
 - Rejected revisions stay in history; team uploads a new file for the next version (1 → 1.1 → 1.2 …).
 - Manual file delete: owner/manager or original uploader.
-- **Auto-delete** columns exist on attachments (`auto_delete_days`, `delete_at`) but lifecycle cron is not wired yet — files persist until manually deleted or the parent task is deleted by an owner.
+- **Auto-delete** columns exist on attachments (`auto_delete_days`, `delete_at`).
+- **Daily cron** `POST /api/v1/cron/cleanup-data` (header `X-Cron-Secret`) purges read notifications older than 90 days and chat on tasks whose Updates channel was closed 180+ days ago. Schedule on Railway alongside morning/evening digests.
 
 ## Leave
 

@@ -69,7 +69,11 @@ export function NotificationBell() {
     } else {
       const fresh = list.filter((n) => !n.is_read && !seenRef.current.has(n.id))
       for (const n of fresh) seenRef.current.add(n.id)
-      const next = fresh.find((n) => n.type === 'chat') || fresh[0]
+      const next =
+        fresh.find((n) => n.type === 'chat') ||
+        fresh.find((n) => n.type === 'review') ||
+        fresh.find((n) => n.type === 'task') ||
+        fresh[0]
       if (next) setToast(next)
     }
     setItems(list)

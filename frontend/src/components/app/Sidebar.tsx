@@ -30,12 +30,14 @@ export default function Sidebar({ session }: { session: SessionUser }) {
   const [pwSaving, setPwSaving] = useState(false)
 
   useEffect(() => {
+    document.documentElement.style.setProperty('--sf-sidebar-w', collapsed ? '76px' : '260px')
     setReady(true)
   }, [])
 
   useEffect(() => {
+    if (!ready) return
     document.documentElement.style.setProperty('--sf-sidebar-w', collapsed ? '76px' : '260px')
-  }, [collapsed])
+  }, [collapsed, ready])
 
   function toggleCollapsed() {
     setCollapsed((c) => {

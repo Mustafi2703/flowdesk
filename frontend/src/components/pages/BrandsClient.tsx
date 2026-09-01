@@ -272,6 +272,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
   const [managerIds, setManagerIds] = useState<string[]>(() => (brand.assigned_managers || []).map(String))
   const [memberIds, setMemberIds] = useState<string[]>(() => (brand.assigned_members || []).map(String))
   const [savingMembers, setSavingMembers] = useState(false)
+  const [allocSaved, setAllocSaved] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [logoError, setLogoError] = useState('')
   const [editingIdentity, setEditingIdentity] = useState(false)
@@ -331,11 +332,16 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
   }, [brand.id, brand.assigned_members, brand.assigned_managers, brand.name, brand.logo, brand.logo_url, brand.contact_email, brand.description, brand.workflow_stage, brand.priority, brand.client_type, brand.short_term_goals, brand.long_term_goals, brand.journey, brand.responsibilities, brand.fonts, brand.logo_variants, brand.brand_colors, brand.photography_style, brand.brand_voice])
 
   useEffect(() => {
+    setAllocSaved(false)
+  }, [brand.id, managerIds, memberIds])
+
+  useEffect(() => {
     if (identityEditNonce > 0) setEditingIdentity(true)
   }, [identityEditNonce])
 
   async function saveMembers() {
     setSavingMembers(true)
+    setAllocSaved(false)
     const body: Record<string, string[]> = {}
     if (canAssignTeam) body.assigned_members = memberIds
     if (canAssignManagers) body.assigned_managers = managerIds
@@ -350,7 +356,9 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
       alert(data.error || data.detail || 'Could not update brand allocation')
       return
     }
-    alert('Brand allocation saved. Assigned managers and team can open brand documents.')
+    const updated = await res.json().catch(() => null)
+    if (updated?.id) onBrandUpdated?.(updated)
+    setAllocSaved(true)
     onRefresh()
   }
 
@@ -655,6 +663,11 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                   <button type="button" onClick={saveMembers} disabled={savingMembers} className="sf-btn sf-btn-primary" style={{ fontSize: 12 }}>
                     {savingMembers ? 'Saving…' : 'Save allocation'}
                   </button>
+                  {allocSaved && (
+                    <span style={{ display: 'block', marginTop: 8, fontSize: 12, color: 'var(--sf-success)' }}>
+                      Allocation saved — existing brand data unchanged.
+                    </span>
+                  )}
                 </div>
               )}
             </div>

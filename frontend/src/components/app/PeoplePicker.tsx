@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import { sameUserId } from '@/lib/tasks'
 
 type Person = {
@@ -40,16 +41,57 @@ export function PeoplePicker({
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [menuStyle, setMenuStyle] = useState<CSSProperties>({})
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
+  const syncMenuPosition = useCallback(() => {
+    const trigger = triggerRef.current
+    if (!trigger) return
+    const rect = trigger.getBoundingClientRect()
+    const gap = 6
+    const menuMaxH = 320
+    const spaceBelow = window.innerHeight - rect.bottom - gap
+    const spaceAbove = rect.top - gap
+    const openUp = spaceBelow < 180 && spaceAbove > spaceBelow
+    const maxHeight = Math.min(menuMaxH, openUp ? spaceAbove - gap : spaceBelow - gap)
+
+    setMenuStyle({
+      position: 'fixed',
+      left: rect.left,
+      width: rect.width,
+      maxHeight: Math.max(160, maxHeight),
+      zIndex: 10050,
+      ...(openUp
+        ? { bottom: window.innerHeight - rect.top + gap }
+        : { top: rect.bottom + gap }),
+    })
+  }, [])
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      setQuery('')
+      return
+    }
+    syncMenuPosition()
     function onDoc(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return
+      setOpen(false)
+    }
+    function onReposition() {
+      syncMenuPosition()
     }
     document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
-  }, [open])
+    window.addEventListener('resize', onReposition)
+    window.addEventListener('scroll', onReposition, true)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      window.removeEventListener('resize', onReposition)
+      window.removeEventListener('scroll', onReposition, true)
+    }
+  }, [open, syncMenuPosition])
 
   function toggle(id: string) {
     const has = selectedIds.some((x) => sameUserId(x, id))
@@ -141,11 +183,77 @@ export function PeoplePicker({
     )
   }
 
+  const menu = open ? (
+    <div
+      ref={menuRef}
+      className="sf-people-picker-menu"
+      style={menuStyle}
+      role="listbox"
+      aria-multiselectable="true"
+    >
+      <div className="sf-people-picker-menu-search">
+        <input
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search name, designation, department…"
+          className="sf-input"
+          style={{ fontSize: 12, padding: '8px 10px' }}
+        />
+      </div>
+      <div className="sf-people-picker-menu-list">
+        {filtered.length === 0 && (
+          <div className="sf-people-picker-menu-empty">No matches</div>
+        )}
+        {groups.map((g) => (
+          <div key={g.key}>
+            {groupByRole && g.items.length > 0 && (
+              <div className="sf-people-picker-menu-group">{g.label}</div>
+            )}
+            {g.items.map((u) => {
+              const on = selectedIds.some((x) => sameUserId(x, u.id))
+              return (
+                <button
+                  key={u.id}
+                  type="button"
+                  role="option"
+                  aria-selected={on}
+                  onClick={() => toggle(u.id)}
+                  className={`sf-people-picker-menu-item${on ? ' is-selected' : ''}`}
+                >
+                  <div className={`sf-people-picker-check${on ? ' is-on' : ''}`}>
+                    {on ? '✓' : ''}
+                  </div>
+                  <div className="sf-people-picker-avatar">
+                    {u.avatar || u.name?.slice(0, 2) || '?'}
+                  </div>
+                  <div className="sf-people-picker-meta">
+                    <div className="sf-people-picker-name">{u.name}</div>
+                    <div className="sf-people-picker-sub">
+                      {[u.designation || ROLE_LABEL[u.role || ''] || u.role, u.department].filter(Boolean).join(' · ')}
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        ))}
+      </div>
+      <div className="sf-people-picker-menu-foot">
+        <span>{selectedIds.length} selected</span>
+        <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => setOpen(false)}>Done</button>
+      </div>
+    </div>
+  ) : null
+
   return (
-    <div ref={rootRef} style={{ position: 'relative' }}>
+    <div ref={rootRef} className="sf-people-picker">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="listbox"
         className="sf-input"
         style={{
           width: '100%',
@@ -199,109 +307,7 @@ export function PeoplePicker({
         </div>
       )}
 
-      {open && (
-        <div
-          style={{
-            position: 'absolute',
-            zIndex: 40,
-            left: 0,
-            right: 0,
-            top: '100%',
-            marginTop: 6,
-            background: 'var(--sf-surface)',
-            border: '1px solid var(--sf-border)',
-            borderRadius: 10,
-            boxShadow: '0 12px 32px rgba(0,0,0,0.35)',
-            overflow: 'hidden',
-          }}
-        >
-          <div style={{ padding: 10, borderBottom: '1px solid var(--sf-border)' }}>
-            <input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search name, designation, department…"
-              className="sf-input"
-              style={{ fontSize: 12, padding: '8px 10px' }}
-            />
-          </div>
-          <div style={{ maxHeight: 260, overflowY: 'auto' }}>
-            {filtered.length === 0 && (
-              <div style={{ padding: 16, color: 'var(--sf-muted)', fontSize: 12, textAlign: 'center' }}>No matches</div>
-            )}
-            {groups.map((g) => (
-              <div key={g.key}>
-                {groupByRole && g.items.length > 0 && (
-                  <div style={{
-                    padding: '8px 12px 4px',
-                    color: 'var(--sf-muted)',
-                    fontSize: 10,
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
-                    background: 'var(--sf-surface-2)',
-                    position: 'sticky',
-                    top: 0,
-                  }}>
-                    {g.label}
-                  </div>
-                )}
-                {g.items.map((u) => {
-                  const on = selectedIds.some((x) => sameUserId(x, u.id))
-                  return (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => toggle(u.id)}
-                      style={{
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        padding: '10px 12px',
-                        border: 'none',
-                        borderBottom: '1px solid var(--sf-border)',
-                        background: on ? 'rgba(16,185,129,0.1)' : 'transparent',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        fontFamily: "'DM Sans',sans-serif",
-                      }}
-                    >
-                      <div style={{
-                        width: 18, height: 18, borderRadius: 4, flexShrink: 0,
-                        border: `1.5px solid ${on ? '#10B981' : 'var(--sf-border-strong)'}`,
-                        background: on ? '#10B981' : 'transparent',
-                        color: '#fff', fontSize: 11, fontWeight: 700,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        {on ? '✓' : ''}
-                      </div>
-                      <div style={{
-                        width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-                        background: 'var(--sf-accent)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: '#fff', fontSize: 11, fontWeight: 700,
-                      }}>
-                        {u.avatar || u.name?.slice(0, 2) || '?'}
-                      </div>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ color: 'var(--sf-text)', fontSize: 13, fontWeight: 650 }}>{u.name}</div>
-                        <div style={{ color: 'var(--sf-muted)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {[u.designation || ROLE_LABEL[u.role || ''] || u.role, u.department].filter(Boolean).join(' · ')}
-                        </div>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            ))}
-          </div>
-          <div style={{ padding: '8px 12px', borderTop: '1px solid var(--sf-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ color: 'var(--sf-muted)', fontSize: 11 }}>{selectedIds.length} selected</span>
-            <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => setOpen(false)}>Done</button>
-          </div>
-        </div>
-      )}
+      {typeof document !== 'undefined' && menu ? createPortal(menu, document.body) : null}
     </div>
   )
 }

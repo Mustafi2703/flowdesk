@@ -1,8 +1,9 @@
 // @ts-nocheck
 'use client'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { SessionUser, ROLE_COLORS } from '@/types'
 import { PageHeader, PageShell, StatCard, StatGrid } from '@/components/app/Section'
+import { Modal } from '@/components/app/Modal'
 
 function Bars({ data, color, height = 60 }: any) {
   const max = Math.max(...data.map((d: any) => d.value), 1)
@@ -110,9 +111,8 @@ export default function PerformanceClient({ session }: { session: SessionUser })
   const [users, setUsers] = useState<any[]>([])
   const [period, setPeriod] = useState('monthly')
   const [memberSearch, setMemberSearch] = useState('')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [detailId, setDetailId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const detailRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -144,36 +144,17 @@ export default function PerformanceClient({ session }: { session: SessionUser })
     })
   }, [tm, memberSearch])
 
-  useEffect(() => {
-    if (isSelfOnly) {
-      setSelectedId(session.id)
-      return
-    }
-    if (filteredTm.length === 0) {
-      setSelectedId(null)
-      return
-    }
-    const visible = selectedId && filteredTm.some(({ user }) => String(user.id) === String(selectedId))
-    if (!visible) setSelectedId(String(filteredTm[0]?.user?.id || ''))
-  }, [filteredTm, selectedId, isSelfOnly, session.id])
-
-  const selectedRow = tm.find(({ user }) => String(user.id) === String(selectedId))
-
-  function selectMember(id: string) {
-    setSelectedId(id)
-    requestAnimationFrame(() => {
-      detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    })
-  }
+  const detailRow = detailId ? tm.find(({ user }) => String(user.id) === String(detailId)) : null
+  const selfRow = isSelfOnly ? tm[0] : null
 
   if (loading) return <div style={{ color: 'var(--sf-muted)', padding: 40, textAlign: 'center' }}>Loading…</div>
 
-  if (isSelfOnly && selectedRow) {
+  if (isSelfOnly && selfRow) {
     return (
       <PageShell className="sf-perf-page">
         <PageHeader title="Performance" subtitle="Your allocated, delayed, and on-time metrics" />
         <div className="sf-perf-member-panel">
-          <MemberPerformanceDetail user={selectedRow.user} sm={selectedRow} />
+          <MemberPerformanceDetail user={selfRow.user} sm={selfRow} />
         </div>
       </PageShell>
     )
@@ -181,7 +162,7 @@ export default function PerformanceClient({ session }: { session: SessionUser })
 
   return (
     <PageShell className="sf-perf-page">
-      <PageHeader title="Performance" subtitle="Team overview — pick a member for full drill-down below" />
+      <PageHeader title="Performance" subtitle="Team overview — click a member for full metrics" />
 
       <div className="sf-perf-toolbar">
         <div className="sf-perf-period-toggle">
@@ -204,53 +185,60 @@ export default function PerformanceClient({ session }: { session: SessionUser })
         </div>
       </div>
 
-      <aside className="sf-perf-roster sf-perf-roster--scroll" aria-label="Team members">
-        <div className="sf-perf-roster-head">
-          <h2 className="sf-perf-roster-title">Team ({filteredTm.length})</h2>
-          <input
-            type="search"
-            className="sf-perf-table-search"
-            placeholder="Search team members…"
-            value={memberSearch}
-            onChange={e => setMemberSearch(e.target.value)}
-            aria-label="Search team members"
-          />
+      <section className="sf-perf-team-section" aria-label="Team members">
+        <div className="sf-perf-team-head">
+          <h2 className="sf-perf-roster-title">Team ({filteredTm.length}{memberSearch.trim() ? ` of ${tm.length}` : ''})</h2>
+          <div className="sf-perf-search-wrap">
+            <input
+              type="search"
+              className="sf-perf-search"
+              placeholder="Search by name, role, or email…"
+              value={memberSearch}
+              onChange={e => setMemberSearch(e.target.value)}
+              aria-label="Search team members"
+            />
+          </div>
         </div>
-        <div className="sf-perf-roster-list">
+        <div className="sf-perf-team-grid">
           {filteredTm.length === 0 ? (
-            <div className="sf-perf-table-empty">No team members match your search.</div>
-          ) : filteredTm.map(({ user, total, done, overdue, ontime, perf }) => {
-            const active = String(selectedId) === String(user.id)
-            return (
-              <button
-                key={user.id}
-                type="button"
-                className={`sf-perf-roster-row${active ? ' is-active' : ''}`}
-                onClick={() => selectMember(String(user.id))}
-              >
-                <div className="sf-perf-table-avatar" style={{ background: ROLE_COLORS[user.role] || 'var(--sf-accent)' }}>
-                  {user.avatar || user.name?.slice(0, 2)}
-                </div>
-                <div className="sf-perf-roster-copy">
-                  <div className="sf-perf-table-name">{user.name}</div>
-                  <div className="sf-perf-table-role">{user.designation || 'Team'}</div>
-                  <div className="sf-perf-roster-stats">{total} assigned · {done} done · {overdue} overdue · {ontime}% on-time</div>
-                </div>
-                <span className="sf-perf-roster-badge" style={{ background: perf.color + '20', color: perf.color }}>
-                  {perf.label}
-                </span>
-              </button>
-            )
-          })}
+            <div className="sf-perf-table-empty sf-perf-table-empty--wide">No team members match your search.</div>
+          ) : filteredTm.map(({ user, total, done, overdue, ontime, perf }) => (
+            <button
+              key={user.id}
+              type="button"
+              className="sf-perf-team-card"
+              onClick={() => setDetailId(String(user.id))}
+            >
+              <div className="sf-perf-table-avatar" style={{ background: ROLE_COLORS[user.role] || 'var(--sf-accent)' }}>
+                {user.avatar || user.name?.slice(0, 2)}
+              </div>
+              <div className="sf-perf-roster-copy">
+                <div className="sf-perf-table-name">{user.name}</div>
+                <div className="sf-perf-table-role">{user.designation || 'Team Member'}</div>
+                <div className="sf-perf-roster-stats">{total} assigned · {done} done · {overdue} overdue · {ontime}% on-time</div>
+              </div>
+              <span className="sf-perf-roster-badge" style={{ background: perf.color + '20', color: perf.color }}>
+                {perf.label}
+              </span>
+            </button>
+          ))}
         </div>
-      </aside>
+      </section>
 
-      {selectedRow && (
-        <section ref={detailRef} className="sf-perf-member-panel" aria-label={`Performance for ${selectedRow.user.name}`}>
-          <div className="sf-perf-member-panel-label">Member detail</div>
-          <MemberPerformanceDetail user={selectedRow.user} sm={selectedRow} />
-        </section>
-      )}
+      <Modal
+        open={Boolean(detailRow)}
+        onClose={() => setDetailId(null)}
+        title={detailRow?.user?.name || 'Member performance'}
+        subtitle={detailRow ? [detailRow.user.designation, detailRow.user.department].filter(Boolean).join(' · ') : undefined}
+        size="full"
+        footer={
+          <button type="button" className="sf-btn sf-btn-primary" onClick={() => setDetailId(null)}>
+            Close
+          </button>
+        }
+      >
+        {detailRow && <MemberPerformanceDetail user={detailRow.user} sm={detailRow} />}
+      </Modal>
     </PageShell>
   )
 }

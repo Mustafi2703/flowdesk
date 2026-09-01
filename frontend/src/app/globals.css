@@ -1225,6 +1225,95 @@ html[data-theme='morning'] body {
   width: 100%;
 }
 
+.sf-perf-team-section {
+  border: 1px solid var(--sf-border);
+  border-radius: 16px;
+  background: var(--sf-surface);
+  box-shadow: var(--sf-shadow);
+  overflow: hidden;
+}
+
+.sf-perf-team-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--sf-border);
+  background: var(--sf-surface-2);
+}
+
+.sf-perf-search-wrap {
+  flex: 1 1 240px;
+  min-width: min(100%, 220px);
+  max-width: 420px;
+}
+
+.sf-perf-search {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--sf-border);
+  background: var(--sf-input-bg);
+  color: var(--sf-text);
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.4;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.sf-perf-search:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--sf-accent) 45%, var(--sf-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sf-accent) 12%, transparent);
+}
+
+.sf-perf-search::placeholder {
+  color: var(--sf-muted-2);
+}
+
+.sf-perf-team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+  padding: 12px;
+  max-height: min(560px, 62vh);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sf-perf-team-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--sf-border);
+  border-radius: 12px;
+  background: var(--sf-surface-2);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  min-width: 0;
+  transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.sf-perf-team-card:hover {
+  background: var(--sf-surface-hover);
+  border-color: color-mix(in srgb, var(--sf-accent) 28%, var(--sf-border));
+  box-shadow: var(--sf-shadow);
+}
+
+.sf-perf-table-empty--wide {
+  grid-column: 1 / -1;
+  padding: 32px 16px;
+}
+
 .sf-perf-member-panel {
   border: 1px solid var(--sf-border);
   border-radius: 18px;
@@ -1246,6 +1335,10 @@ html[data-theme='morning'] body {
 
 .sf-perf-member-panel-inner {
   padding: 20px 22px 24px;
+}
+
+.sf-modal-body .sf-perf-member-panel-inner {
+  padding: 0;
 }
 
 .sf-perf-table-avatar--lg {

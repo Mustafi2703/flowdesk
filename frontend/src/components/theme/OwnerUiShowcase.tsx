@@ -444,43 +444,85 @@ export function OwnerUiShowcase({ pkg, mode, compact = false }: { pkg: UiStylePa
         </div>
       </div>
 
-      <ScreenLabel id={`${pkg.id}-mobile`}>Mobile — sign-in & Updates</ScreenLabel>
+      <ScreenLabel id={`${pkg.id}-mobile`}>Mobile — same screens as the app</ScreenLabel>
       <div className="tp-showcase-mobile-row">
-        <div className="tp-showcase-phone tp-showcase-phone--login" style={rootStyle}>
-          <div className="tp-showcase-phone-inner">
-            <div className="tp-showcase-login-mobile-head">
-              <div className="tp-showcase-login-logo">S</div>
-              <strong>Scrumfolks TMS</strong>
+        <div className="tp-mob" style={rootStyle}>
+          <div className="tp-mob-caption">Workflow · phone</div>
+          <div className="tp-mob-frame">
+            <div className="tp-mob-status"><span>9:41</span><span>5G</span></div>
+            <div className="tp-mob-top">
+              <span className="tp-mob-menu">☰</span>
+              <strong>Workflow</strong>
+              <span className="tp-mob-dot" />
             </div>
-            <div className="tp-showcase-panel">
-              <div className="tp-showcase-panel-inner">
-                <div className="tp-showcase-eyebrow">Sign in</div>
-                <label>Email</label>
-                <div className="tp-showcase-input">owner@company.com</div>
-                <label>Password</label>
-                <div className="tp-showcase-input">••••••••</div>
-                <div className="tp-showcase-btn-primary">Sign in</div>
+            <div className="tp-mob-body">
+              <h4>Workflow Dashboard</h4>
+              <p>Real-time view of all active campaigns</p>
+              <div className="tp-mob-pills">
+                <span className="is-on">All Brands</span>
+                <span>Assigned</span>
+                <span>Design</span>
+                <span>Approval</span>
+              </div>
+              <div className="tp-mob-kpis">
+                <div><span>Brands</span><strong>35</strong></div>
+                <div><span>Active</span><strong>487</strong></div>
+                <div><span>Approval</span><strong>12</strong></div>
+                <div><span>Today</span><strong>23</strong></div>
+              </div>
+              <div className="tp-mob-section">Team Capacity</div>
+              <div className="tp-mob-cap">
+                <div><span>Aarti</span><span>89%</span></div>
+                <div className="tp-mob-bar"><i className="is-hot" style={{ width: '89%' }} /></div>
+              </div>
+              <div className="tp-mob-section">Active Campaigns</div>
+              <article className="tp-mob-card">
+                <header><strong>Dinamoo</strong><em>HIGH</em></header>
+                <div>15 deliverables</div>
+                <div className="tp-mob-phase">Current: Design Phase</div>
+                <footer>
+                  <span>A A B · Bhautik</span>
+                  <span>Update Stage</span>
+                </footer>
+              </article>
+            </div>
+          </div>
+        </div>
+        <div className="tp-mob" style={rootStyle}>
+          <div className="tp-mob-caption">Menu open · charcoal nav</div>
+          <div className="tp-mob-frame">
+            <div className="tp-mob-status"><span>9:41</span><span>5G</span></div>
+            <div className="tp-mob-drawer">
+              <aside>
+                <div className="tp-mob-brand"><span>S</span><div><strong>Scrumfolks</strong><small>CRM · TMS</small></div></div>
+                {['Dashboard', 'Workflow', 'Tasks', 'Updates', 'Brands'].map((item) => (
+                  <div key={item} className={item === 'Workflow' ? 'is-on' : ''}>{item}</div>
+                ))}
+              </aside>
+              <div className="tp-mob-dim">
+                <div className="tp-mob-top"><span className="tp-mob-menu">☰</span><strong>Workflow</strong></div>
               </div>
             </div>
           </div>
         </div>
-        <div className="tp-showcase-phone tp-showcase-phone--updates" style={rootStyle}>
-          <div className="tp-showcase-phone-inner">
-            <div className="tp-showcase-phone-top">Updates</div>
-            <div className="tp-showcase-brand-filters tp-showcase-brand-filters--compact">
-              <span className="tp-showcase-pill is-active">All</span>
-              <span className="tp-showcase-pill">Acme</span>
-              <span className="tp-showcase-pill">HR</span>
-            </div>
-            <div className="tp-showcase-panel tp-showcase-panel--flush">
-              <div className="tp-showcase-brand-head"><span>ACME</span><span>2 live</span></div>
-              <div className="tp-showcase-channel is-active"><strong>March social</strong></div>
-            </div>
-            <div className="tp-showcase-composer">Message…</div>
-            <div className="tp-showcase-phone-nav">
-              {['Home', 'Tasks', 'Chat', 'Menu'].map((x) => (
-                <span key={x} className={x === 'Chat' ? 'is-active' : ''}>{x}</span>
-              ))}
+        <div className="tp-mob" style={rootStyle}>
+          <div className="tp-mob-caption">Updates · phone</div>
+          <div className="tp-mob-frame">
+            <div className="tp-mob-status"><span>9:41</span><span>5G</span></div>
+            <div className="tp-mob-top"><span className="tp-mob-menu">☰</span><strong>Updates</strong><span className="tp-mob-dot" /></div>
+            <div className="tp-mob-body">
+              <div className="tp-mob-pills">
+                <span className="is-on">All</span>
+                <span>Acme</span>
+                <span>HR</span>
+                <span>Minotti</span>
+              </div>
+              <div className="tp-mob-group">ACME · 2 live</div>
+              <div className="tp-mob-thread is-on"><strong>March social</strong><span>In Progress · 4 new</span></div>
+              <div className="tp-mob-thread"><strong>Q2 ads</strong><span>Under Review</span></div>
+              <div className="tp-mob-group">HR · 1 live</div>
+              <div className="tp-mob-thread"><strong>Policy carousel</strong><span>Content Phase</span></div>
+              <div className="tp-mob-compose">Message this thread…</div>
             </div>
           </div>
         </div>

@@ -52,17 +52,26 @@ export function LoginThemeShowcase({
           </main>
         </div>
         <div className="tp-login-mobile">
+          <div className="tp-login-mobile-caption">Phone · sign-in first</div>
           <div className="tp-login-mobile-inner">
+            <div className="tp-login-mobile-status"><span>9:41</span><span>5G</span></div>
             <div className="tp-login-mobile-head">
               <div className="tp-login-logo" style={{ background: accent }}>S</div>
-              <strong>Scrumfolks TMS</strong>
+              <div>
+                <strong>Scrumfolks TMS</strong>
+                <small>Task Management System</small>
+              </div>
             </div>
             <div className="tp-login-card tp-login-card--mobile">
               <h4>Sign in</h4>
-              <div className="tp-login-field">Email</div>
-              <div className="tp-login-field">Password</div>
+              <p>Sign in with your Scrumfolks TMS account.</p>
+              <label>Email</label>
+              <div className="tp-login-field">name@company.com</div>
+              <label>Password</label>
+              <div className="tp-login-field">Enter your password</div>
               <div className="tp-login-submit" style={{ background: accent }}>Sign in</div>
             </div>
+            <div className="tp-login-mobile-legal">Internal use only · Theme colours</div>
           </div>
         </div>
       </div>

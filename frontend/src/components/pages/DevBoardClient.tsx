@@ -367,44 +367,52 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
       </div>
 
       <section className="sf-workflow-active-section" aria-label="Active campaigns">
-        <div className="sf-brand-list-head">
-          <h2 className="sf-workflow-section-title">Brands</h2>
-          <input
-            type="search"
-            className="sf-input sf-brand-list-search"
-            placeholder="Search brands…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            aria-label="Search brands"
-          />
-        </div>
-        <div className="sf-brand-scroll-list">
+        <h2 className="sf-workflow-section-title">Active Campaigns</h2>
+        <div className="sf-campaign-scroll">
           {filteredBrands.length === 0 ? (
             <div className="sf-workflow-empty sf-workflow-empty--wide">No brands match this filter.</div>
-          ) : filteredBrands.map((brand) => {
-            const stage = brand.workflow_stage || 'assigned'
-            const pri = priorityTone(brand.priority)
-            const deliverables = tasks.filter((t) => String(t.brand_id) === String(brand.id)).length
-            const open = tasks.filter((t) => String(t.brand_id) === String(brand.id) && t.status !== 'Completed').length
-            return (
-              <button
-                key={brand.id}
-                type="button"
-                className="sf-brand-scroll-row"
-                onClick={() => selectBrand(String(brand.id))}
-              >
-                <span className="sf-brand-scroll-name">{brand.name}</span>
-                <span className="sf-brand-scroll-meta">{open} open · {deliverables} tasks</span>
-                <span className="sf-brand-scroll-stage">{stageDisplay(stage)}</span>
-                <span className="sf-workflow-active-pri">{pri.label}</span>
-                {canEdit && (
-                  <span className="sf-brand-scroll-actions" onClick={(e) => e.stopPropagation()}>
-                    <button type="button" className="sf-btn sf-btn-ghost" onClick={() => { setActionError(''); setStageBrandId(String(brand.id)) }}>Stage</button>
-                  </span>
-                )}
-              </button>
-            )
-          })}
+          ) : (
+            <div className="sf-campaign-scroll-grid">
+              {filteredBrands.map((brand) => {
+                const stage = brand.workflow_stage || 'assigned'
+                const stageIndex = Math.max(0, PHASE_ORDER.indexOf(stage))
+                const pri = priorityTone(brand.priority)
+                const deliverables = tasks.filter((t) => String(t.brand_id) === String(brand.id)).length
+                const people = brandPeople(brand)
+                return (
+                  <article key={brand.id} className="sf-workflow-active-card" style={{ '--wf-pri': pri.color } as React.CSSProperties}>
+                    <button type="button" className="sf-workflow-active-open" onClick={() => selectBrand(String(brand.id))}>
+                      <div className="sf-workflow-active-card-head">
+                        <div className="sf-workflow-active-brand">{brand.name}</div>
+                        <span className="sf-workflow-active-pri">{pri.label}</span>
+                      </div>
+                      <div className="sf-workflow-active-deliv">{deliverables} deliverable{deliverables === 1 ? '' : 's'}</div>
+                      <div className="sf-workflow-active-segments" aria-hidden>
+                        {PHASE_ORDER.map((id, i) => (
+                          <span key={id} className={i <= stageIndex ? 'is-done' : ''} />
+                        ))}
+                      </div>
+                      <div className="sf-workflow-active-phase">Current: <strong>{stageDisplay(stage)}</strong></div>
+                      {people.length > 0 && (
+                        <div className="sf-workflow-active-avatars">
+                          {people.slice(0, 4).map((u: any) => (
+                            <span key={u.id} className="sf-workflow-active-av" title={u.name}>{initials(u.name)}</span>
+                          ))}
+                          <span className="sf-workflow-active-assignee">{people[0].name}</span>
+                        </div>
+                      )}
+                    </button>
+                    {canEdit && (
+                      <div className="sf-workflow-active-actions">
+                        <button type="button" className="sf-btn sf-btn-ghost" onClick={() => { setActionError(''); setStageBrandId(String(brand.id)) }}>Update Stage</button>
+                        <button type="button" className="sf-btn sf-btn-ghost" onClick={() => { setActionError(''); setFlagNote(''); setFlagBrandId(String(brand.id)) }}>Flag Issue</button>
+                      </div>
+                    )}
+                  </article>
+                )
+              })}
+            </div>
+          )}
         </div>
       </section>
 

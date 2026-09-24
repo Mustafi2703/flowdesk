@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
 import { EmptyState, Icon } from '@/components/app/Icons'
 import { PageHeader, PageShell, PageToolbar, Section } from '@/components/app/Section'
+import { Modal } from '@/components/app/Modal'
 import { TaskFormModal } from '@/components/pages/TasksClient'
 import { allowedTaskStatuses, canManageTasks, canManualStatusChange, canSetTaskPrice, isClockedInToday, isTaskAssignee } from '@/lib/tasks'
 import { BrandMeetingsPanel } from '@/components/pages/MeetingsClient'
@@ -14,7 +15,7 @@ import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
 import { BrandBadge, BrandLogoMark, BrandTag, brandAccent } from '@/components/app/BrandBadge'
 import { departmentColor } from '@/lib/departmentColors'
-import { PHASE_COLORS, PHASE_ORDER, phaseLabel } from '@/lib/workflowPhases'
+import { PHASE_COLORS, phaseLabel } from '@/lib/workflowPhases'
 
 const WORKFLOW_STAGES = [
   { id: 'assigned', label: 'Assigned' },
@@ -121,7 +122,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   useEffect(() => {
     const bid = searchParams.get('brand')
     const tab = searchParams.get('tab')
-    if (bid) setSelectedId(bid)
+    setSelectedId(bid || null)
     if (tab && BRAND_SECTIONS.some((s) => s.id === tab)) setSection(tab)
   }, [searchParams])
 
@@ -193,7 +194,6 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
       ) : (
         <div className="sf-brand-workspace sf-brand-workspace--single">
           <div className="sf-brand-workspace-main">
-            {!selected ? (
               <div className="sf-brand-picker">
                 <div className="sf-brand-picker-head">
                   <p className="sf-brand-picker-lead">
@@ -221,61 +221,73 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                     ))}
                   </div>
                 </div>
-                <div className="sf-brand-picker-grid">
+                <div className="sf-brand-scroll-list">
                   {filteredBrands.length === 0 ? (
                     <div className="sf-brand-roster-empty">No clients match your search.</div>
                   ) : filteredBrands.map((b) => {
                     const bt = tasks.filter((t) => sameId(t.brand_id, b.id))
                     const open = bt.filter((t) => t.status !== 'Completed').length
                     const stage = b.workflow_stage || 'assigned'
-                    const stageIndex = Math.max(0, PHASE_ORDER.indexOf(stage))
                     const pri = brandPriorityTone(b.priority)
                     return (
-                      <button
-                        key={b.id}
-                        type="button"
-                        className="sf-workflow-active-card sf-brand-picker-card"
-                        style={{ '--wf-pri': pri.color } as React.CSSProperties}
-                        onClick={() => selectBrand(b)}
-                      >
-                        <div className="sf-workflow-active-card-head">
-                          <div className="sf-workflow-active-brand">{b.name}</div>
-                          <span className="sf-workflow-active-pri">{pri.label}</span>
-                        </div>
-                        <div className="sf-workflow-active-deliv">{bt.length} deliverable{bt.length === 1 ? '' : 's'} · {open} open</div>
-                        <div className="sf-workflow-active-segments" aria-hidden>
-                          {PHASE_ORDER.map((id, i) => (
-                            <span key={id} className={i <= stageIndex ? 'is-done' : ''} />
-                          ))}
-                        </div>
-                        <div className="sf-workflow-active-phase">
-                          Current: <strong style={{ color: PHASE_COLORS[stage] || '#20b2aa' }}>{brandStageLabel(stage)}</strong>
-                        </div>
+                      <button key={b.id} type="button" className="sf-brand-scroll-row" onClick={() => selectBrand(b)}>
+                        <span className="sf-brand-scroll-name"><BrandLogoMark brand={b} size={36} />{b.name}</span>
+                        <span className="sf-brand-scroll-meta">{open} open · {bt.length} tasks</span>
+                        <span className="sf-brand-scroll-stage" style={{ color: PHASE_COLORS[stage] || 'var(--sf-accent)' }}>{brandStageLabel(stage)}</span>
+                        <span className="sf-workflow-active-pri">{pri.label}</span>
                       </button>
                     )
                   })}
                 </div>
               </div>
-            ) : (
-              <BrandDetail
-                brand={selected}
-                tasks={brandTasks}
-                users={users}
-                session={session}
-                canEdit={canEdit}
-                canAssignManagers={isOwner}
-                canAssignTeam={canEdit}
-                tab={section}
-                onTabChange={changeTab}
-                onBack={() => { setSelectedId(null); router.replace('/brands') }}
-                onRefresh={load}
-                onBrandUpdated={patchBrand}
-                attendance={attendance}
-                identityEditNonce={identityEditNonce}
-              />
-            )}
           </div>
         </div>
+        {selected && (
+          <Modal
+            open
+            onClose={() => { setSelectedId(null); router.replace('/brands') }}
+            title={selected.name}
+            subtitle="Brand workspace"
+            size="full"
+            panelClassName="sf-brand-screen-modal"
+          >
+            <div className="sf-brand-modal-search">
+              <input
+                type="search"
+                className="sf-input"
+                placeholder="Find another brand…"
+                value={brandSearch}
+                onChange={(e) => setBrandSearch(e.target.value)}
+                aria-label="Find another brand"
+              />
+              {brandSearch.trim() && (
+                <div className="sf-brand-modal-hits">
+                  {filteredBrands.slice(0, 6).map((b) => (
+                    <button key={b.id} type="button" className="sf-brand-modal-hit" onClick={() => selectBrand(b)}>
+                      {b.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <BrandDetail
+              brand={selected}
+              tasks={brandTasks}
+              users={users}
+              session={session}
+              canEdit={canEdit}
+              canAssignManagers={isOwner}
+              canAssignTeam={canEdit}
+              tab={section}
+              onTabChange={changeTab}
+              onBack={() => { setSelectedId(null); router.replace('/brands') }}
+              onRefresh={load}
+              onBrandUpdated={patchBrand}
+              attendance={attendance}
+              identityEditNonce={identityEditNonce}
+            />
+          </Modal>
+        )}
       )}
 
       {showCreate && canEdit && <CreateBrand onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); load() }} />}

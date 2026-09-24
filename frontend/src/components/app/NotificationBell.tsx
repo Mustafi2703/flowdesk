@@ -87,6 +87,11 @@ export function NotificationBell() {
   }, [])
 
   useEffect(() => {
+    document.documentElement.classList.toggle('sf-notif-open', open)
+    return () => document.documentElement.classList.remove('sf-notif-open')
+  }, [open])
+
+  useEffect(() => {
     if (!open) return
     updatePanelPos()
     const onResize = () => updatePanelPos()

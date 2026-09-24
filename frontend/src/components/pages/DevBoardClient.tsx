@@ -322,10 +322,10 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
       </div>
 
       <div className="sf-workflow-summary">
-        <StatCard label="Total brands" value={brands.length} accent="#d4a574" />
-        <StatCard label="Active tasks" value={openTasks.length} accent="#20b2aa" />
-        <StatCard label="Awaiting approval" value={awaitingApproval} accent="#ffa502" />
-        <StatCard label="Completed today" value={completedToday} accent="#26de81" />
+        <StatCard label="Total brands" value={brands.length} accent="#e8630a" />
+        <StatCard label="Active tasks" value={openTasks.length} accent="#e8630a" />
+        <StatCard label="Awaiting approval" value={awaitingApproval} accent="#e8630a" />
+        <StatCard label="Completed today" value={completedToday} accent="#e8630a" />
       </div>
 
       <div className={`sf-workflow-capacity${showCapacity ? ' is-open' : ''}`}>
@@ -359,66 +359,42 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
       </div>
 
       <section className="sf-workflow-active-section" aria-label="Active campaigns">
-        <h2 className="sf-workflow-section-title">Active Campaigns</h2>
-        <div className="sf-workflow-active-grid">
+        <div className="sf-brand-list-head">
+          <h2 className="sf-workflow-section-title">Brands</h2>
+          <input
+            type="search"
+            className="sf-input sf-brand-list-search"
+            placeholder="Search brands…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search brands"
+          />
+        </div>
+        <div className="sf-brand-scroll-list">
           {filteredBrands.length === 0 ? (
-            <div className="sf-workflow-empty sf-workflow-empty--wide">No campaigns match this filter.</div>
+            <div className="sf-workflow-empty sf-workflow-empty--wide">No brands match this filter.</div>
           ) : filteredBrands.map((brand) => {
             const stage = brand.workflow_stage || 'assigned'
-            const stageIndex = Math.max(0, PHASE_ORDER.indexOf(stage))
             const pri = priorityTone(brand.priority)
             const deliverables = tasks.filter((t) => String(t.brand_id) === String(brand.id)).length
-            const people = brandPeople(brand)
-            const poc = people[0]
+            const open = tasks.filter((t) => String(t.brand_id) === String(brand.id) && t.status !== 'Completed').length
             return (
-              <article
+              <button
                 key={brand.id}
-                className="sf-workflow-active-card"
-                style={{ '--wf-pri': pri.color } as React.CSSProperties}
+                type="button"
+                className="sf-brand-scroll-row"
                 onClick={() => selectBrand(String(brand.id))}
               >
-                <div className="sf-workflow-active-card-head">
-                  <div className="sf-workflow-active-brand">{brand.name}</div>
-                  <span className="sf-workflow-active-pri">{pri.label}</span>
-                </div>
-                <div className="sf-workflow-active-deliv">{deliverables} deliverable{deliverables === 1 ? '' : 's'}</div>
-                <div className="sf-workflow-active-segments" aria-hidden>
-                  {PHASE_ORDER.map((id, i) => (
-                    <span key={id} className={i <= stageIndex ? 'is-done' : ''} />
-                  ))}
-                </div>
-                <div className="sf-workflow-active-phase">
-                  Current: <strong style={{ color: PHASE_COLORS[stage] || '#20b2aa' }}>{stageDisplay(stage)}</strong>
-                </div>
-                <div className="sf-workflow-active-foot">
-                  <div className="sf-workflow-active-avatars">
-                    {people.slice(0, 3).map((u: any) => (
-                      <span key={u.id} className="sf-workflow-active-av">{initials(u.name)}</span>
-                    ))}
-                    <span className="sf-workflow-active-assignee">{poc?.name || 'Unassigned'}</span>
-                  </div>
-                  {canEdit && (
-                    <div className="sf-workflow-active-actions">
-                      <button
-                        type="button"
-                        className="sf-btn sf-btn-ghost"
-                        style={{ fontSize: 11 }}
-                        onClick={(e) => { e.stopPropagation(); setActionError(''); setStageBrandId(String(brand.id)) }}
-                      >
-                        Update Stage
-                      </button>
-                      <button
-                        type="button"
-                        className="sf-btn sf-btn-ghost"
-                        style={{ fontSize: 11 }}
-                        onClick={(e) => { e.stopPropagation(); setActionError(''); setFlagNote(''); setFlagBrandId(String(brand.id)) }}
-                      >
-                        Flag Issue
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </article>
+                <span className="sf-brand-scroll-name">{brand.name}</span>
+                <span className="sf-brand-scroll-meta">{open} open · {deliverables} tasks</span>
+                <span className="sf-brand-scroll-stage">{stageDisplay(stage)}</span>
+                <span className="sf-workflow-active-pri">{pri.label}</span>
+                {canEdit && (
+                  <span className="sf-brand-scroll-actions" onClick={(e) => e.stopPropagation()}>
+                    <button type="button" className="sf-btn sf-btn-ghost" onClick={() => { setActionError(''); setStageBrandId(String(brand.id)) }}>Stage</button>
+                  </span>
+                )}
+              </button>
             )
           })}
         </div>
@@ -431,7 +407,7 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
           title={selected.name}
           subtitle={`${selected.priority || 'P3'} · ${selected.client_type || 'Client'}`}
           size="full"
-          panelClassName="sf-workflow-brand-modal"
+          panelClassName="sf-brand-screen-modal"
           zIndex={90}
           footer={
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', width: '100%' }}>

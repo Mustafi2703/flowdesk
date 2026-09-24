@@ -186,7 +186,7 @@ function WorkflowBrandDetail({
             </div>
           </div>
         </div>
-        <Link href="/brands" className="sf-btn sf-btn-ghost" style={{ fontSize: 11, flexShrink: 0 }}>
+        <Link href={`/brands?brand=${brand.id}&tab=tasks`} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, flexShrink: 0 }}>
           Open brand →
         </Link>
       </div>
@@ -428,7 +428,7 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
           zIndex={90}
           footer={
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', width: '100%' }}>
-              <Link href="/brands" className="sf-btn sf-btn-ghost" onClick={() => setDetailOpen(false)}>
+              <Link href={`/brands?brand=${selected.id}&tab=overview`} className="sf-btn sf-btn-ghost" onClick={() => setDetailOpen(false)}>
                 Open full brand page →
               </Link>
               <button type="button" className="sf-btn sf-btn-primary" onClick={() => setDetailOpen(false)}>

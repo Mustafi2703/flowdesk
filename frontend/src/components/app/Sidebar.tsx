@@ -15,7 +15,15 @@ const NAV_GROUPS: { label: string; ids: string[] }[] = [
   { label: 'Finance', ids: ['billing'] },
 ]
 
-export default function Sidebar({ session }: { session: SessionUser }) {
+export default function Sidebar({
+  session,
+  mobileOpen = false,
+  onNavigate,
+}: {
+  session: SessionUser
+  mobileOpen?: boolean
+  onNavigate?: () => void
+}) {
   const router = useRouter()
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
@@ -96,7 +104,7 @@ export default function Sidebar({ session }: { session: SessionUser }) {
 
   return (
     <aside
-      className={`sf-sidebar${collapsed ? ' sf-sidebar--collapsed' : ''}${ready ? ' sf-sidebar--ready' : ''}`}
+      className={`sf-sidebar${collapsed ? ' sf-sidebar--collapsed' : ''}${ready ? ' sf-sidebar--ready' : ''}${mobileOpen ? ' sf-sidebar--mobile-open' : ''}`}
       style={{ width: sidebarWidth, minWidth: sidebarWidth, maxWidth: sidebarWidth }}
       aria-label="Main navigation"
       aria-expanded={!collapsed}
@@ -140,7 +148,7 @@ export default function Sidebar({ session }: { session: SessionUser }) {
                     type="button"
                     className={`sf-nav ${active ? 'active' : ''}`}
                     style={{ '--nav-fg': tone.fg } as CSSProperties}
-                    onClick={() => router.push(`/${item.id}`)}
+                    onClick={() => { router.push(`/${item.id}`); onNavigate?.() }}
                     title={collapsed ? item.label : undefined}
                   >
                     <NavIconBadge name={item.icon} navId={item.id} active={active} />

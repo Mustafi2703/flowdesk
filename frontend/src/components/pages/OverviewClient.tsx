@@ -25,9 +25,6 @@ const QUICK_TILES: { label: string; href: string; icon: IconName; navId: string 
   { label: 'Brands', href: '/brands', icon: 'brands', navId: 'brands' },
 ]
 
-function Chip({ status }: { status: string }) {
-  return <span style={{ background: STATUS_BG[status]||'#F3F4F6', color: STATUS_TEXT[status]||'#374151', fontSize:10, fontWeight:700, padding:'3px 7px', borderRadius:5, whiteSpace:'nowrap' }}>{status}</span>
-}
 
 function BarRow({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
   const pct = total > 0 ? Math.round((value / total) * 100) : 0
@@ -189,6 +186,7 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const dateStr = new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' })
   const roleDash = ROLE_DASH[session.role] || ROLE_DASH.team
   const openCount = openTasks.length
+  const recurringOpen = openTasks.filter((t) => t.recurring_config?.enabled).length
   const firstName = (session.name || 'there').trim().split(/\s+/)[0] || 'there'
 
   const heroSubtitle = useMemo(() => {
@@ -244,9 +242,16 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
             <span className="sf-dash-role-pill">{roleDash.tag} · {dateStr}</span>
           </div>
           <div className="sf-dash-hero-stats-row">
-            <div className="sf-dash-hero-stat"><span>{openCount}</span><label>Open</label></div>
+            <button type="button" className="sf-dash-hero-stat sf-dash-hero-stat--link" onClick={() => router.push('/tasks')}>
+              <span>{openCount}</span><label>Open tasks</label>
+            </button>
             <div className="sf-dash-hero-stat"><span>{dueToday.length}</span><label>Due today</label></div>
             <div className="sf-dash-hero-stat"><span>{overdue.length}</span><label>Overdue</label></div>
+            {recurringOpen > 0 && (
+              <div className="sf-dash-hero-stat sf-dash-hero-stat--recurring">
+                <span>{recurringOpen}</span><label>Recurring</label>
+              </div>
+            )}
             {isAdmin && <div className="sf-dash-hero-stat"><span>{underReview.length}</span><label>Review</label></div>}
             {isAdmin && <div className="sf-dash-hero-stat"><span>{pendingLeav.length}</span><label>Leave pending</label></div>}
           </div>
@@ -290,14 +295,17 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
                   onClick={() => setSelectedTaskId(String(t.id))}
                 >
                   <div className="sf-dash-task-row-main">
-                    <div className="sf-dash-task-title">{t.title}</div>
+                    <div className="sf-dash-task-title">
+                      {t.title}
+                      {t.recurring_config?.enabled && <span className="sf-recur-badge">Recurring</span>}
+                    </div>
                     <div className="sf-dash-task-meta">
                       <BrandBadge brand={t.brand} />
                       <span>{t.priority || 'Medium'}</span>
                     </div>
                   </div>
                   <div className="sf-dash-task-row-side">
-                    <Chip status={t.status} />
+                    <StatusBadge status={t.status} />
                     {dl !== null && (
                       <span className={late ? 'sf-dash-task-late' : 'sf-dash-task-due'}>
                         {late ? `${Math.abs(dl)}d late` : dl === 0 ? 'Today' : `${dl}d`}

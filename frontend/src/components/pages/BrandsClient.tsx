@@ -1,7 +1,8 @@
 // @ts-nocheck
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
 import { EmptyState, Icon } from '@/components/app/Icons'
 import { PageHeader, PageShell, PageToolbar, Section } from '@/components/app/Section'
@@ -12,6 +13,7 @@ import { todayIST } from '@/lib/clock'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
 import { BrandBadge, BrandLogoMark, BrandTag, brandAccent } from '@/components/app/BrandBadge'
+import { departmentColor } from '@/lib/departmentColors'
 
 const WORKFLOW_STAGES = [
   { id: 'assigned', label: 'Assigned' },
@@ -62,6 +64,8 @@ const BRAND_SECTIONS = [
 ]
 
 export default function BrandsClient({ session }: { session: SessionUser }) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [brands, setBrands] = useState<any[]>([])
   const [tasks, setTasks] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
@@ -98,22 +102,14 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
 
   useEffect(() => { load() }, [])
 
-  const visible = useMemo(
-    () => {
-      if (session.role !== 'team') return brands
-      return brands.filter(b =>
-        (b.assigned_members || []).some((id: string) => sameId(id, session.id)) ||
-        (b.assigned_managers || []).some((id: string) => sameId(id, session.id))
-      )
-    },
-    [brands, session.id, session.role]
-  )
+  const visible = useMemo(() => brands, [brands])
 
   useEffect(() => {
-    if (visible.length > 0 && !selectedId) {
-      setSelectedId(String(visible[0].id))
-    }
-  }, [visible, selectedId])
+    const bid = searchParams.get('brand')
+    const tab = searchParams.get('tab')
+    if (bid) setSelectedId(bid)
+    if (tab && BRAND_SECTIONS.some((s) => s.id === tab)) setSection(tab)
+  }, [searchParams])
 
   const selected = useMemo(
     () => visible.find(b => sameId(b.id, selectedId)) || null,
@@ -141,9 +137,16 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
     })
   }, [visible, brandSearch, brandStageFilter, tasks])
 
-  function selectBrand(brand: any) {
-    setSelectedId(String(brand.id))
-    setSection('overview')
+  function selectBrand(brand: any, tab = 'overview') {
+    const id = String(brand.id)
+    setSelectedId(id)
+    setSection(tab)
+    router.replace(`/brands?brand=${id}&tab=${tab}`)
+  }
+
+  function changeTab(tab: string) {
+    setSection(tab)
+    if (selectedId) router.replace(`/brands?brand=${selectedId}&tab=${tab}`)
   }
 
   if (loading) {
@@ -174,62 +177,55 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
           )}
         </div>
       ) : (
-        <div className="sf-brand-workspace">
-          <aside className="sf-brand-roster" aria-label="Client roster">
-            <div className="sf-brand-roster-head">
-              <h2 className="sf-brand-roster-title">Client roster</h2>
-              <span className="sf-brand-roster-count">{visible.length}</span>
-            </div>
-            <div className="sf-brand-roster-search-wrap">
-              <input
-                type="search"
-                className="sf-brand-roster-search"
-                placeholder="Search clients…"
-                value={brandSearch}
-                onChange={(e) => setBrandSearch(e.target.value)}
-                aria-label="Search clients"
-              />
-              <div className="sf-brand-roster-filters" role="tablist" aria-label="Filter clients">
-                {ROSTER_FILTERS.map((filter) => (
-                  <button
-                    key={filter.id}
-                    type="button"
-                    className={`sf-brand-roster-filter${brandStageFilter === filter.id ? ' is-active' : ''}`}
-                    onClick={() => setBrandStageFilter(filter.id)}
-                  >
-                    {filter.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="sf-brand-roster-list">
-              {filteredBrands.length === 0 ? (
-                <div className="sf-brand-roster-empty">
-                  {brandSearch.trim() || brandStageFilter !== 'all'
-                    ? 'No clients match your search or filter.'
-                    : 'No clients in roster.'}
-                </div>
-              ) : filteredBrands.map((b) => {
-                const bt = tasks.filter(t => sameId(t.brand_id, b.id))
-                const active = selected && sameId(selected.id, b.id)
-                const stageLabel = WORKFLOW_STAGES.find(s => s.id === (b.workflow_stage || 'assigned'))?.label || 'Assigned'
-                return (
-                  <BrandBadge
-                    key={b.id}
-                    brand={b}
-                    variant="roster"
-                    active={!!active}
-                    taskCount={bt.length}
-                    stageLabel={stageLabel}
-                    onClick={() => selectBrand(b)}
-                  />
-                )
-              })}
-            </div>
-          </aside>
-
+        <div className="sf-brand-workspace sf-brand-workspace--single">
           <div className="sf-brand-workspace-main">
-            {selected ? (
+            {!selected ? (
+              <div className="sf-brand-picker">
+                <div className="sf-brand-picker-head">
+                  <p className="sf-brand-picker-lead">
+                    Pick a client to open tasks, identity, and meetings. Use{' '}
+                    <Link href="/devboard" className="sf-link-btn">Workflow</Link> to browse delivery stages.
+                  </p>
+                  <input
+                    type="search"
+                    className="sf-input sf-brand-picker-search"
+                    placeholder="Search clients…"
+                    value={brandSearch}
+                    onChange={(e) => setBrandSearch(e.target.value)}
+                    aria-label="Search clients"
+                  />
+                  <div className="sf-brand-roster-filters" role="tablist" aria-label="Filter clients">
+                    {ROSTER_FILTERS.map((filter) => (
+                      <button
+                        key={filter.id}
+                        type="button"
+                        className={`sf-brand-roster-filter${brandStageFilter === filter.id ? ' is-active' : ''}`}
+                        onClick={() => setBrandStageFilter(filter.id)}
+                      >
+                        {filter.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="sf-brand-picker-grid">
+                  {filteredBrands.length === 0 ? (
+                    <div className="sf-brand-roster-empty">No clients match your search.</div>
+                  ) : filteredBrands.map((b) => {
+                    const bt = tasks.filter((t) => sameId(t.brand_id, b.id))
+                    const open = bt.filter((t) => t.status !== 'Completed').length
+                    return (
+                      <button key={b.id} type="button" className="sf-brand-picker-card" onClick={() => selectBrand(b)}>
+                        <BrandLogoMark brand={b} size={44} />
+                        <div className="sf-brand-picker-copy">
+                          <div className="sf-brand-picker-name">{b.name}</div>
+                          <div className="sf-brand-picker-meta">{open} open · {bt.length} tasks</div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
               <BrandDetail
                 brand={selected}
                 tasks={brandTasks}
@@ -239,7 +235,8 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                 canAssignManagers={isOwner}
                 canAssignTeam={canEdit}
                 tab={section}
-                onTabChange={setSection}
+                onTabChange={changeTab}
+                onBack={() => { setSelectedId(null); router.replace('/brands') }}
                 onRefresh={load}
                 onBrandUpdated={patchBrand}
                 onDelete={async () => {
@@ -253,8 +250,6 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                 attendance={attendance}
                 identityEditNonce={identityEditNonce}
               />
-            ) : (
-              <div className="sf-brand-empty">Select a client from the roster to open their workspace.</div>
             )}
           </div>
         </div>
@@ -265,7 +260,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   )
 }
 
-function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers, canAssignTeam, tab, onTabChange, onRefresh, onBrandUpdated, onDelete, attendance, identityEditNonce = 0 }: any) {
+function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers, canAssignTeam, tab, onTabChange, onBack, onRefresh, onBrandUpdated, onDelete, attendance, identityEditNonce = 0 }: any) {
   const router = useRouter()
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [createAsProject, setCreateAsProject] = useState(false)
@@ -489,7 +484,6 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
     onRefresh()
   }
 
-  const currentStageIdx = WORKFLOW_STAGES.findIndex(s => s.id === (brand.workflow_stage || 'assigned'))
   const brandTabs = BRAND_SECTIONS.map(s => {
     const count = s.id === 'projects'
       ? projects.length
@@ -518,10 +512,22 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
     )
   }
 
+  function assigneeLabel(task: any) {
+    const names = (task.assigned_to || [])
+      .map((id: string) => users.find((u: any) => sameId(u.id, id))?.name)
+      .filter(Boolean)
+    return names.length ? names.join(', ') : 'Unassigned'
+  }
+
   return (
     <div className="sf-brand-page" style={{ '--brand-accent': brandAccent(brand.priority) } as React.CSSProperties}>
       <div className="sf-brand-page-header">
         <div className="sf-brand-page-header-top">
+          {onBack && (
+            <button type="button" className="sf-btn sf-btn-ghost sf-brand-back" onClick={onBack}>
+              ← All clients
+            </button>
+          )}
           <div className="sf-brand-page-logo">
             <BrandLogoMark brand={brand} size={64} />
           </div>
@@ -530,10 +536,6 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
             <div className="sf-brand-page-tags">
               {brand.client_type && <BrandTag label={brand.client_type} tone="type" />}
               {brand.priority && <BrandTag label={brand.priority} tone="priority" />}
-              <BrandTag
-                label={WORKFLOW_STAGES.find(s => s.id === (brand.workflow_stage || 'assigned'))?.label || 'Assigned'}
-                tone="stage"
-              />
             </div>
             {brand.contact_email && (
               <p className="sf-brand-page-desc" style={{ marginTop: 6 }}>
@@ -570,18 +572,6 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
           ))}
         </div>
 
-        <div className="sf-brand-stage-track" aria-label="Workflow stage">
-          {WORKFLOW_STAGES.map((stage, i) => {
-            const isCurrent = i === currentStageIdx
-            const isDone = i < currentStageIdx
-            return (
-              <div key={stage.id} className={`sf-brand-stage-step${isCurrent ? ' is-current' : ''}${isDone ? ' is-done' : ''}`}>
-                <div className="sf-brand-stage-dot">{isDone ? '✓' : i + 1}</div>
-                <div className="sf-brand-stage-label">{stage.label}</div>
-              </div>
-            )
-          })}
-        </div>
       </div>
 
       <div className="sf-brand-page-tabs" role="tablist">
@@ -634,7 +624,12 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                   const isMgr = roleLabel === 'Manager'
                   return (
                     <div key={`${roleLabel}-${uid}`} className="sf-brand-team-card">
-                      <div className={`sf-brand-team-avatar${isMgr ? ' is-manager' : ' is-team'}`}>{u.avatar || u.name?.slice(0, 2)}</div>
+                      <div
+                        className={`sf-brand-team-avatar${isMgr ? ' is-manager' : ' is-team'}`}
+                        style={{ background: departmentColor(u.department) }}
+                      >
+                        {u.avatar || u.name?.slice(0, 2)}
+                      </div>
                       <div className="sf-brand-team-info">
                         <div className="sf-brand-team-name">{u.name}</div>
                         <div className="sf-brand-team-role">{[u.designation, u.department].filter(Boolean).join(' · ') || roleLabel}</div>
@@ -798,7 +793,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
               <div key={t.id} className="sf-brand-task-row" style={{ cursor: 'default' }}>
                 <div style={{ flex: 1 }} onClick={() => router.push(`/tasks/${t.id}`)} role="button" tabIndex={0}>
                   <div className="sf-brand-task-row-title">{t.title}</div>
-                  <div className="sf-brand-task-row-meta">{t.type} · Due {t.due_date}</div>
+                  <div className="sf-brand-task-row-meta">{t.type} · {assigneeLabel(t)} · Due {t.due_date || '—'}</div>
                 </div>
                 {renderStatus(t)}
                 <button type="button" onClick={() => router.push(`/tasks/${t.id}`)} className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '4px 8px' }}>Open</button>

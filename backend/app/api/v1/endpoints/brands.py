@@ -16,6 +16,7 @@ from app.models.attachment import FileAttachment
 from app.core.roles import Role
 from app.db.session import get_db
 from app.models.brand import Brand
+from app.models.task import Task
 from app.models.notification import Notification
 from app.models.profile import Profile
 from app.schemas.brand import WORKFLOW_STAGES, BrandCreate, BrandUpdate
@@ -122,10 +123,32 @@ def _validate_role_ids(db: Session, ids: list[uuid.UUID], allowed_roles: set[str
         )
 
 
+def _team_brand_ids_from_tasks(db: Session, user: Profile) -> set[uuid.UUID]:
+    """Team members see brands they are allocated to or have assigned work on."""
+    if Role(user.role) is not Role.TEAM:
+        return set()
+    me = str(user.id)
+    out: set[uuid.UUID] = set()
+    for task in db.scalars(select(Task).where(Task.brand_id.isnot(None)):
+        if me in {str(x) for x in (task.assigned_to or [])}:
+            out.add(task.brand_id)
+            continue
+        for st in task.sub_tasks or []:
+            if me in {str(x) for x in (st.get("assigned_to") or [])}:
+                out.add(task.brand_id)
+                break
+    return out
+
+
 @router.get("")
 def list_brands(db: Session = Depends(get_db), user: Profile = Depends(get_current_user)) -> list[dict[str, Any]]:
     brands = db.scalars(select(Brand).order_by(Brand.name)).all()
-    return [_serialize(brand) for brand in brands if _can_view(brand, user)]
+    task_brand_ids = _team_brand_ids_from_tasks(db, user)
+    return [
+        _serialize(brand)
+        for brand in brands
+        if _can_view(brand, user) or brand.id in task_brand_ids
+    ]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

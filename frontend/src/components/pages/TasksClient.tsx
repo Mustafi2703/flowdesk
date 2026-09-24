@@ -341,7 +341,10 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                         onClick={() => openTask(task)}
                         style={{ cursor: 'pointer' }}
                       >
-                        <div style={{ fontWeight:600 }}>{task.title}</div>
+                        <div style={{ fontWeight:600, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                          {task.title}
+                          {task.recurring_config?.enabled && <span className="sf-recur-badge">Recurring</span>}
+                        </div>
                         {task.task_mode === 'project' && (
                           <div style={{ color:'#06B6D4', fontSize:10, fontWeight:700, marginTop:2 }}>PROJECT</div>
                         )}
@@ -459,6 +462,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                     <div className="sf-trello-card-labels">
                       <span className="sf-trello-label" style={{ background: pri.bg, color: pri.text }}>{task.priority || 'Low'}</span>
                       {task.requires_review && <span className="sf-trello-label sf-trello-label-review">Review</span>}
+                      {task.recurring_config?.enabled && <span className="sf-trello-label sf-trello-label-recur">Recurring</span>}
                       {task.type && <span className="sf-trello-label sf-trello-label-type">{task.type}</span>}
                     </div>
                     <button type="button" className="sf-trello-card-title" onClick={() => openTask(task)}>

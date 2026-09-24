@@ -50,7 +50,9 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
-  const [showClosed, setShowClosed] = useState(false)
+  /** active = open channels; closed = archived; all = everything */
+  const [channelFilter, setChannelFilter] = useState<'active' | 'closed' | 'all'>('active')
+  const [mobileShowThread, setMobileShowThread] = useState(false)
   const [closing, setClosing] = useState(false)
   const [reviewNotes, setReviewNotes] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -82,6 +84,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
       setSelectedTaskId(taskId)
       setShowTools(false)
       setMenuOpen(false)
+      setMobileShowThread(true)
     }
     const res = await fetch(`/api/tasks/${taskId}/chat`)
     const data = await res.json().catch(() => [])
@@ -141,22 +144,19 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     loadFeed()
   }
 
-  async function closeChannel(purge = true) {
+  async function closeChannel() {
     if (!selectedTaskId || !isMgmt) return
-    const msg = purge
-      ? 'Close this channel and delete chat history?'
-      : 'Close this channel (keep history, no new messages)?'
-    if (!window.confirm(msg)) return
+    if (!window.confirm('Close this chat? History stays visible; no new messages until reopened.')) return
     setClosing(true)
-    const res = await fetch(`/api/tasks/${selectedTaskId}/updates/close?purge=${purge ? 'true' : 'false'}`, { method: 'POST' })
+    const res = await fetch(`/api/tasks/${selectedTaskId}/updates/close?purge=false`, { method: 'POST' })
     setClosing(false)
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       setNotice(data.error || data.detail || 'Could not close channel')
       return
     }
-    if (purge) setThread([])
     await loadFeed()
+    if (selectedTaskId) await loadThread(selectedTaskId, true)
   }
 
   async function reopenChannel() {
@@ -220,8 +220,10 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
       if (!prev || new Date(u.created_at) > new Date(prev.created_at)) byTask.set(u.task_id, u)
     }
     let list = tasks
-    if (!showClosed) {
+    if (channelFilter === 'active') {
       list = list.filter((t) => !t.updates_closed && t.status !== 'Completed')
+    } else if (channelFilter === 'closed') {
+      list = list.filter((t) => t.updates_closed || t.status === 'Completed')
     }
     const rows = list.map((t) => {
       const last = byTask.get(t.id)
@@ -243,7 +245,17 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
       (r.lastSender || '').toLowerCase().includes(q)
     )
     return { channels: filtered, channelTotal: rows.length }
-  }, [tasks, updates, query, showClosed])
+  }, [tasks, updates, query, channelFilter])
+
+  function formatChannelTime(iso: string) {
+    const d = new Date(iso)
+    const now = new Date()
+    const sameDay = d.toDateString() === now.toDateString()
+    if (sameDay) {
+      return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+    }
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+  }
 
   useEffect(() => {
     if (loading || deepLinkHandled.current) return
@@ -274,10 +286,24 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
             title="Updates"
             subtitle="Slack-style chats, one channel per task"
           />
-          <label className="sf-upd-closed-toggle">
-            <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} />
-            Show closed / done
-          </label>
+          <div className="sf-upd-filter-tabs" role="tablist" aria-label="Thread filter">
+            {([
+              ['active', 'Active'],
+              ['closed', 'Closed'],
+              ['all', 'All'],
+            ] as const).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={channelFilter === id}
+                className={`sf-upd-filter-tab${channelFilter === id ? ' is-active' : ''}`}
+                onClick={() => setChannelFilter(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {!clockedIn && (
@@ -288,7 +314,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
           </div>
         )}
 
-        <div className="sf-updates-board">
+        <div className={`sf-updates-board${mobileShowThread && selectedTaskId ? ' sf-updates-board--thread' : ''}`}>
           <div className="sf-updates-channels">
             <div className="sf-upd-channel-search">
               <div className="sf-upd-channel-search-row">
@@ -313,21 +339,28 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
               )}
               {channels.map(({ task, lastMessage, lastAt, lastSender, msgCount }) => {
                 const active = selectedTaskId === task.id
+                const brandName = task.brand?.name || 'No brand'
+                const closed = task.updates_closed || task.status === 'Completed'
                 return (
                   <button
                     key={task.id}
                     type="button"
-                    className={`sf-upd-channel${active ? ' is-active' : ''}`}
+                    className={`sf-upd-channel${active ? ' is-active' : ''}${closed ? ' is-closed' : ''}`}
                     onClick={() => loadThread(task.id)}
                   >
-                    <span className="sf-upd-channel-name"># {task.title}</span>
+                    <div className="sf-upd-channel-top">
+                      <span className="sf-upd-channel-brand">{brandName}</span>
+                      <span className="sf-upd-channel-time">{formatChannelTime(lastAt)}</span>
+                    </div>
+                    <span className="sf-upd-channel-name">{task.title}</span>
                     <span className="sf-upd-channel-meta">
+                      {!closed && <span className="sf-upd-channel-live">Active</span>}
+                      {closed && <span className="sf-upd-channel-archived">Closed</span>}
                       <StatusBadge status={task.status} />
-                      <span>{new Date(lastAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                      {msgCount > 0 && <span className="sf-upd-channel-msgs">{msgCount}</span>}
                     </span>
                     <span className="sf-upd-channel-preview">
-                      {lastMessage ? `${lastSender || 'Someone'}: ${lastMessage}` : 'No messages yet'}
-                      {msgCount ? ` · ${msgCount}` : ''}
+                      {lastMessage ? `${lastSender || 'Someone'}: ${lastMessage}` : 'No messages yet — say hello'}
                     </span>
                   </button>
                 )
@@ -344,8 +377,16 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
               <>
                 <div className="sf-upd-head">
                   <div className="sf-upd-head-row">
+                    <button
+                      type="button"
+                      className="sf-upd-back-channels sf-btn sf-btn-ghost"
+                      onClick={() => setMobileShowThread(false)}
+                    >
+                      ← Channels
+                    </button>
                     <div className="sf-upd-head-copy">
-                      <h2 className="sf-upd-title"># {selectedTask.title}</h2>
+                      <p className="sf-upd-brand-line">{selectedTask.brand?.name || 'Unlinked task'}</p>
+                      <h2 className="sf-upd-title">{selectedTask.title}</h2>
                       <p className="sf-upd-people">
                         {assigneeNames.length ? assigneeNames.join(', ') : 'Nobody assigned yet'}
                         {selectedTask.due_date ? ` · due ${selectedTask.due_date}` : ''}
@@ -368,8 +409,8 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                                   {closing ? '…' : 'Reopen channel'}
                                 </button>
                               ) : (
-                                <button type="button" disabled={closing} onClick={() => { setMenuOpen(false); closeChannel(true) }} style={{ color: 'var(--sf-danger)' }}>
-                                  {closing ? '…' : 'Close channel'}
+                                <button type="button" disabled={closing} onClick={() => { setMenuOpen(false); closeChannel() }}>
+                                  {closing ? '…' : 'Close chat'}
                                 </button>
                               )}
                             </div>

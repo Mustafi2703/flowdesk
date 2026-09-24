@@ -2,6 +2,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { SessionUser, ROLE_COLORS, ROLE_LABELS, SYSTEM_ROLES, ROLE_DESCRIPTIONS } from '@/types'
+import { departmentColor } from '@/lib/departmentColors'
 import { PageHeader, PageShell, PageTabs, PageToolbar, Section, StatCard, StatGrid } from '@/components/app/Section'
 import { Modal } from '@/components/app/Modal'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
@@ -794,7 +795,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                     >
                       <div style={{ display: 'flex', gap: 12, alignItems: 'center', minWidth: 0 }}>
                         <div style={{ position: 'relative', flexShrink: 0 }}>
-                          <div style={{ width: 40, height: 40, borderRadius: 10, background: ROLE_COLORS[u.role] || 'var(--sf-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 12 }}>
+                          <div style={{ width: 40, height: 40, borderRadius: 10, background: u.department ? departmentColor(u.department) : (ROLE_COLORS[u.role] || 'var(--sf-accent)'), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 12 }}>
                             {u.avatar || u.name?.slice(0, 2)}
                           </div>
                           <div style={{ position: 'absolute', bottom: -2, right: -2, width: 10, height: 10, borderRadius: '50%', background: memberOnline ? '#10B981' : 'var(--sf-muted-2)', border: '2px solid var(--sf-surface)' }} />

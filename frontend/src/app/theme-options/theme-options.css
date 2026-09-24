@@ -85,7 +85,7 @@
   margin-bottom: 8px;
 }
 .tp-frame {
-  border-radius: 16px;
+  border-radius: 4px;
   border: 1px solid #333;
   overflow: hidden;
   background: var(--sf-bg);

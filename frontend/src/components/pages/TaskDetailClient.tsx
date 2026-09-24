@@ -9,6 +9,7 @@ import { PageHeader, PageShell } from '@/components/app/Section'
 import { StatusBadge, ReviewBadge, statusTint } from '@/components/app/StatusBadge'
 import { ATTENDANCE_CHANGED } from '@/lib/attendance'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
+import { ExternalLinksEditor } from '@/components/app/ExternalLinksEditor'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
 import { todayIST } from '@/lib/clock'
 import { TASK_STATUSES, allowedTaskStatuses, canManageTasks, canManualStatusChange, isClockedInToday, isTaskAssignee, sameUserId, taskStatusFlowHint } from '@/lib/tasks'
@@ -270,17 +271,6 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
                 <span style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600, textAlign: 'right' }}>{v}</span>
               </div>
             ))}
-            {canEdit && (
-              <button type="button" className="sf-btn sf-btn-ghost" style={{ marginTop: 12, fontSize: 12, color: 'var(--sf-danger)' }} onClick={async () => {
-                if (!window.confirm(`Delete "${task.title}"?`)) return
-                const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
-                if (res.ok) router.push('/tasks')
-                else {
-                  const data = await res.json().catch(() => ({}))
-                  setError(data.error || 'Could not delete')
-                }
-              }}>Delete task</button>
-            )}
           </div>
         </div>
       )}
@@ -372,13 +362,25 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
       )}
 
       {tab === 'files' && (
-        <FileAttachmentsPanel
-          entityType="task"
-          entityId={task.id}
-          canUpload={canWork}
-          title="Task documents"
-          onUploadComplete={() => load()}
-        />
+        <>
+          <div style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 2, padding: 18, marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>Google Drive & review links</div>
+            <ExternalLinksEditor
+              links={task.external_links || []}
+              canEdit={canEdit || canWork}
+              saving={saving}
+              hint="Paste Drive folder or file URLs for reviewers — no clock-in required to save links."
+              onSave={async (next) => patch({ external_links: next })}
+            />
+          </div>
+          <FileAttachmentsPanel
+            entityType="task"
+            entityId={task.id}
+            canUpload={canWork}
+            title="Task documents"
+            onUploadComplete={() => load()}
+          />
+        </>
       )}
 
       {tab === 'review' && task.requires_review && (
@@ -388,6 +390,16 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
             <div style={{ color: 'var(--sf-muted)', fontSize: 12, marginBottom: 12 }}>
               Current version {task.review_version || '1'} · {task.review_status || 'none'}
             </div>
+            {(task.external_links || []).length > 0 && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--sf-muted)', marginBottom: 8 }}>Review links</div>
+                <ExternalLinksEditor
+                  links={task.external_links || []}
+                  canEdit={false}
+                  onSave={async () => false}
+                />
+              </div>
+            )}
             {canEdit && clockedIn ? (
               <>
                 <textarea value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} rows={4} className="sf-input" placeholder="Suggestion / comments" style={{ width: '100%', resize: 'vertical', marginBottom: 10 }} />

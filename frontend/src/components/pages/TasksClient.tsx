@@ -100,7 +100,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
 
   const canCreate = canManageTasks(session.role)
   const canEdit = canCreate
-  const canDelete = canCreate
+  const canDelete = false
   const canSeeBilling = ['owner','manager','accountant'].includes(session.role)
   const canSetPrice = canSetTaskPrice(session.role)
 
@@ -247,7 +247,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   if (loading) return <div style={{ color:'var(--sf-muted)', padding:40, textAlign:'center' }}>Loading tasks…</div>
 
   return (
-    <PageShell>
+    <PageShell fill={view === 'kanban'} className={`sf-tasks-page${view === 'kanban' ? ' sf-tasks-page--board' : ''}`}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexShrink:0 }}>
         <PageHeader
           title={session.role === 'team' ? 'My Tasks' : 'Tasks'}
@@ -414,7 +414,6 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                             {canEdit && task.requires_review && task.status === 'Under Review' && (
                               <button type="button" onClick={() => router.push(`/tasks/${task.id}?tab=review`)} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px' }}>Review</button>
                             )}
-                            <button type="button" onClick={() => deleteTask(task)} className="sf-btn sf-btn-ghost" style={{ fontSize:11, padding:'4px 8px', color:'var(--sf-danger)' }}>Delete</button>
                           </div>
                         </td>
                       )}
@@ -438,7 +437,13 @@ export default function TasksClient({ session }: { session: SessionUser }) {
           </div>
         </Section>
       ) : (
-        <Section title="Task board" subtitle="Trello-style workflow — upload moves tasks to review" flush flex={1}>
+        <Section
+          title="Task board"
+          subtitle="Scroll inside each column — about 4 cards visible; drag the board sideways for more statuses"
+          flush
+          flex={1}
+          className="sf-tasks-board-section"
+        >
           <div className="sf-trello-board">
           {BOARD_COLUMNS.map(({ status: col, label, accent }) => {
             const colTasks = filtered.filter(t => t.status === col)
@@ -446,9 +451,13 @@ export default function TasksClient({ session }: { session: SessionUser }) {
               <div key={col} className="sf-trello-col" style={{ '--col-accent': accent } as React.CSSProperties}>
                 <div className="sf-trello-col-head">
                   <span className="sf-trello-col-title">{label}</span>
-                  <span className="sf-trello-col-count">{colTasks.length}</span>
+                  <span className="sf-trello-col-count" title={`${colTasks.length} in ${label}`}>{colTasks.length}</span>
                 </div>
-                <div className="sf-trello-col-body">
+                <div
+                  className="sf-trello-col-body"
+                  aria-label={`${label} tasks`}
+                  data-count={colTasks.length}
+                >
                 {colTasks.map(task => {
                   const due = dueChip(task)
                   const initials = assigneeInitials(task)
@@ -500,9 +509,6 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                       <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-ghost">Open</button>
                       {canEdit && task.requires_review && task.status === 'Under Review' && (
                         <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-primary">Review</button>
-                      )}
-                      {canEdit && (
-                        <button type="button" onClick={() => deleteTask(task)} className="sf-btn sf-btn-ghost sf-trello-delete">Delete</button>
                       )}
                     </div>
                   </div>

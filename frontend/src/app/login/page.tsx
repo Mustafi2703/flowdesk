@@ -80,6 +80,13 @@ export default function LoginPage() {
       </aside>
 
       <main className="login-panel">
+        <div className="login-mobile-head" aria-hidden="false">
+          <div className="login-logo-mark">S</div>
+          <div>
+            <div className="login-product-name">Scrumfolks TMS</div>
+            <div className="login-product-tag">Task Management System</div>
+          </div>
+        </div>
         <div className="login-card">
           <div className="login-card-header">
             <h2>Sign in</h2>

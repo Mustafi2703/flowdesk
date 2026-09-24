@@ -54,13 +54,14 @@ function logoAttachmentId(logoUrl?: string | null) {
 const sameId = (a: string | null | undefined, b: string | null | undefined) => String(a || '') === String(b || '')
 
 const BRAND_SECTIONS = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'projects', label: 'Projects' },
   { id: 'tasks', label: 'Tasks' },
-  { id: 'goals', label: 'Goals' },
+  { id: 'projects', label: 'Projects' },
+  { id: 'team', label: 'Team' },
   { id: 'meetings', label: 'Meetings' },
-  { id: 'identity', label: 'Identity' },
+  { id: 'overview', label: 'Summary' },
+  { id: 'goals', label: 'Goals' },
   { id: 'journey', label: 'Journey' },
+  { id: 'identity', label: 'Identity' },
 ]
 
 export default function BrandsClient({ session }: { session: SessionUser }) {
@@ -71,7 +72,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   const [users, setUsers] = useState<any[]>([])
   const [attendance, setAttendance] = useState<any[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [section, setSection] = useState('overview')
+  const [section, setSection] = useState('tasks')
   const [showCreate, setShowCreate] = useState(false)
   const [loading, setLoading] = useState(true)
   const [identityEditNonce, setIdentityEditNonce] = useState(0)
@@ -137,7 +138,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
     })
   }, [visible, brandSearch, brandStageFilter, tasks])
 
-  function selectBrand(brand: any, tab = 'overview') {
+  function selectBrand(brand: any, tab = 'tasks') {
     const id = String(brand.id)
     setSelectedId(id)
     setSection(tab)
@@ -239,14 +240,6 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                 onBack={() => { setSelectedId(null); router.replace('/brands') }}
                 onRefresh={load}
                 onBrandUpdated={patchBrand}
-                onDelete={async () => {
-                  if (!window.confirm(`Delete brand "${selected.name}"? Tasks stay but will be unlinked.`)) return
-                  const res = await fetch(`/api/brands/${selected.id}`, { method: 'DELETE' })
-                  const data = await res.json().catch(() => ({}))
-                  if (!res.ok) { alert(data.error || data.detail || 'Could not delete brand'); return }
-                  setSelectedId(null)
-                  load()
-                }}
                 attendance={attendance}
                 identityEditNonce={identityEditNonce}
               />
@@ -553,11 +546,6 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
               <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 12 }} onClick={() => { setEditingIdentity(true); onTabChange('identity') }}>
                 Edit identity
               </button>
-              {onDelete && (
-                <button type="button" className="sf-btn sf-btn-ghost" style={{ fontSize: 12, color: 'var(--sf-danger)' }} onClick={onDelete}>
-                  Delete
-                </button>
-              )}
               {logoError && <span style={{ color: 'var(--sf-danger)', fontSize: 11, width: '100%' }}>{logoError}</span>}
             </div>
           )}
@@ -590,84 +578,68 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
       </div>
 
       <div className="sf-brand-page-body">
+      {tab === 'team' && (
+        <div className="sf-brand-panel sf-brand-panel--full">
+          <div className="sf-brand-panel-head">
+            <h3>Team on this brand</h3>
+            <span style={{ fontSize: 11, color: 'var(--sf-muted)' }}>{allocatedPeople.length} people · department colours</span>
+          </div>
+          <div className="sf-brand-panel-body">
+            <div className="sf-brand-team-grid">
+              {allocatedPeople.length === 0 ? (
+                <div className="sf-brand-identity-empty">Nobody allocated yet — add people below.</div>
+              ) : allocatedPeople.map(({ uid, roleLabel }) => {
+                const u = users.find((x: any) => sameId(x.id, uid))
+                if (!u) return null
+                const isMgr = roleLabel === 'Manager'
+                return (
+                  <div key={`${roleLabel}-${uid}`} className="sf-brand-team-card">
+                    <div
+                      className={`sf-brand-team-avatar${isMgr ? ' is-manager' : ' is-team'}`}
+                      style={{ background: departmentColor(u.department) }}
+                    >
+                      {u.avatar || u.name?.slice(0, 2)}
+                    </div>
+                    <div className="sf-brand-team-info">
+                      <div className="sf-brand-team-name">{u.name}</div>
+                      <div className="sf-brand-team-role">{[u.designation, u.department].filter(Boolean).join(' · ') || roleLabel}</div>
+                    </div>
+                    <span className={`sf-brand-team-badge${isMgr ? ' is-manager' : ' is-team'}`}>{roleLabel}</span>
+                  </div>
+                )
+              })}
+            </div>
+            {(canAssignManagers || canAssignTeam) && (
+              <div className="sf-brand-alloc-section">
+                <div className="sf-brand-alloc-label">Manage allocation</div>
+                {canAssignManagers && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 12, fontWeight: 650, marginBottom: 6, color: 'var(--sf-text)' }}>Managers</div>
+                    <PeoplePicker users={assignableManagers} selectedIds={managerIds} onChange={setManagerIds} variant="dropdown" placeholder="Add managers…" emptyLabel="No Manager users yet." groupByRole={false} />
+                  </div>
+                )}
+                {canAssignTeam && (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 650, marginBottom: 6, color: 'var(--sf-text)' }}>Team members</div>
+                    <PeoplePicker users={assignableTeam} selectedIds={memberIds} onChange={setMemberIds} variant="dropdown" placeholder="Add team members…" emptyLabel="No Team users yet." groupByRole={false} />
+                  </div>
+                )}
+                <button type="button" onClick={saveMembers} disabled={savingMembers} className="sf-btn sf-btn-primary" style={{ fontSize: 12 }}>
+                  {savingMembers ? 'Saving…' : 'Save allocation'}
+                </button>
+                {allocSaved && (
+                  <span style={{ display: 'block', marginTop: 8, fontSize: 12, color: 'var(--sf-success)' }}>
+                    Allocation saved — existing brand data unchanged.
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {tab === 'overview' && (
         <div className="sf-brand-grid sf-brand-grid--wide">
-          <div className="sf-brand-panel">
-            <div className="sf-brand-panel-head">
-              <h3>Brand identity</h3>
-              {canEdit && (
-                <button type="button" className="sf-link-btn" onClick={() => { setEditingIdentity(true); onTabChange('identity') }}>Edit →</button>
-              )}
-            </div>
-            <div className="sf-brand-panel-body">
-              <div className="sf-brand-identity-cards">
-                <IdentityCard label="Fonts" value={brand.fonts} />
-                <IdentityCard label="Colors" value={brand.brand_colors} />
-                <IdentityCard label="Voice" value={brand.brand_voice} />
-                <IdentityCard label="Photography" value={brand.photography_style} />
-              </div>
-            </div>
-          </div>
-
-          <div className="sf-brand-panel">
-            <div className="sf-brand-panel-head">
-              <h3>Team</h3>
-              <span style={{ fontSize: 11, color: 'var(--sf-muted)' }}>{allocatedPeople.length} people</span>
-            </div>
-            <div className="sf-brand-panel-body">
-              <div className="sf-brand-team-grid">
-                {allocatedPeople.length === 0 ? (
-                  <div className="sf-brand-identity-empty">Nobody allocated yet.</div>
-                ) : allocatedPeople.map(({ uid, roleLabel }) => {
-                  const u = users.find((x: any) => sameId(x.id, uid))
-                  if (!u) return null
-                  const isMgr = roleLabel === 'Manager'
-                  return (
-                    <div key={`${roleLabel}-${uid}`} className="sf-brand-team-card">
-                      <div
-                        className={`sf-brand-team-avatar${isMgr ? ' is-manager' : ' is-team'}`}
-                        style={{ background: departmentColor(u.department) }}
-                      >
-                        {u.avatar || u.name?.slice(0, 2)}
-                      </div>
-                      <div className="sf-brand-team-info">
-                        <div className="sf-brand-team-name">{u.name}</div>
-                        <div className="sf-brand-team-role">{[u.designation, u.department].filter(Boolean).join(' · ') || roleLabel}</div>
-                      </div>
-                      <span className={`sf-brand-team-badge${isMgr ? ' is-manager' : ' is-team'}`}>{roleLabel}</span>
-                    </div>
-                  )
-                })}
-              </div>
-
-              {(canAssignManagers || canAssignTeam) && (
-                <div className="sf-brand-alloc-section">
-                  <div className="sf-brand-alloc-label">Manage allocation</div>
-                  {canAssignManagers && (
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{ fontSize: 12, fontWeight: 650, marginBottom: 6, color: 'var(--sf-text)' }}>Managers</div>
-                      <PeoplePicker users={assignableManagers} selectedIds={managerIds} onChange={setManagerIds} variant="dropdown" placeholder="Add managers…" emptyLabel="No Manager users yet." groupByRole={false} />
-                    </div>
-                  )}
-                  {canAssignTeam && (
-                    <div style={{ marginBottom: 10 }}>
-                      <div style={{ fontSize: 12, fontWeight: 650, marginBottom: 6, color: 'var(--sf-text)' }}>Team members</div>
-                      <PeoplePicker users={assignableTeam} selectedIds={memberIds} onChange={setMemberIds} variant="dropdown" placeholder="Add team members…" emptyLabel="No Team users yet." groupByRole={false} />
-                    </div>
-                  )}
-                  <button type="button" onClick={saveMembers} disabled={savingMembers} className="sf-btn sf-btn-primary" style={{ fontSize: 12 }}>
-                    {savingMembers ? 'Saving…' : 'Save allocation'}
-                  </button>
-                  {allocSaved && (
-                    <span style={{ display: 'block', marginTop: 8, fontSize: 12, color: 'var(--sf-success)' }}>
-                      Allocation saved — existing brand data unchanged.
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
           {fl.length > 0 && (
             <div className="sf-brand-panel sf-brand-panel--full sf-brand-flagged">
               <div className="sf-brand-panel-body">
@@ -689,8 +661,8 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
 
           <div className="sf-brand-panel sf-brand-panel--full">
             <div className="sf-brand-panel-head">
-              <h3>Recent work</h3>
-              <button type="button" className="sf-link-btn" onClick={() => onTabChange('tasks')}>All tasks →</button>
+              <h3>Open tasks</h3>
+              <button type="button" className="sf-link-btn" onClick={() => onTabChange('tasks')}>Full task list →</button>
             </div>
             <div className="sf-brand-panel-body">
               {tasks.length === 0 ? (
@@ -710,10 +682,14 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
               )}
             </div>
           </div>
+          <p className="sf-brand-summary-hint">
+            Fonts, logo, and brand guidelines are on the{' '}
+            <button type="button" className="sf-link-btn" onClick={() => onTabChange('identity')}>Identity</button> tab.
+          </p>
         </div>
       )}
 
-      {tab !== 'overview' && (
+      {tab !== 'overview' && tab !== 'team' && (
         <div className="sf-brand-page-toolbar">
           <h2>{BRAND_SECTIONS.find(s => s.id === tab)?.label || 'Section'}</h2>
           {canEdit && tab === 'projects' && (
@@ -752,7 +728,6 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                     {canEdit && (
                       <>
                         <button type="button" onClick={() => openEditTask(t)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px' }}>Edit</button>
-                        <button type="button" onClick={() => deleteTask(t)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px', color: 'var(--sf-danger)' }}>Delete</button>
                       </>
                     )}
                   </div>
@@ -800,7 +775,6 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                 {canEdit && (
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button type="button" onClick={() => openEditTask(t)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px' }}>Edit</button>
-                    <button type="button" onClick={() => deleteTask(t)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '4px 8px', color: 'var(--sf-danger)' }}>Delete</button>
                   </div>
                 )}
               </div>
@@ -860,7 +834,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                     </div>
                   </div>
                 </div>
-                {[['Client Type', brand.client_type], ['Priority', brand.priority], ['Workflow stage', WORKFLOW_STAGES.find(s => s.id === (brand.workflow_stage || 'assigned'))?.label], ['Allocated', `${(brand.assigned_managers?.length || 0) + (brand.assigned_members?.length || 0)} people`]].map(([l, v]) => (
+                {[['Client Type', brand.client_type], ['Priority', brand.priority], ['Allocated', `${(brand.assigned_managers?.length || 0) + (brand.assigned_members?.length || 0)} people`]].map(([l, v]) => (
                   <div key={String(l)} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '9px 0', borderBottom: '1px solid var(--sf-border)', minWidth: 0 }}>
                     <span style={{ color: 'var(--sf-muted)', fontSize: 12, flexShrink: 0 }}>{l}</span>
                     <span className="sf-truncate" style={{ color: 'var(--sf-text)', fontSize: 12, fontWeight: 600, textAlign: 'right' }} title={String(v ?? '')}>{v}</span>
@@ -924,11 +898,6 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                 <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Priority
                   <select value={identityDraft.priority} onChange={e => setIdentityDraft(d => ({ ...d, priority: e.target.value }))} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)' }}>
                     {['P1', 'P2', 'P3', 'P4'].map(x => <option key={x} value={x}>{x}</option>)}
-                  </select>
-                </label>
-                <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Workflow stage
-                  <select value={identityDraft.workflow_stage} onChange={e => setIdentityDraft(d => ({ ...d, workflow_stage: e.target.value }))} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)' }}>
-                    {WORKFLOW_STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                   </select>
                 </label>
                 <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Description

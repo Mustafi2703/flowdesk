@@ -48,6 +48,8 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
   const [thread, setThread] = useState<any[]>([])
   const [message, setMessage] = useState('')
   const [query, setQuery] = useState('')
+  /** Top brand chip filter — narrows list when many threads are open */
+  const [brandFilter, setBrandFilter] = useState<string>('all')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   /** active = open channels; closed = archived; all = everything */
@@ -92,6 +94,14 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
   }
 
   useEffect(() => { loadFeed() }, [])
+
+  useEffect(() => {
+    const brand = searchParams.get('brand')
+    if (brand) {
+      setBrandFilter(brand)
+      setQuery('')
+    }
+  }, [searchParams])
 
   useEffect(() => {
     function refreshAttendance() {
@@ -235,7 +245,12 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
         msgCount: updates.filter((x) => x.task_id === t.id).length,
       }
     })
-    rows.sort((a, b) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime())
+    rows.sort((a, b) => {
+      const brandA = (a.task.brand?.name || 'ZZZ').toLowerCase()
+      const brandB = (b.task.brand?.name || 'ZZZ').toLowerCase()
+      if (brandA !== brandB) return brandA.localeCompare(brandB)
+      return new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime()
+    })
     const q = query.trim().toLowerCase()
     if (!q) return { channels: rows, channelTotal: rows.length }
     const filtered = rows.filter((r) =>
@@ -246,6 +261,42 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     )
     return { channels: filtered, channelTotal: rows.length }
   }, [tasks, updates, query, channelFilter])
+
+  const brandFilterOptions = useMemo(() => {
+    const map = new Map<string, { total: number; active: number }>()
+    for (const row of channels) {
+      const brand = row.task.brand?.name || 'No brand'
+      const cur = map.get(brand) || { total: 0, active: 0 }
+      cur.total += 1
+      const closed = row.task.updates_closed || row.task.status === 'Completed'
+      if (!closed) cur.active += 1
+      map.set(brand, cur)
+    }
+    return [...map.entries()]
+      .map(([name, stats]) => ({ name, ...stats }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [channels])
+
+  const filteredChannels = useMemo(() => {
+    if (brandFilter === 'all') return channels
+    return channels.filter((r) => (r.task.brand?.name || 'No brand') === brandFilter)
+  }, [channels, brandFilter])
+
+  const channelGroups = useMemo(() => {
+    const groups: { brand: string; items: typeof channels; activeCount: number }[] = []
+    let current: (typeof groups)[number] | null = null
+    for (const row of filteredChannels) {
+      const brand = row.task.brand?.name || 'No brand'
+      if (!current || current.brand !== brand) {
+        current = { brand, items: [], activeCount: 0 }
+        groups.push(current)
+      }
+      current.items.push(row)
+      const closed = row.task.updates_closed || row.task.status === 'Completed'
+      if (!closed) current.activeCount += 1
+    }
+    return groups
+  }, [filteredChannels])
 
   function formatChannelTime(iso: string) {
     const d = new Date(iso)
@@ -284,7 +335,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
         <div className="sf-upd-pagehead">
           <PageHeader
             title="Updates"
-            subtitle="Slack-style chats, one channel per task"
+            subtitle="Brand first — active threads per task (close chat when done; history stays)"
           />
           <div className="sf-upd-filter-tabs" role="tablist" aria-label="Thread filter">
             {([
@@ -314,6 +365,32 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
           </div>
         )}
 
+        {brandFilterOptions.length > 1 && (
+          <div className="sf-upd-brand-filters" role="toolbar" aria-label="Filter by brand">
+            <button
+              type="button"
+              className={`sf-upd-brand-chip${brandFilter === 'all' ? ' is-active' : ''}`}
+              onClick={() => setBrandFilter('all')}
+            >
+              All brands
+              <span className="sf-upd-brand-chip-count">{channels.length}</span>
+            </button>
+            {brandFilterOptions.map(({ name, total, active }) => (
+              <button
+                key={name}
+                type="button"
+                className={`sf-upd-brand-chip${brandFilter === name ? ' is-active' : ''}`}
+                onClick={() => setBrandFilter(name)}
+              >
+                {name}
+                <span className="sf-upd-brand-chip-count">
+                  {active > 0 ? `${active} live` : total}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className={`sf-updates-board${mobileShowThread && selectedTaskId ? ' sf-updates-board--thread' : ''}`}>
           <div className="sf-updates-channels">
             <div className="sf-upd-channel-search">
@@ -334,37 +411,47 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
               />
             </div>
             <div ref={channelScrollRef} className="sf-upd-channel-list">
-              {channels.length === 0 && (
-                <div className="sf-upd-empty">No open task chats yet.</div>
+              {filteredChannels.length === 0 && (
+                <div className="sf-upd-empty">
+                  {channels.length === 0 ? 'No open task chats yet.' : 'No threads for this brand — pick another filter.'}
+                </div>
               )}
-              {channels.map(({ task, lastMessage, lastAt, lastSender, msgCount }) => {
-                const active = selectedTaskId === task.id
-                const brandName = task.brand?.name || 'No brand'
-                const closed = task.updates_closed || task.status === 'Completed'
-                return (
-                  <button
-                    key={task.id}
-                    type="button"
-                    className={`sf-upd-channel${active ? ' is-active' : ''}${closed ? ' is-closed' : ''}`}
-                    onClick={() => loadThread(task.id)}
-                  >
-                    <div className="sf-upd-channel-top">
-                      <span className="sf-upd-channel-brand">{brandName}</span>
-                      <span className="sf-upd-channel-time">{formatChannelTime(lastAt)}</span>
-                    </div>
-                    <span className="sf-upd-channel-name">{task.title}</span>
-                    <span className="sf-upd-channel-meta">
-                      {!closed && <span className="sf-upd-channel-live">Active</span>}
-                      {closed && <span className="sf-upd-channel-archived">Closed</span>}
-                      <StatusBadge status={task.status} />
-                      {msgCount > 0 && <span className="sf-upd-channel-msgs">{msgCount}</span>}
+              {channelGroups.map((group) => (
+                <div key={group.brand} className="sf-upd-brand-group">
+                  <div className="sf-upd-brand-group-head">
+                    <span className="sf-upd-brand-group-name">{group.brand}</span>
+                    <span className="sf-upd-brand-group-count">
+                      {group.activeCount} active · {group.items.length} thread{group.items.length === 1 ? '' : 's'}
                     </span>
-                    <span className="sf-upd-channel-preview">
-                      {lastMessage ? `${lastSender || 'Someone'}: ${lastMessage}` : 'No messages yet — say hello'}
-                    </span>
-                  </button>
-                )
-              })}
+                  </div>
+                  {group.items.map(({ task, lastMessage, lastAt, lastSender, msgCount }) => {
+                    const active = selectedTaskId === task.id
+                    const closed = task.updates_closed || task.status === 'Completed'
+                    return (
+                      <button
+                        key={task.id}
+                        type="button"
+                        className={`sf-upd-channel${active ? ' is-active' : ''}${closed ? ' is-closed' : ''}`}
+                        onClick={() => loadThread(task.id)}
+                      >
+                        <div className="sf-upd-channel-top">
+                          <span className="sf-upd-channel-name">{task.title}</span>
+                          <span className="sf-upd-channel-time">{formatChannelTime(lastAt)}</span>
+                        </div>
+                        <span className="sf-upd-channel-meta">
+                          {!closed && <span className="sf-upd-channel-live">Active</span>}
+                          {closed && <span className="sf-upd-channel-archived">Closed</span>}
+                          <StatusBadge status={task.status} />
+                          {msgCount > 0 && <span className="sf-upd-channel-msgs">{msgCount}</span>}
+                        </span>
+                        <span className="sf-upd-channel-preview">
+                          {lastMessage ? `${lastSender || 'Someone'}: ${lastMessage}` : 'No messages yet — say hello'}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              ))}
             </div>
           </div>
 

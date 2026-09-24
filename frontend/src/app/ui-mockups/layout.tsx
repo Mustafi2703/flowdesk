@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import '../theme-options/theme-options.css'
 import './ui-mockups.css'
 
 export const metadata: Metadata = {

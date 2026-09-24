@@ -1,153 +1,168 @@
 'use client'
 
-import { THEME_PRESETS, type ThemePreset } from '@/lib/themePresets'
+import { useMemo, useState } from 'react'
+import Link from 'next/link'
+import { ColorPaletteGrid } from '@/components/theme/ColorPaletteGrid'
+import { OwnerUiShowcase } from '@/components/theme/OwnerUiShowcase'
+import { LoginThemeShowcase } from '@/components/theme/LoginThemeShowcase'
+import { THEME_PRESETS } from '@/lib/themePresets'
+import { getPresetById, UI_CHROME, UI_STYLE_PACKAGES, type UiStylePackage } from '@/lib/uiStylePackages'
 
-function PreviewFrame({
-  preset,
-  mode,
-  vars,
+function PackageCard({
+  pkg,
+  selected,
+  onSelect,
 }: {
-  preset: ThemePreset
-  mode: 'Light' | 'Dark'
-  vars: Record<string, string>
+  pkg: UiStylePackage
+  selected: boolean
+  onSelect: () => void
 }) {
-  const style: React.CSSProperties = { ...vars }
+  const chrome = UI_CHROME[pkg.chromeId]
+  const preset = getPresetById(pkg.presetId)
+  const accent = preset?.dark['--sf-accent'] || '#ff6b1a'
   return (
-    <div>
-      <div className="tp-frame-label">
-        {mode} mode · {preset.name}
+    <button type="button" className={`tp-pick-card${selected ? ' is-selected' : ''}`} onClick={onSelect}>
+      <div className="tp-pick-card-top">
+        <span className="tp-pick-swatch" style={{ background: accent }} aria-hidden />
+        <strong>{pkg.name}</strong>
+        {pkg.recommended && <span className="tp-badge">{pkg.recommended}</span>}
+        {pkg.ownerFocus && <span className="tp-badge tp-badge--owner">Owner</span>}
       </div>
-      <div className="tp-frame" style={style} id={`${preset.id}-${mode.toLowerCase()}`}>
-        <div className="tp-shell">
-          <aside className="tp-nav" aria-hidden>
-            <div className="tp-nav-logo">S</div>
-            <div className="tp-nav-dot is-active" />
-            <div className="tp-nav-dot" />
-            <div className="tp-nav-dot" />
-            <div className="tp-nav-dot" />
-          </aside>
-          <div className="tp-main">
-            <div className="tp-topbar">
-              <span className="tp-pill-clock">Clocked in</span>
-              <div className="tp-icon" />
-              <div className="tp-icon" />
-            </div>
-            <div className="tp-body">
-              <div className="tp-panel">
-                <div className="tp-panel-head">Dashboard · Owner / Manager</div>
-                <div className="tp-stats">
-                  <div className="tp-stat">
-                    <strong>24</strong>
-                    <label>Open tasks</label>
-                  </div>
-                  <div className="tp-stat">
-                    <strong>6</strong>
-                    <label>Due today</label>
-                  </div>
-                  <div className="tp-stat">
-                    <strong>3</strong>
-                    <label>Recurring</label>
-                  </div>
-                </div>
-                <div className="tp-bars">
-                  {[
-                    ['In Progress', 12, 48],
-                    ['Under Review', 5, 20],
-                    ['Not Started', 7, 28],
-                  ].map(([label, val, pct]) => (
-                    <div key={String(label)} className="tp-bar-row">
-                      <div className="tp-bar-meta">
-                        <span>{label}</span>
-                        <span>{val}</span>
-                      </div>
-                      <div className="tp-bar-track">
-                        <div className="tp-bar-fill" style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <span className="tp-role-tag" style={{ padding: '0 10px 8px', display: 'block' }}>
-                  Pipeline chart · same accent across stats & bars
-                </span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div className="tp-panel" style={{ flex: 1 }}>
-                  <div className="tp-panel-head">Updates · Slack-style threads</div>
-                  <div className="tp-updates">
-                    <div className="tp-channel is-active">
-                      <div className="tp-ch-brand">Acme Co</div>
-                      <div className="tp-ch-title">March social carousel</div>
-                      <div className="tp-ch-preview">Priya: Updated copy in frame 3…</div>
-                    </div>
-                    <div className="tp-channel">
-                      <div className="tp-ch-brand">Northwind</div>
-                      <div className="tp-ch-title">Landing page hero</div>
-                      <div className="tp-ch-preview">Rahul: Files uploaded for review</div>
-                    </div>
-                  </div>
-                </div>
-                <div className="tp-panel">
-                  <div className="tp-panel-head">Tasks · Team view</div>
-                  <div className="tp-tasks">
-                    <div className="tp-task">
-                      <div>
-                        <div className="tp-task-title">Brand guidelines PDF</div>
-                        <div className="tp-task-meta">Design · Due Fri</div>
-                      </div>
-                      <span className="tp-status">In Progress</span>
-                    </div>
-                    <div className="tp-task">
-                      <div>
-                        <div className="tp-task-title">Weekly report deck</div>
-                        <div className="tp-task-meta">Strategy · Recurring</div>
-                      </div>
-                      <span className="tp-status">Not Started</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      <p>{pkg.subtitle}</p>
+      <div className="tp-pick-meta">
+        <span>{chrome.label}</span>
+        <span>Default: {pkg.defaultMode}</span>
       </div>
+    </button>
+  )
+}
+
+function ModeToggle({
+  mode,
+  onChange,
+  large,
+}: {
+  mode: 'light' | 'dark'
+  onChange: (m: 'light' | 'dark') => void
+  large?: boolean
+}) {
+  return (
+    <div className={`tp-mode-toggle${large ? ' tp-mode-toggle--large' : ''}`} role="tablist" aria-label="Light or dark mode">
+      {(['light', 'dark'] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          role="tab"
+          aria-selected={mode === m}
+          className={`tp-mode-btn${mode === m ? ' is-active' : ''}${m === 'light' ? ' tp-mode-btn--light' : ' tp-mode-btn--dark'}`}
+          onClick={() => onChange(m)}
+        >
+          {m === 'light' ? '☀ Light mode' : '☾ Dark mode'}
+        </button>
+      ))}
     </div>
   )
 }
 
 export default function ThemeOptionsPage() {
+  const ownerPackages = useMemo(() => UI_STYLE_PACKAGES.filter((p) => p.ownerFocus), [])
+  const [activeId, setActiveId] = useState(ownerPackages[0]?.id ?? UI_STYLE_PACKAGES[0].id)
+  const [mode, setMode] = useState<'light' | 'dark'>('dark')
+  const [paletteMode, setPaletteMode] = useState<'light' | 'dark'>('light')
+
+  const active = UI_STYLE_PACKAGES.find((p) => p.id === activeId) ?? UI_STYLE_PACKAGES[0]
+
   return (
     <div className="tp-page">
+      <div className="tp-sticky-bar">
+        <span className="tp-sticky-label">Preview mode</span>
+        <ModeToggle mode={mode} onChange={setMode} large />
+        <span className="tp-sticky-hint">Applies to owner showcase below</span>
+      </div>
+
       <header className="tp-hero">
-        <h1>Scrumfolks TMS — colour theme options</h1>
+        <h1>Scrumfolks TMS — UI & colour options</h1>
         <p>
-          Four directions for nav, dashboard, Updates, and tasks. Screenshot this page (or each block) and share with
-          your client. Tell us which option + light/dark preference to ship app-wide.
+          <strong>{THEME_PRESETS.length} colour palettes</strong> (orange, purple, greens, blue, coral, gold…) plus{' '}
+          <strong>{UI_STYLE_PACKAGES.length} full UI packages</strong> (shape + layout). Owner sign-off: pick palette +
+          package + light or dark.
         </p>
         <p className="tp-hero-tip">
-          Tip: full-page screenshot each section. Links:{' '}
-          <code style={{ color: '#d4d4d4' }}>/theme-options</code> (colours) ·{' '}
-          <a href="/ui-mockups" style={{ color: '#fb923c' }}>/ui-mockups</a> (full ERP screens + mobile) — no login.
+          Also see <Link href="/ui-mockups">/ui-mockups</Link> · No login required
         </p>
       </header>
 
-      <div className="tp-grid">
-        {THEME_PRESETS.map((preset) => (
-          <section key={preset.id} className="tp-option" id={preset.id}>
-            <div className="tp-option-head">
-              <h2>{preset.name}</h2>
-              <span>{preset.subtitle}</span>
-              {preset.recommended && <span className="tp-badge">{preset.recommended}</span>}
+      <section className="tp-picker-section" id="login-mockups">
+        <h2 className="tp-section-title">Login — desktop & mobile (per palette)</h2>
+        <p className="tp-section-lead">Same layout as production sign-in; accent follows each theme. Screenshot for client.</p>
+        <div className="tp-login-grid">
+          {(['sunset-ops', 'jade-grove', 'mint-fresh', 'ember-noir', 'ocean-cobalt'] as const).map((id) => {
+            const preset = THEME_PRESETS.find((p) => p.id === id)!
+            return (
+              <LoginThemeShowcase
+                key={id}
+                preset={preset}
+                mode={id === 'ember-noir' ? 'dark' : 'light'}
+                vars={id === 'ember-noir' ? preset.dark : preset.light}
+              />
+            )
+          })}
+        </div>
+      </section>
+
+      <section className="tp-picker-section" id="colour-palettes">
+        <div className="tp-section-head-row">
+          <h2 className="tp-section-title">Colour palettes only</h2>
+          <ModeToggle mode={paletteMode} onChange={setPaletteMode} />
+        </div>
+        <p className="tp-section-lead">Includes dedicated green themes: Jade Grove, Mint Fresh, Forest Desk.</p>
+        <ColorPaletteGrid mode={paletteMode} />
+      </section>
+
+      <section className="tp-picker-section">
+        <h2 className="tp-section-title">Full UI packages (colour + ERP shape)</h2>
+        <div className="tp-pick-grid">
+          {UI_STYLE_PACKAGES.map((pkg) => (
+            <PackageCard
+              key={pkg.id}
+              pkg={pkg}
+              selected={pkg.id === activeId}
+              onSelect={() => {
+                setActiveId(pkg.id)
+                setMode(pkg.defaultMode)
+              }}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="tp-active-section" id={active.id}>
+        <div className="tp-active-head">
+          <div>
+            <h2>{active.name}</h2>
+            <p>{active.subtitle}</p>
+            <p className="tp-active-chrome">{UI_CHROME[active.chromeId].label}</p>
+          </div>
+          <ModeToggle mode={mode} onChange={setMode} large />
+        </div>
+        <OwnerUiShowcase pkg={active} mode={mode} />
+      </section>
+
+      <section className="tp-picker-section">
+        <h2 className="tp-section-title">Quick compare (all packages)</h2>
+        {UI_STYLE_PACKAGES.map((pkg) => (
+          <div key={`cmp-${pkg.id}`} className="tp-compare-row">
+            <div className="tp-compare-label">
+              <strong>{pkg.name}</strong>
+              <span>{UI_CHROME[pkg.chromeId].label}</span>
             </div>
-            <div className="tp-pair">
-              <PreviewFrame preset={preset} mode="Light" vars={preset.light} />
-              <PreviewFrame preset={preset} mode="Dark" vars={preset.dark} />
-            </div>
-          </section>
+            <OwnerUiShowcase pkg={pkg} mode={pkg.defaultMode} compact />
+          </div>
         ))}
-      </div>
+      </section>
 
       <footer className="tp-footer">
-        QRYX Tech · Scrumfolks TMS theme preview · {new Date().getFullYear()}
+        QRYX Tech · Scrumfolks TMS · Pick palette + package + light/dark · {new Date().getFullYear()}
       </footer>
     </div>
   )

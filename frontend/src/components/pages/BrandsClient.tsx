@@ -242,6 +242,46 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
             </button>
           )}
         </div>
+      ) : selected ? (
+        <div className="sf-brand-inline">
+          <div className="sf-brand-inline-find">
+            <input
+              type="search"
+              className="sf-input"
+              placeholder="Find another brand…"
+              value={modalFind}
+              onChange={(e) => setModalFind(e.target.value)}
+              aria-label="Find another brand"
+            />
+            {modalFind.trim() && (
+              <div className="sf-brand-modal-hits">
+                {modalHits.length === 0 ? (
+                  <span className="sf-brand-scroll-meta">No brand matches.</span>
+                ) : modalHits.map((b) => (
+                  <button key={b.id} type="button" className="sf-brand-modal-hit" onClick={() => selectBrand(b)}>
+                    {b.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <BrandDetail
+            brand={selected}
+            tasks={brandTasks}
+            users={users}
+            session={session}
+            canEdit={canEdit}
+            canAssignManagers={isOwner}
+            canAssignTeam={canEdit}
+            tab={section}
+            onTabChange={changeTab}
+            onBack={() => { setSelectedId(null); setModalFind(''); router.replace('/brands') }}
+            onRefresh={load}
+            onBrandUpdated={patchBrand}
+            attendance={attendance}
+            identityEditNonce={identityEditNonce}
+          />
+        </div>
       ) : (
         <>
         <div className="sf-brand-workspace sf-brand-workspace--single">
@@ -328,54 +368,6 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
               </div>
           </div>
         </div>
-        {selected && (
-          <Modal
-            open
-            onClose={() => { setSelectedId(null); setModalFind(''); router.replace('/brands') }}
-            title={selected.name}
-            subtitle="Brand workspace"
-            size="full"
-            panelClassName="sf-brand-screen-modal"
-          >
-            <div className="sf-brand-modal-search">
-              <input
-                type="search"
-                className="sf-input"
-                placeholder="Find another brand…"
-                value={modalFind}
-                onChange={(e) => setModalFind(e.target.value)}
-                aria-label="Find another brand"
-              />
-              {modalFind.trim() && (
-                <div className="sf-brand-modal-hits">
-                  {modalHits.length === 0 ? (
-                    <span className="sf-brand-scroll-meta">No brand matches.</span>
-                  ) : modalHits.map((b) => (
-                    <button key={b.id} type="button" className="sf-brand-modal-hit" onClick={() => selectBrand(b)}>
-                      {b.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <BrandDetail
-              brand={selected}
-              tasks={brandTasks}
-              users={users}
-              session={session}
-              canEdit={canEdit}
-              canAssignManagers={isOwner}
-              canAssignTeam={canEdit}
-              tab={section}
-              onTabChange={changeTab}
-              onBack={() => { setSelectedId(null); router.replace('/brands') }}
-              onRefresh={load}
-              onBrandUpdated={patchBrand}
-              attendance={attendance}
-              identityEditNonce={identityEditNonce}
-            />
-          </Modal>
-        )}
         </>
       )}
 
@@ -740,7 +732,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
         </div>
 
         <div className="sf-brand-page-stats">
-          {[['Total', tasks.length, '#3B82F6'], ['Projects', projects.length, '#06B6D4'], ['Done', done, '#10B981'], ['Flagged', fl.length, '#EF4444']].map(([l, v, c]) => (
+          {[['Total', tasks.length, 'var(--sf-text)'], ['Projects', projects.length, 'var(--sf-accent)'], ['Done', done, 'var(--sf-success)'], ['Flagged', fl.length, 'var(--sf-danger)']].map(([l, v, c]) => (
             <div key={String(l)} className="sf-brand-page-stat">
               <span className="sf-brand-page-stat-val" style={{ color: String(c) }}>{v}</span>
               <span className="sf-brand-page-stat-label">{l}</span>

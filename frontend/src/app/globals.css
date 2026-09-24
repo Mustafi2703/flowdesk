@@ -34,13 +34,13 @@
 }
 
 [data-theme='morning'] {
-  --sf-bg: #e8eaed;
+  --sf-bg: #ffffff;
   --sf-bg-elevated: #ffffff;
   --sf-surface: #ffffff;
-  --sf-surface-2: #f4f5f7;
-  --sf-surface-hover: #ebedf0;
-  --sf-border: #c8cdd4;
-  --sf-border-strong: #a8b0ba;
+  --sf-surface-2: #f7f7f7;
+  --sf-surface-hover: #f1f1f1;
+  --sf-border: #e6e6e6;
+  --sf-border-strong: #d4d4d4;
   --sf-text: #1a1d21;
   --sf-text-secondary: #4b5563;
   --sf-muted: #6b7280;
@@ -2146,22 +2146,32 @@ html[data-theme='morning'] body {
 }
 
 /* Brand detail page (opened client) */
+.sf-brand-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sf-brand-inline-find {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 .sf-brand-page {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 140px);
+  min-height: 0;
   border: 1px solid var(--sf-border);
-  border-radius: 20px;
+  border-top: 3px solid var(--sf-accent);
+  border-radius: var(--sf-radius);
   background: var(--sf-surface);
-  box-shadow: var(--sf-shadow-lg);
+  box-shadow: none;
   overflow: hidden;
+  color: var(--sf-text);
 }
 
 .sf-brand-page-header {
   padding: 22px 24px 0;
-  background:
-    radial-gradient(640px 220px at 100% 0%, color-mix(in srgb, var(--brand-accent, var(--sf-accent)) 14%, transparent), transparent 55%),
-    linear-gradient(180deg, var(--sf-surface-2), var(--sf-surface));
+  background: var(--sf-surface);
   border-bottom: 1px solid var(--sf-border);
 }
 
@@ -2176,10 +2186,10 @@ html[data-theme='morning'] body {
 .sf-brand-page-logo {
   flex-shrink: 0;
   padding: 4px;
-  border-radius: 16px;
+  border-radius: var(--sf-radius);
   background: var(--sf-surface);
   border: 1px solid var(--sf-border);
-  box-shadow: var(--sf-shadow);
+  box-shadow: none;
 }
 
 .sf-brand-page-intro {
@@ -2229,9 +2239,9 @@ html[data-theme='morning'] body {
 
 .sf-brand-page-stat {
   padding: 12px 14px;
-  border-radius: 12px;
+  border-radius: var(--sf-radius-sm);
   border: 1px solid var(--sf-border);
-  background: var(--sf-surface);
+  background: var(--sf-surface-2);
   text-align: center;
 }
 
@@ -3764,11 +3774,12 @@ html[data-theme='morning'] body {
   z-index: 1;
   overflow: hidden;
   border-radius: var(--sf-radius);
-  border: 1px solid var(--sf-border-strong);
+  border: 1px solid var(--sf-border);
   border-top: 3px solid var(--sf-accent);
   padding: 1rem 1.15rem;
   margin-bottom: 1rem;
   background: var(--sf-surface);
+  color: var(--sf-text);
   box-shadow: none;
 }
 .sf-dash-hero-title {

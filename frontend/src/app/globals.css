@@ -3499,12 +3499,14 @@ html[data-theme='morning'] body {
 }
 .sf-dash-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 0.9fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
-  min-height: 420px;
+  height: min(640px, calc(100vh - 280px));
+  min-height: 480px;
   min-width: 0;
   width: 100%;
   margin-bottom: 1rem;
+  align-items: stretch;
 }
 .sf-dash-hero-inner {
   display: flex;
@@ -3529,7 +3531,9 @@ html[data-theme='morning'] body {
 .sf-dash-panel {
   display: flex;
   flex-direction: column;
+  height: 100%;
   min-height: 0;
+  min-width: 0;
   border: 1px solid var(--sf-border);
   border-radius: var(--sf-radius);
   background: var(--sf-surface);
@@ -3560,7 +3564,7 @@ html[data-theme='morning'] body {
   -webkit-overflow-scrolling: touch;
 }
 .sf-dash-panel-scroll--top5 {
-  max-height: 360px;
+  max-height: none;
 }
 .sf-dash-modal-list {
   max-height: 360px;
@@ -3745,10 +3749,12 @@ html[data-theme='morning'] body {
 @media (max-width: 1100px) {
   .sf-dash-workspace {
     grid-template-columns: 1fr;
+    height: auto;
     min-height: 0;
   }
   .sf-dash-panel {
-    max-height: 360px;
+    height: 420px;
+    max-height: 420px;
   }
 }
 

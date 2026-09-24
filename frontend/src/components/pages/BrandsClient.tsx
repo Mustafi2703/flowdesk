@@ -93,6 +93,11 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   const [brandSearch, setBrandSearch] = useState('')
   const [modalFind, setModalFind] = useState('')
   const [brandStageFilter, setBrandStageFilter] = useState('all')
+  const [stageBrandId, setStageBrandId] = useState<string | null>(null)
+  const [flagBrandId, setFlagBrandId] = useState<string | null>(null)
+  const [flagNote, setFlagNote] = useState('')
+  const [actionError, setActionError] = useState('')
+  const [saving, setSaving] = useState(false)
   const canEdit = ['owner', 'manager'].includes(session.role)
   const isOwner = session.role === 'owner'
   const isReadOnlyRole = ['hr', 'accountant'].includes(session.role)
@@ -172,6 +177,44 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
     if (selectedId) router.replace(`/brands?brand=${selectedId}&tab=${tab}`)
   }
 
+  async function saveStage(brandId: string, stage: string) {
+    setSaving(true)
+    setActionError('')
+    const res = await fetch(`/api/brands/${brandId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workflow_stage: stage }),
+    })
+    setSaving(false)
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      setActionError(body.detail || 'Could not update stage')
+      return
+    }
+    const updated = await res.json()
+    setBrands((rows) => rows.map((b) => (sameId(b.id, brandId) ? { ...b, ...updated } : b)))
+    setStageBrandId(null)
+  }
+
+  async function submitFlag() {
+    if (!flagBrandId) return
+    setSaving(true)
+    setActionError('')
+    const res = await fetch(`/api/brands/${flagBrandId}/flag`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: flagNote }),
+    })
+    setSaving(false)
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      setActionError(body.detail || 'Could not flag this campaign')
+      return
+    }
+    setFlagBrandId(null)
+    setFlagNote('')
+  }
+
   if (loading) {
     return <div style={{ color: 'var(--sf-muted)', padding: 40, textAlign: 'center' }}>Loading brands…</div>
   }
@@ -244,37 +287,39 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                           .map((id: string) => users.find((u: any) => sameId(u.id, id)))
                           .filter(Boolean)
                         return (
-                          <button
-                            key={b.id}
-                            type="button"
-                            className="sf-workflow-active-card sf-brand-picker-card"
-                            style={{ '--wf-pri': pri.color } as React.CSSProperties}
-                            onClick={() => selectBrand(b)}
-                          >
-                            <div className="sf-workflow-active-card-head">
-                              <div className="sf-workflow-active-brand">{b.name}</div>
-                              <span className="sf-workflow-active-pri">{pri.label}</span>
-                            </div>
-                            <div className="sf-workflow-active-deliv">{bt.length} deliverable{bt.length === 1 ? '' : 's'}</div>
-                            <div className="sf-workflow-active-segments" aria-hidden>
-                              {PHASE_ORDER.map((id, i) => (
-                                <span key={id} className={i <= stageIndex ? 'is-done' : ''} />
-                              ))}
-                            </div>
-                            <div className="sf-workflow-active-phase">
-                              Current: <strong>{brandStageLabel(stage)}</strong>
-                            </div>
-                            {people.length > 0 && (
-                              <div className="sf-workflow-active-avatars">
-                                {people.slice(0, 4).map((u: any) => (
-                                  <span key={u.id} className="sf-workflow-active-av" title={u.name}>
-                                    {String(u.name || '?').split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase()}
-                                  </span>
+                          <article key={b.id} className="sf-workflow-active-card" style={{ '--wf-pri': pri.color } as React.CSSProperties}>
+                            <button type="button" className="sf-workflow-active-open" onClick={() => selectBrand(b)}>
+                              <div className="sf-workflow-active-card-head">
+                                <div className="sf-workflow-active-brand">{b.name}</div>
+                                <span className="sf-workflow-active-pri">{pri.label}</span>
+                              </div>
+                              <div className="sf-workflow-active-deliv">{bt.length} deliverable{bt.length === 1 ? '' : 's'}</div>
+                              <div className="sf-workflow-active-segments" aria-hidden>
+                                {PHASE_ORDER.map((id, i) => (
+                                  <span key={id} className={i <= stageIndex ? 'is-done' : ''} />
                                 ))}
-                                <span className="sf-workflow-active-assignee">{people[0].name}</span>
+                              </div>
+                              <div className="sf-workflow-active-phase">
+                                Current: <strong>{brandStageLabel(stage)}</strong>
+                              </div>
+                              {people.length > 0 && (
+                                <div className="sf-workflow-active-avatars">
+                                  {people.slice(0, 4).map((u: any) => (
+                                    <span key={u.id} className="sf-workflow-active-av" title={u.name}>
+                                      {String(u.name || '?').split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase()}
+                                    </span>
+                                  ))}
+                                  <span className="sf-workflow-active-assignee">{people[0].name}</span>
+                                </div>
+                              )}
+                            </button>
+                            {canEdit && (
+                              <div className="sf-workflow-active-actions">
+                                <button type="button" className="sf-btn sf-btn-ghost" onClick={() => { setActionError(''); setStageBrandId(String(b.id)) }}>Update Stage</button>
+                                <button type="button" className="sf-btn sf-btn-ghost" onClick={() => { setActionError(''); setFlagNote(''); setFlagBrandId(String(b.id)) }}>Flag Issue</button>
                               </div>
                             )}
-                          </button>
+                          </article>
                         )
                       })}
                     </div>
@@ -335,6 +380,63 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
       )}
 
       {showCreate && canEdit && <CreateBrand onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); load() }} />}
+
+      {stageBrandId && (
+        <Modal
+          open
+          onClose={() => setStageBrandId(null)}
+          title="Update Stage"
+          subtitle={brands.find((b) => sameId(b.id, stageBrandId))?.name || 'Campaign'}
+          zIndex={120}
+        >
+          <div className="sf-workflow-stage-picker">
+            {PHASE_ORDER.map((id) => {
+              const current = (brands.find((b) => sameId(b.id, stageBrandId))?.workflow_stage || 'assigned') === id
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className={`sf-workflow-stage-option${current ? ' is-current' : ''}`}
+                  disabled={saving}
+                  onClick={() => saveStage(stageBrandId, id)}
+                >
+                  {brandStageLabel(id)}
+                </button>
+              )
+            })}
+          </div>
+          {actionError && <p className="sf-workflow-action-error">{actionError}</p>}
+        </Modal>
+      )}
+
+      {flagBrandId && (
+        <Modal
+          open
+          onClose={() => setFlagBrandId(null)}
+          title="Flag Issue"
+          subtitle={brands.find((b) => sameId(b.id, flagBrandId))?.name || 'Campaign'}
+          zIndex={120}
+          footer={
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', width: '100%' }}>
+              <button type="button" className="sf-btn sf-btn-ghost" onClick={() => setFlagBrandId(null)}>Cancel</button>
+              <button type="button" className="sf-btn sf-btn-primary" disabled={saving} onClick={submitFlag}>
+                {saving ? 'Sending…' : 'Notify team'}
+              </button>
+            </div>
+          }
+        >
+          <label className="sf-workflow-section-label" htmlFor="brand-flag-note">What should the team know?</label>
+          <textarea
+            id="brand-flag-note"
+            className="sf-input"
+            rows={4}
+            value={flagNote}
+            onChange={(e) => setFlagNote(e.target.value)}
+            placeholder="Blocked on assets, client delay, capacity…"
+          />
+          {actionError && <p className="sf-workflow-action-error">{actionError}</p>}
+        </Modal>
+      )}
     </PageShell>
   )
 }

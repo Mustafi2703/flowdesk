@@ -1,9 +1,17 @@
+/* Isolate from app light/dark theme on <html> */
+.tp-root {
+  min-height: 100vh;
+  background: #0c0c0e;
+  color: #e5e5e5;
+  font-family: 'Manrope', system-ui, sans-serif;
+}
+
 .tp-page {
   min-height: 100vh;
-  background: #111;
+  background: #0c0c0e;
   color: #e5e5e5;
   padding: 32px 24px 48px;
-  font-family: 'Manrope', system-ui, sans-serif;
+  font-family: inherit;
 }
 .tp-hero {
   max-width: 1200px;
@@ -88,10 +96,12 @@
   border-radius: 4px;
   border: 1px solid #333;
   overflow: hidden;
-  background: var(--sf-bg);
-  color: var(--sf-text);
+  background: var(--sf-bg, #e8eaed);
+  color: var(--sf-text, #1a1d21);
   font-size: 11px;
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
+  /* Ensure preview tokens inherit even if inline vars fail in dev */
+  --sf-border-strong: var(--sf-border, #c8cdd4);
 }
 .tp-shell {
   display: flex;

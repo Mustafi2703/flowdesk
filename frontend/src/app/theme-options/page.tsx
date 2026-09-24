@@ -1,7 +1,6 @@
 'use client'
 
 import { THEME_PRESETS, type ThemePreset } from '@/lib/themePresets'
-import './theme-options.css'
 
 function PreviewFrame({
   preset,
@@ -12,7 +11,7 @@ function PreviewFrame({
   mode: 'Light' | 'Dark'
   vars: Record<string, string>
 }) {
-  const style = vars as React.CSSProperties
+  const style: React.CSSProperties = { ...vars }
   return (
     <div>
       <div className="tp-frame-label">

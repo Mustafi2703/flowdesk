@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
@@ -118,7 +119,13 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="login-legal">Internal use only · Secure session</p>
+        <p className="login-legal">
+          Internal use only · Secure session
+          {' · '}
+          <Link href="/theme-options" style={{ color: '#94a3b8' }}>
+            Client theme previews
+          </Link>
+        </p>
       </main>
     </div>
   )

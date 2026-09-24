@@ -11,15 +11,19 @@ import {
   PHASE_ORDER,
   WORKFLOW_PHASES,
   phaseLabel,
-  taskProgressSegments,
   taskWorkflowPhase,
 } from '@/lib/workflowPhases'
 
 function priorityTone(p: string) {
-  const x = (p || 'Medium').toLowerCase()
-  if (x === 'high' || x === 'urgent') return { label: 'HIGH', color: '#ff6b6b' }
-  if (x === 'low') return { label: 'LOW', color: '#64748b' }
+  const x = (p || 'P3').toUpperCase()
+  if (x === 'P1' || x === 'HIGH' || x === 'URGENT') return { label: 'HIGH', color: '#ff4757' }
+  if (x === 'P4' || x === 'LOW') return { label: 'LOW', color: '#26de81' }
   return { label: 'MED', color: '#ffa502' }
+}
+
+function stageDisplay(id: string) {
+  if (id === 'approval') return 'Client Approval'
+  return phaseLabel(id)
 }
 
 function WorkflowBrandDetail({
@@ -155,6 +159,12 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showCapacity, setShowCapacity] = useState(true)
   const [detailOpen, setDetailOpen] = useState(false)
+  const [stageBrandId, setStageBrandId] = useState<string | null>(null)
+  const [flagBrandId, setFlagBrandId] = useState<string | null>(null)
+  const [flagNote, setFlagNote] = useState('')
+  const [actionError, setActionError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const canEdit = session.role === 'owner' || session.role === 'manager'
 
   function load() {
     return Promise.all([
@@ -171,34 +181,29 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
 
   useEffect(() => { load() }, [])
 
-  const brandById = useMemo(() => {
-    const m = new Map<string, any>()
-    for (const b of brands) m.set(String(b.id), b)
-    return m
-  }, [brands])
-
   const openTasks = useMemo(() => tasks.filter((t) => t.status !== 'Completed'), [tasks])
 
-  const filteredTasks = useMemo(() => {
+  const filteredBrands = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return openTasks.filter((t) => {
-      const phase = taskWorkflowPhase(t)
-      if (stageFilter !== 'all' && phase !== stageFilter) return false
-      const brandName = t.brand?.name || brandById.get(String(t.brand_id))?.name || ''
-      if (q && !String(t.title || '').toLowerCase().includes(q) && !brandName.toLowerCase().includes(q)) return false
-      return true
+    return brands.filter((brand) => {
+      const stage = brand.workflow_stage || 'assigned'
+      if (stageFilter !== 'all' && stage !== stageFilter) return false
+      if (!q) return true
+      const memberNames = [...(brand.assigned_members || []), ...(brand.assigned_managers || [])]
+        .map((id: string) => users.find((u) => String(u.id) === String(id))?.name || '')
+        .join(' ')
+        .toLowerCase()
+      return String(brand.name || '').toLowerCase().includes(q) || memberNames.includes(q)
     })
-  }, [openTasks, stageFilter, search, brandById])
+  }, [brands, stageFilter, search, users])
 
-  const awaitingApproval = openTasks.filter((t) => t.status === 'Under Review').length
+  const awaitingApproval = brands.filter((b) => (b.workflow_stage || 'assigned') === 'approval').length
   const completedToday = tasks.filter((t) => {
     if (t.status !== 'Completed') return false
     const d = t.updated_at || t.completed_at
     if (!d) return false
     return String(d).slice(0, 10) === new Date().toISOString().slice(0, 10)
   }).length
-
-  const activeThreads = openTasks.filter((t) => !t.updates_closed).length
 
   const capacity = useMemo(() => {
     const team = users.filter((u) => u.role === 'team' && u.is_active !== false)
@@ -214,13 +219,6 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
     }).sort((a, b) => b.pct - a.pct)
   }, [users, tasks])
 
-  const stageAnalytics = useMemo(() => {
-    return PHASE_ORDER.map((stageId) => {
-      const count = openTasks.filter((t) => taskWorkflowPhase(t) === stageId).length
-      return { stageId, count, label: phaseLabel(stageId), color: PHASE_COLORS[stageId] }
-    })
-  }, [openTasks])
-
   const brandsWithOpenTasks = useMemo(() => {
     const ids = new Set(openTasks.map((t) => String(t.brand_id)).filter(Boolean))
     return ids.size
@@ -233,17 +231,60 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
     setDetailOpen(true)
   }
 
-  function assigneeName(task: any) {
-    const id = (task.assigned_to || [])[0]
-    if (!id) return 'Unassigned'
-    return users.find((u) => String(u.id) === String(id))?.name || 'Team'
+  function brandPeople(brand: any) {
+    const ids = [...(brand.assigned_members || []), ...(brand.assigned_managers || [])]
+    const people = ids
+      .map((id: string) => users.find((u) => String(u.id) === String(id)))
+      .filter(Boolean)
+    const seen = new Set<string>()
+    return people.filter((u: any) => {
+      const key = String(u.id)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
   }
 
-  function assigneeInitials(task: any) {
-    return (task.assigned_to || []).slice(0, 3).map((id: string) => {
-      const name = users.find((u) => String(u.id) === String(id))?.name || '?'
-      return name.split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase()
+  function initials(name: string) {
+    return String(name || '?').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase()
+  }
+
+  async function saveStage(brandId: string, stage: string) {
+    setSaving(true)
+    setActionError('')
+    const res = await fetch(`/api/brands/${brandId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workflow_stage: stage }),
     })
+    setSaving(false)
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      setActionError(body.detail || 'Could not update stage')
+      return
+    }
+    const updated = await res.json()
+    setBrands((rows) => rows.map((b) => (String(b.id) === String(brandId) ? { ...b, ...updated } : b)))
+    setStageBrandId(null)
+  }
+
+  async function submitFlag() {
+    if (!flagBrandId) return
+    setSaving(true)
+    setActionError('')
+    const res = await fetch(`/api/brands/${flagBrandId}/flag`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: flagNote }),
+    })
+    setSaving(false)
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      setActionError(body.detail || 'Could not flag this campaign')
+      return
+    }
+    setFlagBrandId(null)
+    setFlagNote('')
   }
 
   if (loading) return <div style={{ color: 'var(--sf-muted)', padding: 40, textAlign: 'center' }}>Loading workflow…</div>
@@ -252,7 +293,7 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
     <PageShell className="sf-workflow-page">
       <PageHeader
         title="Workflow Dashboard"
-        subtitle={`Real-time view of active work · ${activeThreads} open chat threads · Last updated: just now`}
+        subtitle="Real-time view of all active campaigns · Last updated: just now"
       />
 
       <div className="sf-workflow-stage-pills" role="tablist" aria-label="Filter by task phase">
@@ -317,86 +358,67 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
         )}
       </div>
 
-      <section className="sf-workflow-active-section" aria-label="Active work">
-        <h2 className="sf-workflow-section-title">Active campaigns</h2>
-        <p className="sf-workflow-section-sub">Each card is a task — phase comes from status and type, not the brand.</p>
+      <section className="sf-workflow-active-section" aria-label="Active campaigns">
+        <h2 className="sf-workflow-section-title">Active Campaigns</h2>
         <div className="sf-workflow-active-grid">
-          {filteredTasks.length === 0 ? (
-            <div className="sf-workflow-empty sf-workflow-empty--wide">No open tasks match this filter.</div>
-          ) : filteredTasks.map((task) => {
-            const brand = task.brand || brandById.get(String(task.brand_id))
-            const phase = taskWorkflowPhase(task)
-            const pri = priorityTone(task.priority)
-            const subs = task.sub_tasks || []
-            const deliverables = subs.length || (task.checklist || []).length || 1
-            const { filled, total } = taskProgressSegments(task)
-            const threadOpen = !task.updates_closed
+          {filteredBrands.length === 0 ? (
+            <div className="sf-workflow-empty sf-workflow-empty--wide">No campaigns match this filter.</div>
+          ) : filteredBrands.map((brand) => {
+            const stage = brand.workflow_stage || 'assigned'
+            const stageIndex = Math.max(0, PHASE_ORDER.indexOf(stage))
+            const pri = priorityTone(brand.priority)
+            const deliverables = tasks.filter((t) => String(t.brand_id) === String(brand.id)).length
+            const people = brandPeople(brand)
+            const poc = people[0]
             return (
               <article
-                key={task.id}
+                key={brand.id}
                 className="sf-workflow-active-card"
                 style={{ '--wf-pri': pri.color } as React.CSSProperties}
+                onClick={() => selectBrand(String(brand.id))}
               >
                 <div className="sf-workflow-active-card-head">
-                  <div>
-                    <div className="sf-workflow-active-brand">{brand?.name || 'No brand'}</div>
-                    <div className="sf-workflow-active-title">{task.title}</div>
-                  </div>
+                  <div className="sf-workflow-active-brand">{brand.name}</div>
                   <span className="sf-workflow-active-pri">{pri.label}</span>
                 </div>
                 <div className="sf-workflow-active-deliv">{deliverables} deliverable{deliverables === 1 ? '' : 's'}</div>
                 <div className="sf-workflow-active-segments" aria-hidden>
-                  {Array.from({ length: total }).map((_, i) => (
-                    <span key={i} className={i < filled ? 'is-done' : ''} />
+                  {PHASE_ORDER.map((id, i) => (
+                    <span key={id} className={i <= stageIndex ? 'is-done' : ''} />
                   ))}
                 </div>
                 <div className="sf-workflow-active-phase">
-                  Current: <strong style={{ color: PHASE_COLORS[phase] }}>{phaseLabel(phase)}</strong>
-                  {threadOpen && <span className="sf-workflow-active-thread"> · Active chat</span>}
+                  Current: <strong style={{ color: PHASE_COLORS[stage] || '#20b2aa' }}>{stageDisplay(stage)}</strong>
                 </div>
                 <div className="sf-workflow-active-foot">
                   <div className="sf-workflow-active-avatars">
-                    {assigneeInitials(task).map((ch, i) => (
-                      <span key={i} className="sf-workflow-active-av">{ch}</span>
+                    {people.slice(0, 3).map((u: any) => (
+                      <span key={u.id} className="sf-workflow-active-av">{initials(u.name)}</span>
                     ))}
-                    <span className="sf-workflow-active-assignee">{assigneeName(task)}</span>
+                    <span className="sf-workflow-active-assignee">{poc?.name || 'Unassigned'}</span>
                   </div>
-                  <div className="sf-workflow-active-actions">
-                    <Link href={`/updates?task=${task.id}`} className="sf-btn sf-btn-ghost" style={{ fontSize: 11 }}>Open chat</Link>
-                    <Link href={`/tasks/${task.id}`} className="sf-btn sf-btn-primary" style={{ fontSize: 11 }}>Open task</Link>
-                  </div>
+                  {canEdit && (
+                    <div className="sf-workflow-active-actions">
+                      <button
+                        type="button"
+                        className="sf-btn sf-btn-ghost"
+                        style={{ fontSize: 11 }}
+                        onClick={(e) => { e.stopPropagation(); setActionError(''); setStageBrandId(String(brand.id)) }}
+                      >
+                        Update Stage
+                      </button>
+                      <button
+                        type="button"
+                        className="sf-btn sf-btn-ghost"
+                        style={{ fontSize: 11 }}
+                        onClick={(e) => { e.stopPropagation(); setActionError(''); setFlagNote(''); setFlagBrandId(String(brand.id)) }}
+                      >
+                        Flag Issue
+                      </button>
+                    </div>
+                  )}
                 </div>
               </article>
-            )
-          })}
-        </div>
-      </section>
-
-      <section className="sf-workflow-brand-section" aria-label="Brands with work">
-        <div className="sf-workflow-brand-head">
-          <h2 className="sf-workflow-roster-title">Brands with open work</h2>
-        </div>
-        <div className="sf-workflow-brand-grid">
-          {brands.filter((b) => openTasks.some((t) => String(t.brand_id) === String(b.id))).length === 0 ? (
-            <div className="sf-workflow-empty sf-workflow-empty--wide">No brands with open tasks.</div>
-          ) : brands.filter((b) => openTasks.some((t) => String(t.brand_id) === String(b.id))).map((brand) => {
-            const brandTasks = openTasks.filter((t) => String(t.brand_id) === String(brand.id))
-            const threads = brandTasks.filter((t) => !t.updates_closed).length
-            return (
-              <button
-                key={brand.id}
-                type="button"
-                className="sf-workflow-brand-card"
-                onClick={() => selectBrand(String(brand.id))}
-              >
-                <BrandLogoMark brand={brand} size={36} />
-                <div className="sf-workflow-row-copy">
-                  <div className="sf-workflow-row-name">{brand.name}</div>
-                  <div className="sf-workflow-row-meta">
-                    {brandTasks.length} open task{brandTasks.length === 1 ? '' : 's'} · {threads} active thread{threads === 1 ? '' : 's'}
-                  </div>
-                </div>
-              </button>
             )
           })}
         </div>
@@ -413,7 +435,7 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
           zIndex={90}
           footer={
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', width: '100%' }}>
-              <Link href={`/brands?brand=${selected.id}&tab=overview`} className="sf-btn sf-btn-ghost" onClick={() => setDetailOpen(false)}>
+              <Link href={`/brands?brand=${selected.id}&tab=tasks`} className="sf-btn sf-btn-ghost" onClick={() => setDetailOpen(false)}>
                 Open full brand page →
               </Link>
               <button type="button" className="sf-btn sf-btn-primary" onClick={() => setDetailOpen(false)}>
@@ -423,6 +445,63 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
           }
         >
           <WorkflowBrandDetail brand={selected} tasks={tasks} users={users} inModal />
+        </Modal>
+      )}
+
+      {stageBrandId && (
+        <Modal
+          open
+          onClose={() => setStageBrandId(null)}
+          title="Update Stage"
+          subtitle={brands.find((b) => String(b.id) === stageBrandId)?.name || 'Campaign'}
+          zIndex={100}
+        >
+          <div className="sf-workflow-stage-picker">
+            {PHASE_ORDER.map((id) => {
+              const current = (brands.find((b) => String(b.id) === stageBrandId)?.workflow_stage || 'assigned') === id
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className={`sf-workflow-stage-option${current ? ' is-current' : ''}`}
+                  disabled={saving}
+                  onClick={() => saveStage(stageBrandId, id)}
+                >
+                  {stageDisplay(id)}
+                </button>
+              )
+            })}
+          </div>
+          {actionError && <p className="sf-workflow-action-error">{actionError}</p>}
+        </Modal>
+      )}
+
+      {flagBrandId && (
+        <Modal
+          open
+          onClose={() => setFlagBrandId(null)}
+          title="Flag Issue"
+          subtitle={brands.find((b) => String(b.id) === flagBrandId)?.name || 'Campaign'}
+          zIndex={100}
+          footer={
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', width: '100%' }}>
+              <button type="button" className="sf-btn sf-btn-ghost" onClick={() => setFlagBrandId(null)}>Cancel</button>
+              <button type="button" className="sf-btn sf-btn-primary" disabled={saving} onClick={submitFlag}>
+                {saving ? 'Sending…' : 'Notify team'}
+              </button>
+            </div>
+          }
+        >
+          <label className="sf-workflow-section-label" htmlFor="flag-note">What should the team know?</label>
+          <textarea
+            id="flag-note"
+            className="sf-input"
+            rows={4}
+            value={flagNote}
+            onChange={(e) => setFlagNote(e.target.value)}
+            placeholder="Blocked on assets, client delay, capacity…"
+          />
+          {actionError && <p className="sf-workflow-action-error">{actionError}</p>}
         </Modal>
       )}
     </PageShell>

@@ -19,7 +19,7 @@ from app.models.brand import Brand
 from app.models.task import Task
 from app.models.notification import Notification
 from app.models.profile import Profile
-from app.schemas.brand import WORKFLOW_STAGES, BrandCreate, BrandUpdate
+from app.schemas.brand import WORKFLOW_STAGES, BrandCreate, BrandFlag, BrandUpdate
 from app.utils.queues import DASHBOARD_CACHE
 
 router = APIRouter(prefix="/brands", tags=["brands"])
@@ -268,6 +268,38 @@ def update_brand(
 
     DASHBOARD_CACHE.invalidate()
     return _serialize(brand)
+
+
+@router.post("/{brand_id}/flag")
+def flag_brand(
+    brand_id: uuid.UUID,
+    payload: BrandFlag,
+    db: Session = Depends(get_db),
+    user: Profile = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Notify owner and brand managers — the Flag Issue action on the first workflow dashboard."""
+    if not _can_edit_brand(user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owner/manager can flag a brand")
+    brand = db.get(Brand, brand_id)
+    if not brand:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found")
+    note = (payload.note or "").strip() or "Issue flagged from Workflow"
+    targets = _id_set(getattr(brand, "assigned_managers", None))
+    owners = db.scalars(select(Profile).where(Profile.role == Role.OWNER.value, Profile.is_active.is_(True))).all()
+    for owner in owners:
+        targets.add(str(owner.id))
+    targets.discard(str(user.id))
+    for uid in targets:
+        db.add(
+            Notification(
+                user_id=uuid.UUID(uid),
+                message=f'Issue flagged on "{brand.name}": {note}',
+                type="brand",
+                link="/devboard",
+            )
+        )
+    db.commit()
+    return {"ok": True, "notified": len(targets)}
 
 
 @router.delete("/{brand_id}")

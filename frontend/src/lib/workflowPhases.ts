@@ -1,4 +1,4 @@
-/** Delivery phases for workflow dashboard — tasks only (brands do not have stages). */
+/** Delivery phases for the workflow dashboard. Brand cards use brand.workflow_stage. */
 
 export const WORKFLOW_PHASES = [
   { id: 'all', label: 'All Brands' },

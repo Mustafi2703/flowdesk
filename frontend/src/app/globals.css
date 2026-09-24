@@ -7304,6 +7304,7 @@ html[data-theme='morning'] .sf-sidebar .sf-sidebar-collapse-btn {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  cursor: pointer;
 }
 .sf-workflow-active-card-head {
   display: flex;
@@ -7312,11 +7313,10 @@ html[data-theme='morning'] .sf-sidebar .sf-sidebar-collapse-btn {
   align-items: flex-start;
 }
 .sf-workflow-active-brand {
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--sf-accent);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--sf-text);
 }
 .sf-workflow-active-title {
   font-size: 14px;
@@ -7394,6 +7394,30 @@ html[data-theme='morning'] .sf-sidebar .sf-sidebar-collapse-btn {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+.sf-workflow-stage-picker {
+  display: grid;
+  gap: 8px;
+}
+.sf-workflow-stage-option {
+  text-align: left;
+  padding: 12px 14px;
+  border: 1px solid var(--sf-border);
+  background: var(--sf-surface-2);
+  color: var(--sf-text);
+  border-radius: 2px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.sf-workflow-stage-option.is-current {
+  border-color: #20b2aa;
+  color: #0a0a0f;
+  background: #20b2aa;
+}
+.sf-workflow-action-error {
+  margin: 10px 0 0;
+  color: #ff4757;
+  font-size: 13px;
 }
 
 .sf-ext-links-hint {

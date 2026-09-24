@@ -38,6 +38,10 @@ class BrandCreate(BaseModel):
     assigned_managers: list[uuid.UUID] = Field(default_factory=list)
 
 
+class BrandFlag(BaseModel):
+    note: str = Field(default="", max_length=500)
+
+
 class BrandUpdate(BaseModel):
     name: str | None = None
     logo: str | None = Field(default=None, max_length=8)

@@ -57,11 +57,6 @@ export function notificationNavId(type?: string | null): string {
   return 'overview'
 }
 
-export function notificationAccent(type?: string | null): string {
-  if (type === 'chat') return 'var(--sf-accent)'
-  if (type === 'task') return 'var(--sf-accent)'
-  if (type === 'leave') return '#9333ea'
-  if (type === 'announcement') return '#d97706'
-  if (type === 'review') return '#7c3aed'
-  return 'var(--sf-muted)'
+export function notificationAccent(_type?: string | null): string {
+  return 'var(--sf-accent)'
 }

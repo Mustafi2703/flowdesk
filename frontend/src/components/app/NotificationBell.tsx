@@ -208,7 +208,7 @@ export function NotificationBell() {
         <div
           className="sf-notif-toast"
           role="status"
-          style={{ top: panelPos.top, right: panelPos.right, borderLeftColor: notificationAccent(toast.type) }}
+          style={{ borderLeftColor: 'var(--sf-accent)' }}
         >
           <div className="sf-notif-toast-head">
             <NavIconBadge name={notificationIcon(toast.type)} navId={notificationNavId(toast.type)} />

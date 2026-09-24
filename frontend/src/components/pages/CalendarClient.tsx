@@ -11,13 +11,6 @@ import { Icon } from '@/components/app/Icons'
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const COMPANY = 'company'
 
-const PRIORITY_COLORS: Record<string, string> = {
-  Critical: '#f87171',
-  High: '#fb923c',
-  Medium: '#eab308',
-  Low: '#94a3b8',
-}
-
 function monthKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
@@ -104,18 +97,17 @@ function DayDetailPanel({
             <h3 className="sf-cal-section-title">Tasks due</h3>
             <div className="sf-cal-task-list">
               {dayDetail.tasks.map((t: any) => {
-                const priColor = PRIORITY_COLORS[t.priority || 'Low'] || PRIORITY_COLORS.Low
                 const canStart = t.status === 'Not Started'
                 const needsReview = t.requires_review && t.status === 'Under Review'
                 return (
-                  <article key={t.id} className="sf-cal-task-card" style={{ borderLeftColor: priColor }}>
+                  <article key={t.id} className="sf-cal-task-card">
                     <div className="sf-cal-task-head">
                       <div className="sf-cal-task-main">
                         <div className="sf-cal-task-title">{t.title}</div>
                         <div className="sf-cal-task-meta">
                           {t.brand_name && <span>{t.brand_name}</span>}
                           {t.type && <span>{t.type}</span>}
-                          {t.priority && <span style={{ color: priColor, fontWeight: 700 }}>{t.priority}</span>}
+                          {t.priority && <span>{t.priority}</span>}
                         </div>
                         {t.assignees?.length > 0 && (
                           <div className="sf-cal-task-assignees">{t.assignees.join(' · ')}</div>
@@ -414,7 +406,6 @@ export default function CalendarClient({ session }: { session: SessionUser }) {
                           <span
                             key={t.id}
                             className="sf-cal-event sf-cal-event-task"
-                            style={{ '--event-color': PRIORITY_COLORS[t.priority || 'Low'] || PRIORITY_COLORS.Low } as React.CSSProperties}
                             title={t.title}
                           >
                             {t.title}

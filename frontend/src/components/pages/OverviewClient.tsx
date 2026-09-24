@@ -9,6 +9,7 @@ import { clockOutWithConfirm, todayIST } from '@/lib/clock'
 import { notifyAttendanceChanged } from '@/lib/attendance'
 import { BrandBadge } from '@/components/app/BrandBadge'
 import { StatusBadge } from '@/components/app/StatusBadge'
+import { Modal } from '@/components/app/Modal'
 
 const ROLE_DASH: Record<string, { tag: string; blurb: string; icon: IconName; navId: string }> = {
   owner: { tag: 'Agency HQ', blurb: 'Delivery, people, and revenue at a glance.', icon: 'sparkles', navId: 'overview' },
@@ -54,6 +55,7 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const [emailBusy, setEmailBusy] = useState('')
   const [emailNotice, setEmailNotice] = useState('')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [listModal, setListModal] = useState<'tasks' | 'activity' | null>(null)
   const [driveStatus, setDriveStatus] = useState<any>(null)
   const [driveBusy, setDriveBusy] = useState(false)
   const today = todayIST()
@@ -278,12 +280,17 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
         <div className="sf-dash-panel">
           <div className="sf-dash-panel-head">
             <h3>Your tasks</h3>
-            <button type="button" className="sf-link-btn" onClick={() => router.push('/tasks')}>Board →</button>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {openTasks.length > 5 && (
+                <button type="button" className="sf-link-btn" onClick={() => setListModal('tasks')}>All {openTasks.length}</button>
+              )}
+              <button type="button" className="sf-link-btn" onClick={() => router.push('/tasks')}>Board →</button>
+            </div>
           </div>
-          <div className="sf-dash-panel-scroll">
+          <div className="sf-dash-panel-scroll sf-dash-panel-scroll--top5">
             {openTasks.length === 0 ? (
               <EmptyState icon="tasks" title="No open tasks." />
-            ) : openTasks.map((t) => {
+            ) : openTasks.slice(0, 5).map((t) => {
               const dl = t.due_date ? Math.ceil((new Date(t.due_date).getTime() - Date.now()) / 86400000) : null
               const late = dl !== null && dl < 0
               const active = selectedTask && String(selectedTask.id) === String(t.id)
@@ -355,7 +362,7 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
                       <h3 style={{ fontSize: 13 }}>Pipeline</h3>
                     </div>
                     {statusBreakdown.map((row) => (
-                      <BarRow key={row.label} label={row.label} value={row.value} total={scopeTasks.length} color={STATUS_TEXT[row.label] || 'var(--sf-accent)'} />
+                      <BarRow key={row.label} label={row.label} value={row.value} total={scopeTasks.length} color="var(--sf-accent)" />
                     ))}
                   </div>
                 )}
@@ -367,14 +374,19 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
         <div className="sf-dash-panel">
           <div className="sf-dash-panel-head">
             <h3>Activity</h3>
-            <button type="button" className="sf-link-btn" onClick={() => router.push('/updates')}>Updates →</button>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {(updates.length + announcements.length) > 5 && (
+                <button type="button" className="sf-link-btn" onClick={() => setListModal('activity')}>All</button>
+              )}
+              <button type="button" className="sf-link-btn" onClick={() => router.push('/updates')}>Updates →</button>
+            </div>
           </div>
-          <div className="sf-dash-panel-scroll">
+          <div className="sf-dash-panel-scroll sf-dash-panel-scroll--top5">
             {updates.length === 0 && announcements.length === 0 ? (
               <div className="sf-dash-focus-empty">No recent activity yet.</div>
             ) : (
               <>
-                {updates.slice(0, 8).map((u: any) => (
+                {updates.slice(0, 5).map((u: any) => (
                   <button
                     key={u.id}
                     type="button"
@@ -388,7 +400,7 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
                     </div>
                   </button>
                 ))}
-                {announcements.slice(0, 4).map((a: any) => (
+                {updates.length < 5 && announcements.slice(0, 5 - updates.length).map((a: any) => (
                   <div key={a.id} className="sf-dash-announce-row">
                     <NavIconBadge name="announcements" navId="announcements" className="sf-dash-activity-icon" />
                     <div>
@@ -488,6 +500,66 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
           </div>
         </div>
       )}
+
+      <Modal
+        open={listModal === 'tasks'}
+        onClose={() => setListModal(null)}
+        title="Open tasks"
+        subtitle="Highest priority first · scroll for the rest"
+        size="wide"
+      >
+        <div className="sf-dash-modal-list">
+          {openTasks.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className="sf-dash-task-row"
+              onClick={() => { setSelectedTaskId(String(t.id)); setListModal(null) }}
+            >
+              <div className="sf-dash-task-row-main">
+                <div className="sf-dash-task-title">{t.title}</div>
+                <div className="sf-dash-task-meta">
+                  <BrandBadge brand={t.brand} />
+                  <span>{t.priority || 'Medium'}</span>
+                </div>
+              </div>
+              <StatusBadge status={t.status} />
+            </button>
+          ))}
+        </div>
+      </Modal>
+
+      <Modal
+        open={listModal === 'activity'}
+        onClose={() => setListModal(null)}
+        title="Activity"
+        subtitle="Newest first"
+        size="wide"
+      >
+        <div className="sf-dash-modal-list">
+          {updates.map((u: any) => (
+            <button
+              key={u.id}
+              type="button"
+              className="sf-dash-activity-row"
+              onClick={() => router.push(u.task_id ? `/updates?task=${u.task_id}` : '/updates')}
+            >
+              <div>
+                <div className="sf-dash-activity-title">{u.sender?.name || 'Someone'} · {u.task_title}</div>
+                <div className="sf-dash-activity-msg">{u.message}</div>
+              </div>
+            </button>
+          ))}
+          {announcements.map((a: any) => (
+            <div key={a.id} className="sf-dash-announce-row">
+              <div>
+                <div className="sf-dash-activity-title">{a.title}</div>
+                <div className="sf-dash-activity-msg">{new Date(a.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Modal>
     </PageShell>
   )
 }

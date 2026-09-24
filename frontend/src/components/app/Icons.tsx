@@ -229,28 +229,19 @@ export function navTone(navId: string): NavTone {
 
 export function NavIconBadge({
   name,
-  navId,
   size = 16,
   active = false,
   className = '',
 }: {
   name: IconName
-  navId: string
+  navId?: string
   size?: number
   active?: boolean
   className?: string
 }) {
-  const tone = navTone(navId)
   return (
-    <span
-      className={`sf-nav-icon-badge${active ? ' is-active' : ''} ${className}`.trim()}
-      style={{
-        '--nav-fg': tone.fg,
-        '--nav-bg': tone.bg,
-        '--nav-border': tone.border,
-      } as CSSProperties}
-    >
-      <Icon name={name} size={size} style={{ color: tone.fg }} />
+    <span className={`sf-nav-icon-badge${active ? ' is-active' : ''} ${className}`.trim()}>
+      <Icon name={name} size={size} />
     </span>
   )
 }

@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { SessionUser, NAV_ITEMS, ROLE_COLORS, ROLE_LABELS } from '@/types'
-import { Icon, NavIconBadge, navTone } from '@/components/app/Icons'
+import { Icon, NavIconBadge } from '@/components/app/Icons'
 import { Modal } from '@/components/app/Modal'
 
 const SIDEBAR_KEY = 'sf-sidebar-collapsed'
@@ -141,13 +141,11 @@ export default function Sidebar({
                 const active =
                   pathname === `/${item.id}` ||
                   (pathname.startsWith(`/${item.id}/`) && item.id !== 'overview')
-                const tone = navTone(item.id)
                 return (
                   <button
                     key={item.id}
                     type="button"
                     className={`sf-nav ${active ? 'active' : ''}`}
-                    style={{ '--nav-fg': tone.fg } as CSSProperties}
                     onClick={() => { router.push(`/${item.id}`); onNavigate?.() }}
                     title={collapsed ? item.label : undefined}
                   >

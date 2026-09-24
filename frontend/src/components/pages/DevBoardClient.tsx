@@ -156,6 +156,7 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
   const [loading, setLoading] = useState(true)
   const [stageFilter, setStageFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [modalFind, setModalFind] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showCapacity, setShowCapacity] = useState(true)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -226,9 +227,16 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
 
   const selected = brands.find((b) => String(b.id) === String(selectedId))
 
+  const modalHits = useMemo(() => {
+    const q = modalFind.trim().toLowerCase()
+    if (!q) return []
+    return brands.filter((b) => String(b.name || '').toLowerCase().includes(q)).slice(0, 8)
+  }, [modalFind, brands])
+
   function selectBrand(id: string) {
     setSelectedId(id)
     setDetailOpen(true)
+    setModalFind('')
   }
 
   function brandPeople(brand: any) {
@@ -403,7 +411,7 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
       {detailOpen && selected && (
         <Modal
           open
-          onClose={() => setDetailOpen(false)}
+          onClose={() => { setDetailOpen(false); setModalFind('') }}
           title={selected.name}
           subtitle={`${selected.priority || 'P3'} · ${selected.client_type || 'Client'}`}
           size="full"
@@ -420,6 +428,27 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
             </div>
           }
         >
+          <div className="sf-brand-modal-search">
+            <input
+              type="search"
+              className="sf-input"
+              placeholder="Find another brand…"
+              value={modalFind}
+              onChange={(e) => setModalFind(e.target.value)}
+              aria-label="Find another brand"
+            />
+            {modalFind.trim() && (
+              <div className="sf-brand-modal-hits">
+                {modalHits.length === 0 ? (
+                  <span className="sf-brand-scroll-meta">No brand matches.</span>
+                ) : modalHits.map((b) => (
+                  <button key={b.id} type="button" className="sf-brand-modal-hit" onClick={() => selectBrand(String(b.id))}>
+                    {b.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <WorkflowBrandDetail brand={selected} tasks={tasks} users={users} inModal />
         </Modal>
       )}

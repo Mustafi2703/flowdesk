@@ -91,6 +91,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   const [loading, setLoading] = useState(true)
   const [identityEditNonce, setIdentityEditNonce] = useState(0)
   const [brandSearch, setBrandSearch] = useState('')
+  const [modalFind, setModalFind] = useState('')
   const [brandStageFilter, setBrandStageFilter] = useState('all')
   const canEdit = ['owner', 'manager'].includes(session.role)
   const isOwner = session.role === 'owner'
@@ -152,10 +153,17 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
     })
   }, [visible, brandSearch, brandStageFilter, tasks])
 
+  const modalHits = useMemo(() => {
+    const q = modalFind.trim().toLowerCase()
+    if (!q) return []
+    return visible.filter((b) => String(b.name || '').toLowerCase().includes(q)).slice(0, 8)
+  }, [modalFind, visible])
+
   function selectBrand(brand: any, tab = 'tasks') {
     const id = String(brand.id)
     setSelectedId(id)
     setSection(tab)
+    setModalFind('')
     router.replace(`/brands?brand=${id}&tab=${tab}`)
   }
 
@@ -192,6 +200,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
           )}
         </div>
       ) : (
+        <>
         <div className="sf-brand-workspace sf-brand-workspace--single">
           <div className="sf-brand-workspace-main">
               <div className="sf-brand-picker">
@@ -245,7 +254,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
         {selected && (
           <Modal
             open
-            onClose={() => { setSelectedId(null); router.replace('/brands') }}
+            onClose={() => { setSelectedId(null); setModalFind(''); router.replace('/brands') }}
             title={selected.name}
             subtitle="Brand workspace"
             size="full"
@@ -256,13 +265,15 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                 type="search"
                 className="sf-input"
                 placeholder="Find another brand…"
-                value={brandSearch}
-                onChange={(e) => setBrandSearch(e.target.value)}
+                value={modalFind}
+                onChange={(e) => setModalFind(e.target.value)}
                 aria-label="Find another brand"
               />
-              {brandSearch.trim() && (
+              {modalFind.trim() && (
                 <div className="sf-brand-modal-hits">
-                  {filteredBrands.slice(0, 6).map((b) => (
+                  {modalHits.length === 0 ? (
+                    <span className="sf-brand-scroll-meta">No brand matches.</span>
+                  ) : modalHits.map((b) => (
                     <button key={b.id} type="button" className="sf-brand-modal-hit" onClick={() => selectBrand(b)}>
                       {b.name}
                     </button>
@@ -288,6 +299,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
             />
           </Modal>
         )}
+        </>
       )}
 
       {showCreate && canEdit && <CreateBrand onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); load() }} />}

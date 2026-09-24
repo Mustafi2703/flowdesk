@@ -129,7 +129,7 @@ def _team_brand_ids_from_tasks(db: Session, user: Profile) -> set[uuid.UUID]:
         return set()
     me = str(user.id)
     out: set[uuid.UUID] = set()
-    for task in db.scalars(select(Task).where(Task.brand_id.isnot(None)):
+    for task in db.scalars(select(Task).where(Task.brand_id.isnot(None))):
         if me in {str(x) for x in (task.assigned_to or [])}:
             out.add(task.brand_id)
             continue

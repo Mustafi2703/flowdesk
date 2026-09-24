@@ -7085,21 +7085,24 @@ html[data-theme='morning'] .sf-sidebar .sf-sidebar-collapse-btn {
 }
 .sf-brand-picker-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 .sf-brand-picker-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  width: 100%;
   text-align: left;
-  padding: 14px 16px;
-  border-radius: 14px;
-  border: 1px solid var(--sf-border);
-  background: var(--sf-surface);
-  cursor: pointer;
   font-family: inherit;
-  transition: border-color 0.12s, box-shadow 0.12s;
+  color: inherit;
+}
+@media (max-width: 960px) {
+  .sf-brand-picker-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .sf-brand-picker-grid {
+    grid-template-columns: 1fr;
+  }
 }
 .sf-brand-picker-card:hover {
   border-color: color-mix(in srgb, var(--sf-accent) 35%, var(--sf-border));

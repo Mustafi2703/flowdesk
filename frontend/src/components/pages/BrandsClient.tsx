@@ -14,6 +14,7 @@ import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
 import { BrandBadge, BrandLogoMark, BrandTag, brandAccent } from '@/components/app/BrandBadge'
 import { departmentColor } from '@/lib/departmentColors'
+import { PHASE_COLORS, PHASE_ORDER, phaseLabel } from '@/lib/workflowPhases'
 
 const WORKFLOW_STAGES = [
   { id: 'assigned', label: 'Assigned' },
@@ -31,6 +32,18 @@ const ROSTER_FILTERS = [
   { id: 'one-time', label: 'One-Time' },
   { id: 'active-work', label: 'Active work' },
 ]
+
+function brandPriorityTone(p: string) {
+  const x = (p || 'P3').toUpperCase()
+  if (x === 'P1' || x === 'HIGH') return { label: 'HIGH', color: '#ff4757' }
+  if (x === 'P4' || x === 'LOW') return { label: 'LOW', color: '#26de81' }
+  return { label: 'MED', color: '#ffa502' }
+}
+
+function brandStageLabel(id: string) {
+  if (id === 'approval') return 'Client Approval'
+  return phaseLabel(id)
+}
 
 function normalizeClientType(value?: string | null) {
   return String(value || '').toLowerCase().replace(/[\s_-]+/g, '')
@@ -214,12 +227,29 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                   ) : filteredBrands.map((b) => {
                     const bt = tasks.filter((t) => sameId(t.brand_id, b.id))
                     const open = bt.filter((t) => t.status !== 'Completed').length
+                    const stage = b.workflow_stage || 'assigned'
+                    const stageIndex = Math.max(0, PHASE_ORDER.indexOf(stage))
+                    const pri = brandPriorityTone(b.priority)
                     return (
-                      <button key={b.id} type="button" className="sf-brand-picker-card" onClick={() => selectBrand(b)}>
-                        <BrandLogoMark brand={b} size={44} />
-                        <div className="sf-brand-picker-copy">
-                          <div className="sf-brand-picker-name">{b.name}</div>
-                          <div className="sf-brand-picker-meta">{open} open · {bt.length} tasks</div>
+                      <button
+                        key={b.id}
+                        type="button"
+                        className="sf-workflow-active-card sf-brand-picker-card"
+                        style={{ '--wf-pri': pri.color } as React.CSSProperties}
+                        onClick={() => selectBrand(b)}
+                      >
+                        <div className="sf-workflow-active-card-head">
+                          <div className="sf-workflow-active-brand">{b.name}</div>
+                          <span className="sf-workflow-active-pri">{pri.label}</span>
+                        </div>
+                        <div className="sf-workflow-active-deliv">{bt.length} deliverable{bt.length === 1 ? '' : 's'} · {open} open</div>
+                        <div className="sf-workflow-active-segments" aria-hidden>
+                          {PHASE_ORDER.map((id, i) => (
+                            <span key={id} className={i <= stageIndex ? 'is-done' : ''} />
+                          ))}
+                        </div>
+                        <div className="sf-workflow-active-phase">
+                          Current: <strong style={{ color: PHASE_COLORS[stage] || '#20b2aa' }}>{brandStageLabel(stage)}</strong>
                         </div>
                       </button>
                     )

@@ -124,8 +124,9 @@ export default function ThemeOptionsPage() {
           your client. Tell us which option + light/dark preference to ship app-wide.
         </p>
         <p className="tp-hero-tip">
-          Tip: use full-page capture (Cmd+Shift+3 / Win+Shift+S) or scroll to each option ID. Link:{' '}
-          <code style={{ color: '#d4d4d4' }}>/theme-options</code> — no login required.
+          Tip: full-page screenshot each section. Links:{' '}
+          <code style={{ color: '#d4d4d4' }}>/theme-options</code> (colours) ·{' '}
+          <a href="/ui-mockups" style={{ color: '#fb923c' }}>/ui-mockups</a> (full ERP screens + mobile) — no login.
         </p>
       </header>
 

@@ -1,0 +1,624 @@
+/* ERP reference mockups — flat, squared (share with clients) */
+.um-root {
+  min-height: 100vh;
+  background: #121316;
+  color: #e4e4e7;
+  font-family: 'Manrope', 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 13px;
+}
+
+.um-page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 28px 20px 48px;
+}
+
+.um-hero h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: #fff;
+}
+
+.um-hero p {
+  color: #a1a1aa;
+  line-height: 1.55;
+  margin: 0 0 8px;
+  max-width: 720px;
+}
+
+.um-hero a {
+  color: #fb923c;
+}
+
+.um-tip {
+  font-size: 12px;
+  color: #71717a;
+}
+
+.um-tip code {
+  color: #d4d4d8;
+}
+
+.um-block {
+  margin-top: 36px;
+  scroll-margin-top: 16px;
+}
+
+.um-block-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #71717a;
+  margin: 0 0 12px;
+}
+
+.um-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #e8630a;
+  margin-bottom: 4px;
+}
+
+.um-h1 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+  color: #1a1d21;
+  letter-spacing: 0;
+}
+
+.um-h2 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: #1a1d21;
+}
+
+.um-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+  margin: 10px 0 4px;
+}
+
+.um-input {
+  border: 1px solid #c8cdd4;
+  background: #fff;
+  padding: 8px 10px;
+  border-radius: 3px;
+  color: #374151;
+  font-size: 13px;
+}
+
+.um-btn-primary {
+  margin-top: 14px;
+  background: #e8630a;
+  color: #fff;
+  text-align: center;
+  padding: 9px 12px;
+  font-weight: 600;
+  border-radius: 3px;
+  border: 1px solid #c54f08;
+  font-size: 13px;
+}
+
+.um-btn-ghost {
+  display: inline-block;
+  border: 1px solid #c8cdd4;
+  background: #fff;
+  color: #4b5563;
+  padding: 6px 10px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.um-btn-sm {
+  margin-top: 8px;
+  width: fit-content;
+}
+
+/* Login */
+.um-login {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 320px;
+  border: 1px solid #3f3f46;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.um-login--mobile {
+  grid-template-columns: 1fr;
+  min-height: auto;
+}
+
+.um-login-brand {
+  background: #1a1512;
+  padding: 24px;
+  color: #f4f4f5;
+  border-right: 1px solid #3f3f46;
+}
+
+.um-login--mobile .um-login-brand {
+  border-right: none;
+  border-bottom: 1px solid #3f3f46;
+  padding: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.um-login-logo {
+  width: 40px;
+  height: 40px;
+  background: #e8630a;
+  color: #fff;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  margin-bottom: 16px;
+}
+
+.um-login--mobile .um-login-logo {
+  margin-bottom: 0;
+}
+
+.um-login-product {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.um-login-tag {
+  font-size: 11px;
+  color: #a1a1aa;
+}
+
+.um-login-blurb {
+  margin-top: 20px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #a1a1aa;
+  max-width: 280px;
+}
+
+.um-login-form-pane {
+  background: #e8eaed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.um-login-card {
+  width: 100%;
+  max-width: 300px;
+  background: #fff;
+  border: 1px solid #c8cdd4;
+  border-radius: 4px;
+  padding: 20px;
+}
+
+/* App shell */
+.um-shell {
+  display: flex;
+  min-height: 360px;
+  border: 1px solid #3f3f46;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #e8eaed;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.um-shell--mobile {
+  min-height: 520px;
+  flex-direction: column;
+}
+
+.um-nav {
+  width: 148px;
+  background: #1a1512;
+  padding: 10px 8px;
+  flex-shrink: 0;
+}
+
+.um-shell--mobile .um-nav {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 8px;
+}
+
+.um-nav-logo {
+  width: 32px;
+  height: 32px;
+  background: #e8630a;
+  color: #fff;
+  font-weight: 800;
+  font-size: 12px;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  margin-bottom: 10px;
+}
+
+.um-shell--mobile .um-nav-logo {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.um-nav-item {
+  font-size: 11px;
+  font-weight: 600;
+  color: #a1a1aa;
+  padding: 8px 8px;
+  border-radius: 0;
+  border-left: 3px solid transparent;
+  margin-bottom: 2px;
+}
+
+.um-shell--mobile .um-nav-item {
+  border-left: none;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  padding: 6px 10px;
+}
+
+.um-nav-item.is-active {
+  color: #fff;
+  background: rgba(232, 99, 10, 0.15);
+  border-left-color: #e8630a;
+}
+
+.um-shell--mobile .um-nav-item.is-active {
+  border-left-color: transparent;
+  border-bottom-color: #e8630a;
+}
+
+.um-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.um-topbar {
+  height: 40px;
+  background: #fff;
+  border-bottom: 1px solid #c8cdd4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.um-clock {
+  font-weight: 600;
+  color: #059669;
+}
+
+.um-top-icons::before {
+  content: '▢ ▢';
+  letter-spacing: 6px;
+  color: #9ca3af;
+}
+
+.um-content {
+  padding: 12px;
+  flex: 1;
+}
+
+.um-page-head {
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #c8cdd4;
+}
+
+.um-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.um-kpi-row--stack {
+  grid-template-columns: 1fr 1fr;
+}
+
+.um-kpi {
+  background: #fff;
+  border: 1px solid #c8cdd4;
+  border-left: 3px solid #e8630a;
+  padding: 10px;
+  border-radius: 3px;
+}
+
+.um-kpi strong {
+  display: block;
+  font-size: 18px;
+  color: #e8630a;
+}
+
+.um-kpi span {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+}
+
+.um-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.um-shell--mobile .um-grid-3 {
+  grid-template-columns: 1fr;
+}
+
+.um-panel {
+  background: #fff;
+  border: 1px solid #c8cdd4;
+  border-radius: 3px;
+}
+
+.um-panel--flush .um-panel-head {
+  border-radius: 0;
+}
+
+.um-panel-head {
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: #f4f5f7;
+  border-bottom: 1px solid #c8cdd4;
+  color: #4b5563;
+}
+
+.um-row {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 12px;
+  color: #374151;
+}
+
+.um-row--strong {
+  font-weight: 700;
+}
+
+.um-row:last-child {
+  border-bottom: none;
+}
+
+.um-toolbar {
+  display: flex;
+  margin-bottom: 8px;
+  border: 1px solid #c8cdd4;
+  border-radius: 3px;
+  overflow: hidden;
+  width: fit-content;
+}
+
+.um-seg {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #f4f5f7;
+  color: #6b7280;
+  border-right: 1px solid #c8cdd4;
+}
+
+.um-seg:last-child {
+  border-right: none;
+}
+
+.um-seg.is-active {
+  background: #fff;
+  color: #e8630a;
+  box-shadow: inset 0 -2px 0 #e8630a;
+}
+
+.um-table {
+  background: #fff;
+  border: 1px solid #c8cdd4;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.um-table-head,
+.um-table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 0.7fr;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  align-items: center;
+}
+
+.um-table-head {
+  background: #f4f5f7;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+  border-bottom: 1px solid #c8cdd4;
+}
+
+.um-table-row {
+  border-bottom: 1px solid #e5e7eb;
+  color: #374151;
+}
+
+.um-table-row:last-child {
+  border-bottom: none;
+}
+
+.um-tag {
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #e8630a;
+  margin-left: 6px;
+}
+
+.um-status {
+  font-size: 10px;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.um-split {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 8px;
+}
+
+.um-shell--mobile .um-split {
+  grid-template-columns: 1fr;
+}
+
+.um-thread {
+  padding: 10px;
+  border-bottom: 1px solid #e5e7eb;
+  border-left: 3px solid transparent;
+}
+
+.um-thread.is-active {
+  background: rgba(232, 99, 10, 0.06);
+  border-left-color: #e8630a;
+}
+
+.um-thread-brand {
+  font-size: 9px;
+  font-weight: 800;
+  color: #e8630a;
+  letter-spacing: 0.08em;
+}
+
+.um-thread-title {
+  font-weight: 700;
+  font-size: 12px;
+  margin: 2px 0;
+}
+
+.um-thread-prev {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.um-chat-line {
+  padding: 8px 10px;
+  font-size: 12px;
+  border-bottom: 1px solid #f3f4f6;
+  color: #374151;
+}
+
+.um-composer {
+  margin: 10px;
+  padding: 8px 10px;
+  border: 1px solid #c8cdd4;
+  border-radius: 3px;
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.um-phone-wrap {
+  max-width: 390px;
+  margin: 0 auto;
+  border: 8px solid #27272a;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+}
+
+.um-modal-demo {
+  display: flex;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 4px;
+}
+
+.um-modal {
+  width: min(400px, 100%);
+  background: #fff;
+  border: 1px solid #a8b0ba;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+}
+
+.um-modal-accent {
+  height: 3px;
+  background: #e8630a;
+}
+
+.um-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: #f4f5f7;
+  border-bottom: 1px solid #c8cdd4;
+}
+
+.um-modal-x {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #c8cdd4;
+  border-radius: 3px;
+  color: #6b7280;
+  font-size: 18px;
+}
+
+.um-modal-body {
+  padding: 12px;
+}
+
+.um-modal-foot {
+  padding: 10px 12px;
+  background: #f4f5f7;
+  border-top: 1px solid #c8cdd4;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.um-foot {
+  margin-top: 40px;
+  text-align: center;
+  font-size: 12px;
+  color: #52525b;
+}
+
+@media (max-width: 800px) {
+  .um-login {
+    grid-template-columns: 1fr;
+  }
+  .um-grid-3 {
+    grid-template-columns: 1fr;
+  }
+  .um-kpi-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}

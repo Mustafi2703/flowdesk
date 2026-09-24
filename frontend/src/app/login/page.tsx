@@ -122,8 +122,12 @@ export default function LoginPage() {
         <p className="login-legal">
           Internal use only · Secure session
           {' · '}
-          <Link href="/theme-options" style={{ color: '#94a3b8' }}>
-            Client theme previews
+          <Link href="/ui-mockups" style={{ color: '#6b7280' }}>
+            UI mockups
+          </Link>
+          {' · '}
+          <Link href="/theme-options" style={{ color: '#6b7280' }}>
+            Theme colours
           </Link>
         </p>
       </main>

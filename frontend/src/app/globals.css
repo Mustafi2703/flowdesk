@@ -457,11 +457,11 @@ html[data-theme='morning'] body {
 /* ── CRM utilities ─────────────────────────────────────────────── */
 .sf-page-title {
   color: var(--sf-text);
-  font-size: 1.75rem;
-  font-weight: 600;
-  font-family: 'Sora', 'Space Grotesk', sans-serif;
-  letter-spacing: -0.02em;
-  margin-bottom: 0.25rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  font-family: 'IBM Plex Sans', 'Manrope', system-ui, sans-serif;
+  letter-spacing: 0;
+  margin-bottom: 0.2rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -551,6 +551,9 @@ html[data-theme='morning'] body {
   flex-shrink: 0;
   min-width: 0;
   overflow: hidden;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--sf-border-strong);
 }
 
 .sf-page-toolbar {
@@ -3272,16 +3275,16 @@ html[data-theme='morning'] body {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 18px;
+  padding: 10px 14px;
   margin-bottom: 1rem;
-  border-radius: 14px;
-  border: 1px solid var(--sf-border);
-  background: linear-gradient(90deg, var(--sf-surface), var(--sf-surface-2));
-  box-shadow: var(--sf-shadow);
+  border-radius: var(--sf-radius-sm);
+  border: 1px solid var(--sf-border-strong);
+  background: var(--sf-surface);
+  box-shadow: none;
 }
 .sf-dash-clock-bar.is-active {
   border-color: color-mix(in srgb, var(--sf-success) 35%, var(--sf-border));
-  background: linear-gradient(90deg, color-mix(in srgb, var(--sf-success) 8%, var(--sf-surface)), var(--sf-surface-2));
+  border-left: 3px solid var(--sf-success);
 }
 .sf-dash-clock-bar-left {
   display: flex;
@@ -3293,8 +3296,8 @@ html[data-theme='morning'] body {
 .sf-dash-clock-pill {
   font-size: 11px;
   font-weight: 700;
-  padding: 5px 10px;
-  border-radius: 999px;
+  padding: 4px 8px;
+  border-radius: var(--sf-radius-sm);
   background: var(--sf-surface-2);
   color: var(--sf-muted);
   border: 1px solid var(--sf-border);
@@ -3316,17 +3319,19 @@ html[data-theme='morning'] body {
   font-size: 11px;
   font-weight: 700;
   color: var(--sf-danger);
-  padding: 4px 8px;
-  border-radius: 999px;
+  padding: 3px 7px;
+  border-radius: var(--sf-radius-sm);
   background: rgba(220, 38, 38, 0.1);
+  border: 1px solid color-mix(in srgb, var(--sf-danger) 25%, var(--sf-border));
 }
 .sf-dash-clock-warn {
   font-size: 11px;
   font-weight: 700;
   color: var(--sf-warning);
-  padding: 4px 8px;
-  border-radius: 999px;
+  padding: 3px 7px;
+  border-radius: var(--sf-radius-sm);
   background: rgba(217, 119, 6, 0.1);
+  border: 1px solid color-mix(in srgb, var(--sf-warning) 25%, var(--sf-border));
 }
 .sf-dash-hero--compact {
   padding: 1.1rem 1.25rem;
@@ -3339,19 +3344,19 @@ html[data-theme='morning'] body {
 }
 .sf-dash-hero-stat {
   min-width: 72px;
-  padding: 10px 14px;
-  border-radius: 8px;
-  border: 1px solid var(--sf-border);
+  padding: 8px 12px;
+  border-radius: var(--sf-radius-sm);
+  border: 1px solid var(--sf-border-strong);
   background: var(--sf-surface);
   text-align: left;
-  border-left: 4px solid var(--sf-accent);
-  box-shadow: var(--sf-shadow);
+  border-left: 3px solid var(--sf-accent);
+  box-shadow: none;
 }
 .sf-dash-hero-stat span {
   display: block;
-  font-family: 'Sora', 'Space Grotesk', sans-serif;
-  font-size: 20px;
-  font-weight: 600;
+  font-family: 'IBM Plex Sans', 'Manrope', system-ui, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
   color: var(--sf-text);
   line-height: 1.1;
 }
@@ -3374,13 +3379,13 @@ html[data-theme='morning'] body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--sf-border);
+  padding: 7px 11px;
+  border-radius: var(--sf-radius-sm);
+  border: 1px solid var(--sf-border-strong);
   background: var(--sf-surface);
   color: var(--sf-text);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   cursor: pointer;
   font-family: inherit;
   transition: background 0.12s ease, border-color 0.12s ease;
@@ -3645,23 +3650,21 @@ html[data-theme='morning'] body {
 .sf-dash-hero {
   position: relative;
   overflow: hidden;
-  border-radius: var(--sf-radius-lg);
-  border: 1px solid var(--sf-border);
-  padding: 1.35rem 1.5rem;
+  border-radius: var(--sf-radius);
+  border: 1px solid var(--sf-border-strong);
+  border-top: 3px solid var(--sf-accent);
+  padding: 1rem 1.15rem;
   margin-bottom: 1rem;
-  background:
-    radial-gradient(600px 280px at 100% 0%, color-mix(in srgb, var(--sf-accent) 16%, transparent), transparent 55%),
-    radial-gradient(480px 240px at 0% 100%, color-mix(in srgb, var(--sf-info) 12%, transparent), transparent 50%),
-    var(--sf-surface);
-  box-shadow: var(--sf-shadow);
+  background: var(--sf-surface);
+  box-shadow: none;
 }
 .sf-dash-hero-title {
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 1.65rem;
+  font-family: 'IBM Plex Sans', 'Manrope', system-ui, sans-serif;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--sf-text);
-  line-height: 1.15;
-  margin-bottom: 6px;
+  line-height: 1.2;
+  margin-bottom: 4px;
 }
 .sf-dash-hero-sub {
   color: var(--sf-text-secondary);
@@ -3673,15 +3676,16 @@ html[data-theme='morning'] body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-top: 10px;
-  padding: 5px 12px;
-  border-radius: 999px;
+  margin-top: 8px;
+  padding: 4px 8px;
+  border-radius: var(--sf-radius-sm);
+  border: 1px solid color-mix(in srgb, var(--sf-accent) 30%, var(--sf-border));
   background: var(--sf-accent-soft);
   color: var(--sf-accent);
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
 }
 .sf-dash-hero-metric {
   text-align: right;
@@ -4528,7 +4532,7 @@ html[data-theme='morning'] .sf-table tr:hover td {
   align-items: center;
   gap: 0.625rem;
   padding: 0.5rem 0.65rem;
-  border-radius: 10px;
+  border-radius: var(--sf-radius-sm);
   cursor: pointer;
   color: var(--sf-text-secondary);
   font-size: 0.8125rem;
@@ -4618,22 +4622,14 @@ html[data-theme='morning'] .sf-table tr:hover td {
   flex-direction: column;
   justify-content: space-between;
   padding: 3rem 3.5rem;
-  background: linear-gradient(145deg, #0a0c10 0%, #12151c 50%, #0f1117 100%);
-  border-right: 1px solid #1e2433;
+  background: #1a1512;
+  border-right: 1px solid #3f3f46;
   position: relative;
   overflow: hidden;
 }
 
 .login-brand::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 80% 60% at 20% 20%, rgba(232, 99, 10, 0.08), transparent 55%),
-    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-  background-size: auto, 48px 48px, 48px 48px;
-  pointer-events: none;
+  display: none;
 }
 
 .login-brand-inner {
@@ -4652,7 +4648,7 @@ html[data-theme='morning'] .sf-table tr:hover td {
 .login-logo-mark {
   width: 44px;
   height: 44px;
-  border-radius: 10px;
+  border-radius: 3px;
   background: #e8630a;
   color: #fff;
   display: flex;
@@ -4753,7 +4749,7 @@ html[data-theme='morning'] .sf-table tr:hover td {
   align-items: center;
   justify-content: center;
   padding: 2.5rem 2rem;
-  background: #0f1117;
+  background: #e8eaed;
 }
 
 .login-card {
@@ -4761,24 +4757,24 @@ html[data-theme='morning'] .sf-table tr:hover td {
   max-width: 400px;
   margin-left: auto;
   margin-right: auto;
-  background: #161922;
-  border: 1px solid #252b3d;
+  background: #ffffff;
+  border: 1px solid #c8cdd4;
   border-radius: 4px;
   padding: 2rem 2rem 1.5rem;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 16px rgba(26, 29, 33, 0.08);
 }
 
 .login-card-header h2 {
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 1.375rem;
+  font-family: 'IBM Plex Sans', 'Manrope', system-ui, sans-serif;
+  font-size: 1.25rem;
   font-weight: 700;
-  color: #f8fafc;
+  color: #1a1d21;
   margin-bottom: 0.375rem;
 }
 
 .login-card-header p {
   font-size: 0.8125rem;
-  color: #64748b;
+  color: #6b7280;
   line-height: 1.5;
   margin-bottom: 1.5rem;
 }
@@ -4811,10 +4807,10 @@ html[data-theme='morning'] .sf-table tr:hover td {
   width: 100%;
   padding: 0.6875rem 0.875rem;
   margin-bottom: 1rem;
-  background: #0f1117;
-  border: 1px solid #2a3144;
+  background: #ffffff;
+  border: 1px solid #c8cdd4;
   border-radius: 3px;
-  color: #f1f5f9;
+  color: #1a1d21;
   font-size: 0.875rem;
   outline: none;
   font-family: inherit;
@@ -4907,7 +4903,7 @@ html[data-theme='morning'] .sf-table tr:hover td {
 .login-legal {
   margin-top: 1.5rem;
   font-size: 0.6875rem;
-  color: #475569;
+  color: #6b7280;
   text-align: center;
 }
 

@@ -14,7 +14,7 @@ export function LoginThemeShowcase({
   vars: Record<string, string>
 }) {
   const accent = vars['--sf-accent'] || '#e8630a'
-  const sidebar = vars['--sf-sidebar'] || '#1a1512'
+  const sidebar = vars['--sf-sidebar'] || '#000000'
   const panelBg = mode === 'light' ? '#eef0f3' : '#0f1117'
   const cardBg = mode === 'light' ? '#ffffff' : vars['--sf-surface'] || '#1a1a1a'
   const text = vars['--sf-text'] || '#1a1d21'

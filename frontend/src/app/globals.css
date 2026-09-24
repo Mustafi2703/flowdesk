@@ -22,10 +22,10 @@
   --sf-info: #3b82f6;
   --sf-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
   --sf-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.45);
-  --sf-sidebar: #0e1219;
-  --sf-sidebar-border: rgba(148, 163, 184, 0.12);
-  --sf-sidebar-text: #f8fafc;
-  --sf-sidebar-muted: #7c8aa5;
+  --sf-sidebar: #000000;
+  --sf-sidebar-border: rgba(255, 255, 255, 0.1);
+  --sf-sidebar-text: #ffffff;
+  --sf-sidebar-muted: #b5b5b5;
   --sf-input-bg: #1a2130;
   --sf-radius: 4px;
   --sf-radius-sm: 3px;
@@ -55,16 +55,16 @@
   --sf-info: #1d4ed8;
   --sf-shadow: 0 1px 0 rgba(26, 29, 33, 0.06);
   --sf-shadow-lg: 0 8px 24px rgba(26, 29, 33, 0.12);
-  --sf-sidebar: #1a1512;
-  --sf-sidebar-border: rgba(255, 255, 255, 0.08);
-  --sf-sidebar-text: #f5f2ef;
-  --sf-sidebar-muted: #a8a099;
+  --sf-sidebar: #000000;
+  --sf-sidebar-border: rgba(255, 255, 255, 0.1);
+  --sf-sidebar-text: #ffffff;
+  --sf-sidebar-muted: #b5b5b5;
   --sf-input-bg: #ffffff;
   --sf-radius: 4px;
   --sf-radius-sm: 3px;
   --sf-radius-lg: 6px;
   --sf-glow: 0 0 0 2px rgba(232, 99, 10, 0.28);
-  --sf-sap-navy: #1a1512;
+  --sf-sap-navy: #000000;
 }
 
 * {
@@ -4751,7 +4751,7 @@ html[data-theme='morning'] .sf-table tr:hover td {
   flex-direction: column;
   justify-content: space-between;
   padding: 3rem 3.5rem;
-  background: #1a1512;
+  background: #000000;
   border-right: 1px solid #3f3f46;
   position: relative;
   overflow: hidden;
@@ -7193,7 +7193,22 @@ html[data-theme='morning'] .sf-sidebar .sf-sidebar-collapse-btn {
 .sf-brand-picker-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 14px;
+  max-height: min(78vh, 860px);
+  overflow-y: auto;
+  padding: 2px 4px 8px 0;
+  -webkit-overflow-scrolling: touch;
+}
+.sf-brand-screen-modal .sf-brand-page {
+  min-height: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+  background: transparent;
+}
+.sf-brand-screen-modal .sf-brand-page-body {
+  overflow: visible;
 }
 .sf-brand-picker-card {
   width: 100%;
@@ -7410,7 +7425,7 @@ html[data-theme='morning'] .sf-sidebar .sf-sidebar-collapse-btn {
 }
 .sf-workflow-capacity-fill {
   height: 100%;
-  background: linear-gradient(90deg, #20b2aa, #d4a574);
+  background: var(--sf-accent);
   border-radius: 2px;
 }
 .sf-workflow-capacity-fill.is-hot {

@@ -949,7 +949,7 @@
 .tp-login-brand-pane {
   flex: 1;
   padding: 20px;
-  background: var(--login-sidebar, #1a1512);
+  background: var(--login-sidebar, #000000);
   color: #f5f5f5;
 }
 .tp-login-brand-pane strong {
@@ -1035,7 +1035,7 @@
 .tp-login-mobile-inner {
   max-width: 340px;
   margin: 0 auto;
-  border: 8px solid #1a1512;
+  border: 8px solid #000000;
   border-radius: 28px;
   overflow: hidden;
   background: var(--login-panel, #eef0f3);
@@ -1109,7 +1109,7 @@
   margin-bottom: 8px;
 }
 .tp-mob-frame {
-  border: 8px solid var(--sf-sidebar, #1a1512);
+  border: 8px solid var(--sf-sidebar, #000000);
   border-radius: 28px;
   overflow: hidden;
   background: var(--sf-bg);
@@ -1292,8 +1292,8 @@
   flex: 1;
 }
 .tp-mob-drawer aside {
-  background: var(--sf-sidebar, #1a1512);
-  color: var(--sf-sidebar-text, #f5f2ef);
+  background: var(--sf-sidebar, #000000);
+  color: var(--sf-sidebar-text, #ffffff);
   padding: 14px 10px;
   display: flex;
   flex-direction: column;
@@ -1303,7 +1303,7 @@
   padding: 10px 8px;
   font-size: 14px;
   font-weight: 650;
-  color: var(--sf-sidebar-muted, #a8a099);
+  color: var(--sf-sidebar-muted, #b5b5b5);
 }
 .tp-mob-drawer aside div.is-on {
   background: color-mix(in srgb, var(--sf-accent) 22%, transparent);
@@ -1327,7 +1327,7 @@
 }
 .tp-mob-brand small {
   display: block;
-  color: var(--sf-sidebar-muted, #a8a099);
+  color: var(--sf-sidebar-muted, #b5b5b5);
   font-size: 10px;
 }
 .tp-mob-dim {

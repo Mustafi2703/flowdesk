@@ -142,7 +142,7 @@
 }
 
 .um-login-brand {
-  background: #1a1512;
+  background: #000000;
   padding: 24px;
   color: #f4f4f5;
   border-right: 1px solid #3f3f46;
@@ -227,7 +227,7 @@
 
 .um-nav {
   width: 148px;
-  background: #1a1512;
+  background: #000000;
   padding: 10px 8px;
   flex-shrink: 0;
 }

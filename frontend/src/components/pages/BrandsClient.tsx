@@ -1,7 +1,6 @@
 // @ts-nocheck
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
 import { EmptyState, Icon } from '@/components/app/Icons'
@@ -15,7 +14,7 @@ import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
 import { BrandBadge, BrandLogoMark, BrandTag, brandAccent } from '@/components/app/BrandBadge'
 import { departmentColor } from '@/lib/departmentColors'
-import { PHASE_ORDER, phaseLabel } from '@/lib/workflowPhases'
+import { PHASE_ORDER, WORKFLOW_PHASES, phaseLabel } from '@/lib/workflowPhases'
 
 const WORKFLOW_STAGES = [
   { id: 'assigned', label: 'Assigned' },
@@ -24,14 +23,6 @@ const WORKFLOW_STAGES = [
   { id: 'editing', label: 'Editing' },
   { id: 'approval', label: 'Approval' },
   { id: 'delivered', label: 'Delivered' },
-]
-
-const ROSTER_FILTERS = [
-  { id: 'all', label: 'All' },
-  { id: 'retainer', label: 'Retainer' },
-  { id: 'project', label: 'Project' },
-  { id: 'one-time', label: 'One-Time' },
-  { id: 'active-work', label: 'Active work' },
 ]
 
 function brandPriorityTone(p: string) {
@@ -44,20 +35,6 @@ function brandPriorityTone(p: string) {
 function brandStageLabel(id: string) {
   if (id === 'approval') return 'Client Approval'
   return phaseLabel(id)
-}
-
-function normalizeClientType(value?: string | null) {
-  return String(value || '').toLowerCase().replace(/[\s_-]+/g, '')
-}
-
-function matchesRosterFilter(brand: any, filterId: string, openTaskCount: number) {
-  if (filterId === 'all') return true
-  if (filterId === 'active-work') return openTaskCount > 0
-  const ct = normalizeClientType(brand.client_type)
-  if (filterId === 'retainer') return ct.includes('retainer')
-  if (filterId === 'project') return ct.includes('project')
-  if (filterId === 'one-time') return ct.includes('onetime') || ct.includes('oneoff')
-  return true
 }
 
 function logoAttachmentId(logoUrl?: string | null) {
@@ -145,9 +122,8 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   const filteredBrands = useMemo(() => {
     const q = brandSearch.trim().toLowerCase()
     return visible.filter((b) => {
-      const brandTasks = tasks.filter(t => sameId(t.brand_id, b.id))
-      const openTasks = brandTasks.filter(t => t.status !== 'Completed').length
-      if (!matchesRosterFilter(b, brandStageFilter, openTasks)) return false
+      const stage = b.workflow_stage || 'assigned'
+      if (brandStageFilter !== 'all' && stage !== brandStageFilter) return false
       if (!q) return true
       const stageLabel = WORKFLOW_STAGES.find(s => s.id === (b.workflow_stage || 'assigned'))?.label || ''
       return b.name?.toLowerCase().includes(q)
@@ -287,32 +263,32 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
         <div className="sf-brand-workspace sf-brand-workspace--single">
           <div className="sf-brand-workspace-main">
               <div className="sf-brand-picker">
-                <div className="sf-brand-picker-head">
-                  <p className="sf-brand-picker-lead">
-                    Pick a client to open tasks, identity, and meetings. Use{' '}
-                    <Link href="/devboard" className="sf-link-btn">Workflow</Link> to browse delivery stages.
-                  </p>
-                  <input
-                    type="search"
-                    className="sf-input sf-brand-picker-search"
-                    placeholder="Search clients…"
-                    value={brandSearch}
-                    onChange={(e) => setBrandSearch(e.target.value)}
-                    aria-label="Search clients"
-                  />
-                  <div className="sf-brand-roster-filters" role="tablist" aria-label="Filter clients">
-                    {ROSTER_FILTERS.map((filter) => (
-                      <button
-                        key={filter.id}
-                        type="button"
-                        className={`sf-brand-roster-filter${brandStageFilter === filter.id ? ' is-active' : ''}`}
-                        onClick={() => setBrandStageFilter(filter.id)}
-                      >
-                        {filter.label}
-                      </button>
-                    ))}
+                <div className="sf-workflow-stage-pills" role="tablist" aria-label="Filter by stage">
+                  {WORKFLOW_PHASES.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={brandStageFilter === s.id}
+                      className={`sf-workflow-stage-pill${brandStageFilter === s.id ? ' is-active' : ''}`}
+                      onClick={() => setBrandStageFilter(s.id)}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                  <div className="sf-workflow-stage-search">
+                    <input
+                      type="search"
+                      className="sf-perf-search"
+                      placeholder="Search brands…"
+                      value={brandSearch}
+                      onChange={(e) => setBrandSearch(e.target.value)}
+                      aria-label="Search brands"
+                    />
                   </div>
                 </div>
+                <section className="sf-workflow-active-section" aria-label="Brands">
+                <h2 className="sf-workflow-section-title">Active Campaigns</h2>
                 <div className="sf-campaign-scroll">
                   {filteredBrands.length === 0 ? (
                     <div className="sf-brand-roster-empty">No clients match your search.</div>
@@ -365,6 +341,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                     </div>
                   )}
                 </div>
+                </section>
               </div>
           </div>
         </div>

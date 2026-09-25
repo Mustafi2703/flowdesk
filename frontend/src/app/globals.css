@@ -22,10 +22,10 @@
   --sf-info: #3b82f6;
   --sf-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
   --sf-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.45);
-  --sf-sidebar: #000000;
-  --sf-sidebar-border: rgba(255, 255, 255, 0.1);
-  --sf-sidebar-text: #ffffff;
-  --sf-sidebar-muted: #b5b5b5;
+  --sf-sidebar: #0e1219;
+  --sf-sidebar-border: rgba(148, 163, 184, 0.12);
+  --sf-sidebar-text: #f8fafc;
+  --sf-sidebar-muted: #94a3b8;
   --sf-input-bg: #1a2130;
   --sf-radius: 4px;
   --sf-radius-sm: 3px;

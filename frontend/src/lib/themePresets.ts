@@ -50,7 +50,7 @@ export const THEME_PRESETS: ThemePreset[] = [
       '--sf-accent-soft': 'rgba(255, 107, 26, 0.14)',
       '--sf-success': '#34d399',
       '--sf-danger': '#f87171',
-      '--sf-sidebar': '#000000',
+      '--sf-sidebar': '#0e1219',
       '--sf-sidebar-border': 'rgba(148, 163, 184, 0.12)',
       '--sf-sidebar-text': '#f8fafc',
       '--sf-sidebar-muted': '#7c8aa5',

@@ -3619,7 +3619,8 @@ html[data-theme='morning'] body {
 .sf-dash-task-row:hover {
   background: var(--sf-surface-hover);
 }
-.sf-dash-task-row.is-selected {
+.sf-dash-task-row.is-selected,
+.sf-dash-task-row.is-mine {
   background: color-mix(in srgb, var(--sf-accent) 8%, var(--sf-surface));
   box-shadow: inset 3px 0 0 var(--sf-accent);
 }

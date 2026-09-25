@@ -7,6 +7,7 @@ import { PageShell } from '@/components/app/Section'
 import { EmptyState, DashTileIcon, NavIconBadge, type IconName } from '@/components/app/Icons'
 import { clockOutWithConfirm, todayIST } from '@/lib/clock'
 import { notifyAttendanceChanged } from '@/lib/attendance'
+import { isTaskAssignee } from '@/lib/tasks'
 import { BrandBadge } from '@/components/app/BrandBadge'
 import { StatusBadge } from '@/components/app/StatusBadge'
 const ROLE_DASH: Record<string, { tag: string; blurb: string; icon: IconName; navId: string }> = {
@@ -154,7 +155,8 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const todayInTime = todayLog?.login_time || null
   const hoursTodayLabel = todayInTime ? `${liveHoursToday(todayLog).toFixed(1)}h` : '0h'
 
-  const scopeTasks = tasks
+  const personalDesk = session.role === 'team' || session.role === 'developer'
+  const scopeTasks = personalDesk ? tasks.filter((t) => isTaskAssignee(t, session.id)) : tasks
   const overdue = scopeTasks.filter(t => t.due_date && t.due_date < today && t.status !== 'Completed')
   const dueToday = scopeTasks.filter(t => t.due_date === today && t.status !== 'Completed')
   const underReview = scopeTasks.filter(t => t.status === 'Under Review' || t.requires_review)
@@ -281,16 +283,17 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
           </div>
           <div className="sf-dash-panel-scroll">
             {openTasks.length === 0 ? (
-              <EmptyState icon="tasks" title="No open tasks." />
+              <EmptyState icon="tasks" title={personalDesk ? 'No tasks assigned to you.' : 'No open tasks.'} />
             ) : openTasks.map((t) => {
               const dl = t.due_date ? Math.ceil((new Date(t.due_date).getTime() - Date.now()) / 86400000) : null
               const late = dl !== null && dl < 0
               const active = selectedTask && String(selectedTask.id) === String(t.id)
+              const mine = isTaskAssignee(t, session.id)
               return (
                 <button
                   key={t.id}
                   type="button"
-                  className={`sf-dash-task-row${active ? ' is-selected' : ''}`}
+                  className={`sf-dash-task-row${active ? ' is-selected' : ''}${mine ? ' is-mine' : ''}`}
                   onClick={() => setSelectedTaskId(String(t.id))}
                 >
                   <div className="sf-dash-task-row-main">

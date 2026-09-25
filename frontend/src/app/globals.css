@@ -2170,15 +2170,20 @@ html[data-theme='morning'] body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  height: calc(100dvh - 156px);
+  min-height: 480px;
+  overflow: hidden;
 }
 .sf-brand-inline-find {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex-shrink: 0;
 }
 .sf-brand-page {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-height: 0;
   border: 1px solid var(--sf-border);
   border-top: 3px solid var(--sf-accent);
@@ -2193,6 +2198,7 @@ html[data-theme='morning'] body {
   padding: 22px 24px 0;
   background: var(--sf-surface);
   border-bottom: 1px solid var(--sf-border);
+  flex-shrink: 0;
 }
 
 .sf-brand-page-header-top {
@@ -2356,11 +2362,12 @@ html[data-theme='morning'] body {
 
 .sf-brand-page-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 0 16px;
   border-bottom: 1px solid var(--sf-border);
   background: var(--sf-surface);
-  overflow-x: auto;
+  overflow: visible;
   flex-shrink: 0;
 }
 
@@ -2392,6 +2399,7 @@ html[data-theme='morning'] body {
 .sf-brand-page-body {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px;
   min-height: 0;
   -webkit-overflow-scrolling: touch;

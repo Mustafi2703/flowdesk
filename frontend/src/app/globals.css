@@ -7209,6 +7209,22 @@ html[data-theme='morning'] .sf-sidebar .sf-sidebar-collapse-btn {
   width: 100%;
   min-width: 0;
 }
+.sf-brand-workspace--single .sf-brand-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  overflow: visible;
+  gap: 14px;
+}
+.sf-brand-workspace--single .sf-workflow-stage-pills,
+.sf-brand-workspace--single .sf-campaign-scroll,
+.sf-brand-workspace--single .sf-campaign-scroll-grid {
+  width: 100%;
+}
+.sf-brand-workspace--single .sf-workflow-section-title {
+  margin: 0;
+}
 .sf-brand-picker-head {
   margin-bottom: 16px;
   display: flex;

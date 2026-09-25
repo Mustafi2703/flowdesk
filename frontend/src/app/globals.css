@@ -2,17 +2,17 @@
 
 :root,
 [data-theme='night'] {
-  --sf-bg: #0b0d12;
-  --sf-bg-elevated: #10141c;
-  --sf-surface: #141922;
-  --sf-surface-2: #1a2130;
-  --sf-surface-hover: #222b3d;
-  --sf-border: rgba(148, 163, 184, 0.14);
-  --sf-border-strong: rgba(148, 163, 184, 0.28);
-  --sf-text: #f8fafc;
-  --sf-text-secondary: #a8b3c7;
-  --sf-muted: #7c8aa5;
-  --sf-muted-2: #64748b;
+  --sf-bg: #000000;
+  --sf-bg-elevated: #000000;
+  --sf-surface: #0a0a0a;
+  --sf-surface-2: #141414;
+  --sf-surface-hover: #1c1c1c;
+  --sf-border: rgba(255, 255, 255, 0.12);
+  --sf-border-strong: rgba(255, 255, 255, 0.22);
+  --sf-text: #ffffff;
+  --sf-text-secondary: #d4d4d4;
+  --sf-muted: #a3a3a3;
+  --sf-muted-2: #737373;
   --sf-accent: #ff6b1a;
   --sf-accent-hover: #ff853f;
   --sf-accent-soft: rgba(255, 107, 26, 0.14);
@@ -22,11 +22,11 @@
   --sf-info: #3b82f6;
   --sf-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
   --sf-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.45);
-  --sf-sidebar: #0e1219;
-  --sf-sidebar-border: rgba(148, 163, 184, 0.12);
-  --sf-sidebar-text: #f8fafc;
-  --sf-sidebar-muted: #94a3b8;
-  --sf-input-bg: #1a2130;
+  --sf-sidebar: #000000;
+  --sf-sidebar-border: rgba(255, 255, 255, 0.1);
+  --sf-sidebar-text: #ffffff;
+  --sf-sidebar-muted: #b5b5b5;
+  --sf-input-bg: #0a0a0a;
   --sf-radius: 4px;
   --sf-radius-sm: 3px;
   --sf-radius-lg: 6px;
@@ -79,6 +79,26 @@ html {
 
 html[data-theme='night'] {
   color-scheme: dark;
+}
+html[data-theme='night'] body,
+html[data-theme='night'] .sf-app-shell,
+html[data-theme='night'] .sf-app-main,
+html[data-theme='night'] .sf-main-scroll,
+html[data-theme='night'] .sf-brand-page,
+html[data-theme='night'] .sf-brand-page-header,
+html[data-theme='night'] .sf-dash-hero,
+html[data-theme='night'] .sf-dash-panel,
+html[data-theme='night'] .sf-workflow-active-card,
+html[data-theme='night'] .sf-campaign-scroll {
+  background-color: var(--sf-bg);
+  color: var(--sf-text);
+}
+html[data-theme='night'] .sf-dash-panel,
+html[data-theme='night'] .sf-workflow-active-card,
+html[data-theme='night'] .sf-campaign-scroll,
+html[data-theme='night'] .sf-brand-page,
+html[data-theme='night'] .sf-dash-hero {
+  background-color: var(--sf-surface);
 }
 
 body {

@@ -25,6 +25,14 @@ const WORKFLOW_STAGES = [
   { id: 'delivered', label: 'Delivered' },
 ]
 
+const ROSTER_FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'retainer', label: 'Retainer' },
+  { id: 'project', label: 'Project' },
+  { id: 'one-time', label: 'One-Time' },
+  { id: 'active-work', label: 'Active work' },
+]
+
 function brandPriorityTone(p: string) {
   const x = (p || 'P3').toUpperCase()
   if (x === 'P1' || x === 'HIGH') return { label: 'HIGH', color: '#ff4757' }
@@ -35,6 +43,20 @@ function brandPriorityTone(p: string) {
 function brandStageLabel(id: string) {
   if (id === 'approval') return 'Client Approval'
   return phaseLabel(id)
+}
+
+function normalizeClientType(value?: string | null) {
+  return String(value || '').toLowerCase().replace(/[\s_-]+/g, '')
+}
+
+function matchesRosterFilter(brand: any, filterId: string, openTaskCount: number) {
+  if (filterId === 'all') return true
+  if (filterId === 'active-work') return openTaskCount > 0
+  const ct = normalizeClientType(brand.client_type)
+  if (filterId === 'retainer') return ct.includes('retainer')
+  if (filterId === 'project') return ct.includes('project')
+  if (filterId === 'one-time') return ct.includes('onetime') || ct.includes('oneoff')
+  return true
 }
 
 function logoAttachmentId(logoUrl?: string | null) {
@@ -132,7 +154,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
         || stageLabel.toLowerCase().includes(q)
         || (b.description || '').toLowerCase().includes(q)
     })
-  }, [visible, brandSearch, brandStageFilter, tasks])
+  }, [visible, brandSearch, brandStageFilter])
 
   const modalHits = useMemo(() => {
     const q = modalFind.trim().toLowerCase()
@@ -279,7 +301,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                   <div className="sf-workflow-stage-search">
                     <input
                       type="search"
-                      className="sf-perf-search"
+                      className="sf-input"
                       placeholder="Search brands…"
                       value={brandSearch}
                       onChange={(e) => setBrandSearch(e.target.value)}
@@ -287,7 +309,6 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                     />
                   </div>
                 </div>
-                <section className="sf-workflow-active-section" aria-label="Brands">
                 <h2 className="sf-workflow-section-title">Active Campaigns</h2>
                 <div className="sf-campaign-scroll">
                   {filteredBrands.length === 0 ? (
@@ -341,7 +362,6 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                     </div>
                   )}
                 </div>
-                </section>
               </div>
           </div>
         </div>

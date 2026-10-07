@@ -227,7 +227,8 @@ export default function CalendarClient({ session }: { session: SessionUser }) {
   const isManager = session.role === 'manager'
   const isHr = session.role === 'hr'
   const [cursor, setCursor] = useState(() => new Date())
-  const [selectedUser, setSelectedUser] = useState(session.id)
+  // Owner lands on company-wide due dates; everyone else on their own desk.
+  const [selectedUser, setSelectedUser] = useState(isOwner ? COMPANY : session.id)
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [selectedDay, setSelectedDay] = useState<string | null>(() => localDateKey(new Date()))

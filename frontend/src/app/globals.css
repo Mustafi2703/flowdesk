@@ -6847,11 +6847,18 @@ html[data-theme='morning'] .sf-table tr:hover td {
 
 @media (max-width: 720px) {
   .sf-cal-cell {
-    min-height: 72px;
+    min-height: 64px;
     padding: 6px 4px;
   }
   .sf-cal-cell-events {
-    display: none;
+    gap: 2px;
+  }
+  .sf-cal-event {
+    font-size: 9px;
+    padding: 2px 4px;
+  }
+  .sf-cal-event-task {
+    max-width: 100%;
   }
   .sf-cal-cell-today .sf-cal-day-num {
     width: 24px;

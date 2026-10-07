@@ -61,6 +61,17 @@ def _profile_lookup(db: Session) -> dict[uuid.UUID, Profile]:
     return {p.id: p for p in db.scalars(select(Profile)).all()}
 
 
+def _task_calendar_date(task: Task, first: date | None = None, last: date | None = None) -> date | None:
+    """Prefer due date in range; else start date in range (so undated-due work still appears)."""
+    if first is not None and last is not None:
+        if task.due_date and first <= task.due_date <= last:
+            return task.due_date
+        if task.start_date and first <= task.start_date <= last:
+            return task.start_date
+        return None
+    return task.due_date or task.start_date
+
+
 def _build_personal_days(
     *,
     subject: Profile,
@@ -78,7 +89,8 @@ def _build_personal_days(
         key = d.isoformat()
         day_tasks = []
         for t in tasks:
-            if t.due_date != d:
+            cal_day = _task_calendar_date(t, first, last)
+            if cal_day != d:
                 continue
             brand = brand_map.get(t.brand_id) if t.brand_id else None
             day_tasks.append(
@@ -91,6 +103,7 @@ def _build_personal_days(
                     "requires_review": bool(t.requires_review),
                     "brand_name": brand.name if brand else None,
                     "due_date": t.due_date.isoformat() if t.due_date else None,
+                    "start_date": t.start_date.isoformat() if t.start_date else None,
                 }
             )
         day_leave = [
@@ -132,11 +145,13 @@ def _company_calendar(
 
     profiles = _profile_lookup(db)
     brand_map = {b.id: b for b in db.scalars(select(Brand)).all()}
+    # Company month: any task with due_date or start_date in range.
     tasks = db.scalars(
         select(Task).where(
-            Task.due_date.is_not(None),
-            Task.due_date >= first,
-            Task.due_date <= last,
+            or_(
+                Task.due_date.between(first, last),
+                Task.start_date.between(first, last),
+            )
         )
     ).all()
     leaves = db.scalars(
@@ -158,7 +173,8 @@ def _company_calendar(
         key = d.isoformat()
         day_tasks = []
         for t in tasks:
-            if t.due_date != d:
+            cal_day = _task_calendar_date(t, first, last)
+            if cal_day != d:
                 continue
             assignees = [
                 profiles[uid].name
@@ -174,7 +190,8 @@ def _company_calendar(
                     "type": t.type,
                     "requires_review": bool(t.requires_review),
                     "brand_name": brand_map[t.brand_id].name if t.brand_id in brand_map else None,
-                    "due_date": t.due_date.isoformat(),
+                    "due_date": t.due_date.isoformat() if t.due_date else None,
+                    "start_date": t.start_date.isoformat() if t.start_date else None,
                     "assignees": assignees,
                 }
             )
@@ -241,12 +258,17 @@ def calendar(
 
     subject = _resolve_subject(db, viewer, user_id)
 
+    # Personal desk: assignee or assigned manager; due_date or start_date in month.
     tasks = db.scalars(
         select(Task).where(
-            Task.assigned_to.any(subject.id),
-            Task.due_date.is_not(None),
-            Task.due_date >= first,
-            Task.due_date <= last,
+            or_(
+                Task.assigned_to.contains([subject.id]),
+                Task.assigned_managers.contains([subject.id]),
+            ),
+            or_(
+                Task.due_date.between(first, last),
+                Task.start_date.between(first, last),
+            ),
         )
     ).all()
 

@@ -3587,6 +3587,77 @@ html[data-theme='morning'] body {
   gap: 6px;
   flex-shrink: 0;
 }
+.sf-home-blurb {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--sf-muted);
+}
+.sf-home-hero-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.sf-home-task-chip {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--sf-accent-soft);
+  color: var(--sf-accent);
+}
+.sf-home-ops {
+  margin-top: 1.25rem;
+}
+
+@media (max-width: 720px) {
+  .sf-dash-clock-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .sf-dash-clock-bar .sf-btn {
+    width: 100%;
+  }
+  .sf-home-hero {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .sf-home-hero-actions {
+    width: 100%;
+  }
+  .sf-home-hero-actions .sf-btn {
+    flex: 1;
+  }
+  .sf-home-title {
+    font-size: 1.35rem;
+  }
+  .sf-home-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .sf-home-metric {
+    padding: 12px;
+  }
+  .sf-home-metric-val {
+    font-size: 1.25rem;
+  }
+  .sf-home-task {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 12px 14px;
+  }
+  .sf-home-task-side {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .sf-admin-desk {
+    grid-template-columns: 1fr !important;
+  }
+}
 
 .sf-dash-clock-alert {
   font-size: 11px;
@@ -6540,6 +6611,44 @@ html[data-theme='morning'] .sf-table tr:hover td {
 .sf-cal-summary-stat:last-of-type {
   border-right: none;
 }
+.sf-cal-summary-btn {
+  background: none;
+  border: none;
+  border-right: 1px solid var(--sf-border);
+  padding: 0 16px 0 0;
+  margin: 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  color: inherit;
+}
+.sf-cal-summary-btn:hover .sf-cal-summary-value {
+  color: var(--sf-accent);
+}
+.sf-cal-task-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+.sf-cal-task-link:hover .sf-cal-task-title {
+  color: var(--sf-accent);
+}
+.sf-cal-task-btn {
+  text-decoration: none !important;
+  font-size: 12px !important;
+}
+.sf-cal-event-link {
+  cursor: pointer;
+}
+.sf-cal-event-link:hover {
+  border-color: var(--sf-accent);
+  color: var(--sf-accent);
+}
+.sf-cal-side-foot {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .sf-cal-summary-value {
   font-family: 'Space Grotesk', sans-serif;
   font-size: 22px;
@@ -6698,13 +6807,73 @@ html[data-theme='morning'] .sf-table tr:hover td {
   .sf-cal-workspace {
     grid-template-columns: 1fr;
     overflow-y: auto;
+    gap: 12px;
   }
   .sf-cal-side {
-    max-height: 420px;
+    max-height: none;
+    min-height: 280px;
+    order: -1;
   }
   .sf-cal-legend {
     margin-left: 0;
     width: 100%;
+  }
+  .sf-cal-summary {
+    gap: 10px;
+  }
+  .sf-cal-summary-stat,
+  .sf-cal-summary-btn {
+    min-width: 0;
+    flex: 1 1 30%;
+    padding-right: 10px;
+    border-right: none;
+  }
+  .sf-cal-toolbar {
+    width: 100%;
+  }
+  .sf-cal-select {
+    width: 100%;
+    min-width: 0;
+  }
+  .sf-cal-nav {
+    flex: 1;
+    justify-content: space-between;
+  }
+  .sf-cal-month-label {
+    min-width: 0;
+    flex: 1;
+  }
+}
+
+@media (max-width: 720px) {
+  .sf-cal-cell {
+    min-height: 72px;
+    padding: 6px 4px;
+  }
+  .sf-cal-cell-events {
+    display: none;
+  }
+  .sf-cal-cell-today .sf-cal-day-num {
+    width: 24px;
+    height: 24px;
+    font-size: 12px;
+  }
+  .sf-cal-weekday {
+    padding: 8px 2px;
+    font-size: 10px;
+  }
+  .sf-cal-day-hero-num {
+    font-size: 36px;
+  }
+  .sf-cal-task-actions {
+    gap: 6px;
+  }
+  .sf-cal-task-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  .sf-cal-summary-value {
+    font-size: 18px;
   }
 }
 

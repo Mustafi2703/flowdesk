@@ -25,6 +25,18 @@ export function isTaskAssignee(task: any, userId: string) {
   )
 }
 
+export function isTaskManager(task: any, userId: string) {
+  return (task?.assigned_managers || []).some((id: string) => sameUserId(id, userId))
+}
+
+/** Tasks that belong on a personal desk (assignee or assigned manager). Owner keeps agency-wide. */
+export function isPersonalDeskTask(task: any, userId: string, role: string) {
+  if (role === 'owner') return true
+  if (isTaskAssignee(task, userId)) return true
+  if (role === 'manager' && isTaskManager(task, userId)) return true
+  return false
+}
+
 export function canManageTasks(role: string) {
   return ['owner', 'manager'].includes(role)
 }

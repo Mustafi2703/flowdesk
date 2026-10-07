@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { SessionUser } from '@/types'
 import { PageHeader, PageShell, PageToolbar, Section } from '@/components/app/Section'
 import { StatusBadge } from '@/components/app/StatusBadge'
@@ -42,7 +43,7 @@ function DayDetailPanel({
         </div>
         <div className="sf-cal-side-empty-title">Select a date</div>
         <p className="sf-cal-side-empty-text">
-          Click any day in the month grid to review tasks, leave, and attendance for that date.
+          Tap a day to see your tasks due that date — each opens the task directly.
         </p>
       </aside>
     )
@@ -60,7 +61,7 @@ function DayDetailPanel({
   const isEmptyDay = !taskCount && !leaveCount && !dayDetail?.attendance
 
   return (
-    <aside className="sf-cal-side">
+    <aside className="sf-cal-side" id="sf-cal-day-panel">
       <div className="sf-cal-side-head">
         <div className="sf-cal-day-hero-date">
           <span className="sf-cal-day-hero-num">{selectedDate.getDate()}</span>
@@ -101,34 +102,36 @@ function DayDetailPanel({
                 const needsReview = t.requires_review && t.status === 'Under Review'
                 return (
                   <article key={t.id} className="sf-cal-task-card">
-                    <div className="sf-cal-task-head">
-                      <div className="sf-cal-task-main">
-                        <div className="sf-cal-task-title">{t.title}</div>
-                        <div className="sf-cal-task-meta">
-                          {t.brand_name && <span>{t.brand_name}</span>}
-                          {t.type && <span>{t.type}</span>}
-                          {t.priority && <span>{t.priority}</span>}
+                    <Link href={`/tasks/${t.id}`} className="sf-cal-task-link">
+                      <div className="sf-cal-task-head">
+                        <div className="sf-cal-task-main">
+                          <div className="sf-cal-task-title">{t.title}</div>
+                          <div className="sf-cal-task-meta">
+                            {t.brand_name && <span>{t.brand_name}</span>}
+                            {t.type && <span>{t.type}</span>}
+                            {t.priority && <span>{t.priority}</span>}
+                          </div>
+                          {t.assignees?.length > 0 && (
+                            <div className="sf-cal-task-assignees">{t.assignees.join(' · ')}</div>
+                          )}
                         </div>
-                        {t.assignees?.length > 0 && (
-                          <div className="sf-cal-task-assignees">{t.assignees.join(' · ')}</div>
-                        )}
+                        <StatusBadge status={t.status} />
                       </div>
-                      <StatusBadge status={t.status} />
-                    </div>
+                    </Link>
                     <div className="sf-cal-task-actions">
-                      <Link href={`/tasks/${t.id}`} className="sf-btn sf-btn-primary" style={{ textDecoration: 'none', fontSize: 12 }}>
+                      <Link href={`/tasks/${t.id}`} className="sf-btn sf-btn-primary sf-cal-task-btn">
                         Open task
                       </Link>
-                      <Link href={`/tasks/${t.id}?tab=files`} className="sf-btn sf-btn-ghost" style={{ textDecoration: 'none', fontSize: 12 }}>
+                      <Link href={`/tasks/${t.id}?tab=files`} className="sf-btn sf-btn-ghost sf-cal-task-btn">
                         Files
                       </Link>
                       {canStart && (
-                        <Link href={`/tasks/${t.id}`} className="sf-btn sf-btn-ghost" style={{ textDecoration: 'none', fontSize: 12 }}>
+                        <Link href={`/tasks/${t.id}`} className="sf-btn sf-btn-ghost sf-cal-task-btn">
                           Start work
                         </Link>
                       )}
                       {needsReview && (isOwner || isManager) && (
-                        <Link href={`/tasks/${t.id}?tab=review`} className="sf-btn sf-btn-ghost" style={{ textDecoration: 'none', fontSize: 12 }}>
+                        <Link href={`/tasks/${t.id}?tab=review`} className="sf-btn sf-btn-ghost sf-cal-task-btn">
                           Review
                         </Link>
                       )}
@@ -199,7 +202,7 @@ function DayDetailPanel({
             </div>
             <div className="sf-cal-empty-title">Clear day</div>
             <div className="sf-cal-empty-text">No tasks, leave, or attendance logged for this date.</div>
-            <Link href="/tasks" className="sf-btn sf-btn-ghost" style={{ textDecoration: 'none', marginTop: 8 }}>
+            <Link href="/tasks" className="sf-btn sf-btn-ghost sf-cal-task-btn" style={{ marginTop: 8 }}>
               Browse all tasks
             </Link>
           </div>
@@ -207,8 +210,11 @@ function DayDetailPanel({
       </div>
 
       <div className="sf-cal-side-foot">
-        <Link href="/tasks" className="sf-btn sf-btn-ghost" style={{ textDecoration: 'none' }}>
+        <Link href="/tasks" className="sf-btn sf-btn-ghost sf-cal-task-btn">
           All tasks
+        </Link>
+        <Link href="/overview" className="sf-btn sf-btn-ghost sf-cal-task-btn">
+          Dashboard
         </Link>
       </div>
     </aside>
@@ -216,11 +222,12 @@ function DayDetailPanel({
 }
 
 export default function CalendarClient({ session }: { session: SessionUser }) {
+  const router = useRouter()
   const isOwner = session.role === 'owner'
   const isManager = session.role === 'manager'
   const isHr = session.role === 'hr'
   const [cursor, setCursor] = useState(() => new Date())
-  const [selectedUser, setSelectedUser] = useState(isOwner ? COMPANY : session.id)
+  const [selectedUser, setSelectedUser] = useState(session.id)
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [selectedDay, setSelectedDay] = useState<string | null>(() => localDateKey(new Date()))
@@ -242,6 +249,13 @@ export default function CalendarClient({ session }: { session: SessionUser }) {
       .then(setData)
       .finally(() => setLoading(false))
   }, [month, selectedUser, session.id, isCompanyView])
+
+  useEffect(() => {
+    if (!selectedDay || typeof window === 'undefined') return
+    if (window.matchMedia('(max-width: 1024px)').matches) {
+      document.getElementById('sf-cal-day-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [selectedDay])
 
   const grid = useMemo(() => {
     const y = cursor.getFullYear()
@@ -296,6 +310,11 @@ export default function CalendarClient({ session }: { session: SessionUser }) {
     setSelectedDay(localDateKey(now))
   }
 
+  function selectDay(key: string, inMonth: boolean) {
+    if (!inMonth) return
+    setSelectedDay(key)
+  }
+
   return (
     <PageShell fill className="sf-cal-page">
       <PageToolbar>
@@ -311,7 +330,7 @@ export default function CalendarClient({ session }: { session: SessionUser }) {
               onChange={e => { setSelectedUser(e.target.value); setSelectedDay(null) }}
             >
               {isOwner && <option value={COMPANY}>Company view</option>}
-              {viewable.map((u: any) => (
+              {viewable.filter((u: any) => u.id !== COMPANY).map((u: any) => (
                 <option key={u.id} value={u.id}>{u.name}</option>
               ))}
             </select>
@@ -334,18 +353,18 @@ export default function CalendarClient({ session }: { session: SessionUser }) {
       </PageToolbar>
 
       <div className="sf-cal-summary">
-        <div className="sf-cal-summary-stat">
+        <button type="button" className="sf-cal-summary-stat sf-cal-summary-btn" onClick={() => router.push('/tasks')}>
           <span className="sf-cal-summary-value">{monthStats.tasks}</span>
           <span className="sf-cal-summary-label">Tasks this month</span>
-        </div>
+        </button>
         <div className="sf-cal-summary-stat">
           <span className="sf-cal-summary-value">{monthStats.busyDays}</span>
           <span className="sf-cal-summary-label">Days with work</span>
         </div>
-        <div className="sf-cal-summary-stat">
+        <button type="button" className="sf-cal-summary-stat sf-cal-summary-btn" onClick={() => router.push('/leave')}>
           <span className="sf-cal-summary-value">{monthStats.leaveDays}</span>
           <span className="sf-cal-summary-label">Leave days</span>
-        </div>
+        </button>
         <div className="sf-cal-legend">
           <span className="sf-cal-legend-item"><i className="sf-cal-dot sf-cal-dot-task" /> Task</span>
           <span className="sf-cal-legend-item"><i className="sf-cal-dot sf-cal-dot-leave" /> Leave</span>
@@ -386,7 +405,7 @@ export default function CalendarClient({ session }: { session: SessionUser }) {
                     <button
                       key={cell.key}
                       type="button"
-                      onClick={() => cell.inMonth && setSelectedDay(cell.key)}
+                      onClick={() => selectDay(cell.key, cell.inMonth)}
                       className={[
                         'sf-cal-cell',
                         isSelected ? 'sf-cal-cell-selected' : '',
@@ -405,8 +424,21 @@ export default function CalendarClient({ session }: { session: SessionUser }) {
                         {visibleTasks.map((t: any) => (
                           <span
                             key={t.id}
-                            className="sf-cal-event sf-cal-event-task"
+                            role="link"
+                            tabIndex={0}
+                            className="sf-cal-event sf-cal-event-task sf-cal-event-link"
                             title={t.title}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              router.push(`/tasks/${t.id}`)
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                router.push(`/tasks/${t.id}`)
+                              }
+                            }}
                           >
                             {t.title}
                           </span>

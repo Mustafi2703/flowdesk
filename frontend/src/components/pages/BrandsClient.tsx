@@ -14,19 +14,8 @@ import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { PeoplePicker } from '@/components/app/PeoplePicker'
 import { BrandBadge, BrandLogoMark, BrandTag, brandAccent } from '@/components/app/BrandBadge'
 import { departmentColor } from '@/lib/departmentColors'
-import { PHASE_ORDER, WORKFLOW_PHASES, phaseLabel } from '@/lib/workflowPhases'
-
-const WORKFLOW_STAGES = [
-  { id: 'assigned', label: 'Assigned' },
-  { id: 'design', label: 'Design' },
-  { id: 'content', label: 'Content' },
-  { id: 'editing', label: 'Editing' },
-  { id: 'approval', label: 'Approval' },
-  { id: 'delivered', label: 'Delivered' },
-]
-
 const ROSTER_FILTERS = [
-  { id: 'all', label: 'All' },
+  { id: 'all', label: 'All brands' },
   { id: 'retainer', label: 'Retainer' },
   { id: 'project', label: 'Project' },
   { id: 'one-time', label: 'One-Time' },
@@ -38,11 +27,6 @@ function brandPriorityTone(p: string) {
   if (x === 'P1' || x === 'HIGH') return { label: 'HIGH', color: '#ff4757' }
   if (x === 'P4' || x === 'LOW') return { label: 'LOW', color: '#26de81' }
   return { label: 'MED', color: '#ffa502' }
-}
-
-function brandStageLabel(id: string) {
-  if (id === 'approval') return 'Client Approval'
-  return phaseLabel(id)
 }
 
 function normalizeClientType(value?: string | null) {
@@ -91,8 +75,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   const [identityEditNonce, setIdentityEditNonce] = useState(0)
   const [brandSearch, setBrandSearch] = useState('')
   const [modalFind, setModalFind] = useState('')
-  const [brandStageFilter, setBrandStageFilter] = useState('all')
-  const [stageBrandId, setStageBrandId] = useState<string | null>(null)
+  const [rosterFilter, setRosterFilter] = useState('all')
   const [flagBrandId, setFlagBrandId] = useState<string | null>(null)
   const [flagNote, setFlagNote] = useState('')
   const [actionError, setActionError] = useState('')
@@ -144,17 +127,16 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   const filteredBrands = useMemo(() => {
     const q = brandSearch.trim().toLowerCase()
     return visible.filter((b) => {
-      const stage = b.workflow_stage || 'assigned'
-      if (brandStageFilter !== 'all' && stage !== brandStageFilter) return false
+      const brandTaskRows = tasks.filter((t) => sameId(t.brand_id, b.id))
+      const openCount = brandTaskRows.filter((t) => t.status !== 'Completed').length
+      if (!matchesRosterFilter(b, rosterFilter, openCount)) return false
       if (!q) return true
-      const stageLabel = WORKFLOW_STAGES.find(s => s.id === (b.workflow_stage || 'assigned'))?.label || ''
       return b.name?.toLowerCase().includes(q)
         || b.client_type?.toLowerCase().includes(q)
         || b.priority?.toLowerCase().includes(q)
-        || stageLabel.toLowerCase().includes(q)
         || (b.description || '').toLowerCase().includes(q)
     })
-  }, [visible, brandSearch, brandStageFilter])
+  }, [visible, brandSearch, rosterFilter, tasks])
 
   const modalHits = useMemo(() => {
     const q = modalFind.trim().toLowerCase()
@@ -173,25 +155,6 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   function changeTab(tab: string) {
     setSection(tab)
     if (selectedId) router.replace(`/brands?brand=${selectedId}&tab=${tab}`)
-  }
-
-  async function saveStage(brandId: string, stage: string) {
-    setSaving(true)
-    setActionError('')
-    const res = await fetch(`/api/brands/${brandId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workflow_stage: stage }),
-    })
-    setSaving(false)
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      setActionError(body.detail || 'Could not update stage')
-      return
-    }
-    const updated = await res.json()
-    setBrands((rows) => rows.map((b) => (sameId(b.id, brandId) ? { ...b, ...updated } : b)))
-    setStageBrandId(null)
   }
 
   async function submitFlag() {
@@ -285,17 +248,17 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
         <div className="sf-brand-workspace sf-brand-workspace--single">
           <div className="sf-brand-workspace-main">
               <div className="sf-brand-picker">
-                <div className="sf-workflow-stage-pills" role="tablist" aria-label="Filter by stage">
-                  {WORKFLOW_PHASES.map((s) => (
+                <div className="sf-workflow-stage-pills" role="tablist" aria-label="Filter clients">
+                  {ROSTER_FILTERS.map((filter) => (
                     <button
-                      key={s.id}
+                      key={filter.id}
                       type="button"
                       role="tab"
-                      aria-selected={brandStageFilter === s.id}
-                      className={`sf-workflow-stage-pill${brandStageFilter === s.id ? ' is-active' : ''}`}
-                      onClick={() => setBrandStageFilter(s.id)}
+                      aria-selected={rosterFilter === filter.id}
+                      className={`sf-workflow-stage-pill${rosterFilter === filter.id ? ' is-active' : ''}`}
+                      onClick={() => setRosterFilter(filter.id)}
                     >
-                      {s.label}
+                      {filter.label}
                     </button>
                   ))}
                   <div className="sf-workflow-stage-search">
@@ -309,7 +272,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                     />
                   </div>
                 </div>
-                <h2 className="sf-workflow-section-title">Active Campaigns</h2>
+                <h2 className="sf-workflow-section-title">Clients</h2>
                 <div className="sf-campaign-scroll">
                   {filteredBrands.length === 0 ? (
                     <div className="sf-brand-roster-empty">No clients match your search.</div>
@@ -317,8 +280,8 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                     <div className="sf-campaign-scroll-grid">
                       {filteredBrands.map((b) => {
                         const bt = tasks.filter((t) => sameId(t.brand_id, b.id))
-                        const stage = b.workflow_stage || 'assigned'
-                        const stageIndex = Math.max(0, PHASE_ORDER.indexOf(stage))
+                        const open = bt.filter((t) => t.status !== 'Completed').length
+                        const inReview = bt.filter((t) => t.status === 'Under Review' || t.requires_review).length
                         const pri = brandPriorityTone(b.priority)
                         const people = [...(b.assigned_members || []), ...(b.assigned_managers || [])]
                           .map((id: string) => users.find((u: any) => sameId(u.id, id)))
@@ -330,15 +293,15 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                                 <div className="sf-workflow-active-brand">{b.name}</div>
                                 <span className="sf-workflow-active-pri">{pri.label}</span>
                               </div>
-                              <div className="sf-workflow-active-deliv">{bt.length} deliverable{bt.length === 1 ? '' : 's'}</div>
-                              <div className="sf-workflow-active-segments" aria-hidden>
-                                {PHASE_ORDER.map((id, i) => (
-                                  <span key={id} className={i <= stageIndex ? 'is-done' : ''} />
-                                ))}
+                              <div className="sf-workflow-active-deliv">
+                                {open} open · {bt.length} task{bt.length === 1 ? '' : 's'}
+                                {b.client_type ? ` · ${b.client_type}` : ''}
                               </div>
-                              <div className="sf-workflow-active-phase">
-                                Current: <strong>{brandStageLabel(stage)}</strong>
-                              </div>
+                              {inReview > 0 && (
+                                <div className="sf-workflow-active-phase">
+                                  <strong>{inReview}</strong> task{inReview === 1 ? '' : 's'} in review
+                                </div>
+                              )}
                               {people.length > 0 && (
                                 <div className="sf-workflow-active-avatars">
                                   {people.slice(0, 4).map((u: any) => (
@@ -352,7 +315,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                             </button>
                             {canEdit && (
                               <div className="sf-workflow-active-actions">
-                                <button type="button" className="sf-btn sf-btn-ghost" onClick={() => { setActionError(''); setStageBrandId(String(b.id)) }}>Update Stage</button>
+                                <button type="button" className="sf-btn sf-btn-ghost" onClick={() => selectBrand(b, 'team')}>Assign</button>
                                 <button type="button" className="sf-btn sf-btn-ghost" onClick={() => { setActionError(''); setFlagNote(''); setFlagBrandId(String(b.id)) }}>Flag Issue</button>
                               </div>
                             )}
@@ -369,34 +332,6 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
       )}
 
       {showCreate && canEdit && <CreateBrand onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); load() }} />}
-
-      {stageBrandId && (
-        <Modal
-          open
-          onClose={() => setStageBrandId(null)}
-          title="Update Stage"
-          subtitle={brands.find((b) => sameId(b.id, stageBrandId))?.name || 'Campaign'}
-          zIndex={120}
-        >
-          <div className="sf-workflow-stage-picker">
-            {PHASE_ORDER.map((id) => {
-              const current = (brands.find((b) => sameId(b.id, stageBrandId))?.workflow_stage || 'assigned') === id
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  className={`sf-workflow-stage-option${current ? ' is-current' : ''}`}
-                  disabled={saving}
-                  onClick={() => saveStage(stageBrandId, id)}
-                >
-                  {brandStageLabel(id)}
-                </button>
-              )
-            })}
-          </div>
-          {actionError && <p className="sf-workflow-action-error">{actionError}</p>}
-        </Modal>
-      )}
 
       {flagBrandId && (
         <Modal
@@ -455,7 +390,6 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
     brand_colors: brand.brand_colors || '',
     photography_style: brand.photography_style || '',
     brand_voice: brand.brand_voice || '',
-    workflow_stage: brand.workflow_stage || 'assigned',
     priority: brand.priority || 'P3',
     client_type: brand.client_type || 'Retainer',
   })
@@ -489,12 +423,11 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
       brand_colors: brand.brand_colors || '',
       photography_style: brand.photography_style || '',
       brand_voice: brand.brand_voice || '',
-      workflow_stage: brand.workflow_stage || 'assigned',
       priority: brand.priority || 'P3',
       client_type: brand.client_type || 'Retainer',
     })
     setLogoError('')
-  }, [brand.id, brand.assigned_members, brand.assigned_managers, brand.name, brand.logo, brand.logo_url, brand.contact_email, brand.description, brand.workflow_stage, brand.priority, brand.client_type, brand.short_term_goals, brand.long_term_goals, brand.journey, brand.responsibilities, brand.fonts, brand.logo_variants, brand.brand_colors, brand.photography_style, brand.brand_voice])
+  }, [brand.id, brand.assigned_members, brand.assigned_managers, brand.name, brand.logo, brand.logo_url, brand.contact_email, brand.description, brand.priority, brand.client_type, brand.short_term_goals, brand.long_term_goals, brand.journey, brand.responsibilities, brand.fonts, brand.logo_variants, brand.brand_colors, brand.photography_style, brand.brand_voice])
 
   useEffect(() => {
     setAllocSaved(false)
@@ -564,7 +497,6 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
         brand_colors: identityDraft.brand_colors || null,
         photography_style: identityDraft.photography_style || null,
         brand_voice: identityDraft.brand_voice || null,
-        workflow_stage: identityDraft.workflow_stage,
         priority: identityDraft.priority,
         client_type: identityDraft.client_type,
         contact_email: identityDraft.contact_email?.trim() || null,

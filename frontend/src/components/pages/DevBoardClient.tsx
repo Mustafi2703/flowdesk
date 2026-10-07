@@ -8,7 +8,6 @@ import { BrandLogoMark } from '@/components/app/BrandBadge'
 import { Modal } from '@/components/app/Modal'
 import {
   PHASE_COLORS,
-  PHASE_ORDER,
   WORKFLOW_PHASES,
   phaseLabel,
   taskWorkflowPhase,
@@ -19,11 +18,6 @@ function priorityTone(p: string) {
   if (x === 'P1' || x === 'HIGH' || x === 'URGENT') return { label: 'HIGH', color: '#ff4757' }
   if (x === 'P4' || x === 'LOW') return { label: 'LOW', color: '#26de81' }
   return { label: 'MED', color: '#ffa502' }
-}
-
-function stageDisplay(id: string) {
-  if (id === 'approval') return 'Client Approval'
-  return phaseLabel(id)
 }
 
 function WorkflowBrandDetail({
@@ -160,7 +154,6 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showCapacity, setShowCapacity] = useState(true)
   const [detailOpen, setDetailOpen] = useState(false)
-  const [stageBrandId, setStageBrandId] = useState<string | null>(null)
   const [flagBrandId, setFlagBrandId] = useState<string | null>(null)
   const [flagNote, setFlagNote] = useState('')
   const [actionError, setActionError] = useState('')
@@ -187,8 +180,11 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
   const filteredBrands = useMemo(() => {
     const q = search.trim().toLowerCase()
     return brands.filter((brand) => {
-      const stage = brand.workflow_stage || 'assigned'
-      if (stageFilter !== 'all' && stage !== stageFilter) return false
+      if (stageFilter !== 'all') {
+        const brandTasks = tasks.filter((t) => String(t.brand_id) === String(brand.id))
+        const match = brandTasks.some((t) => taskWorkflowPhase(t) === stageFilter)
+        if (!match) return false
+      }
       if (!q) return true
       const memberNames = [...(brand.assigned_members || []), ...(brand.assigned_managers || [])]
         .map((id: string) => users.find((u) => String(u.id) === String(id))?.name || '')
@@ -196,9 +192,9 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
         .toLowerCase()
       return String(brand.name || '').toLowerCase().includes(q) || memberNames.includes(q)
     })
-  }, [brands, stageFilter, search, users])
+  }, [brands, stageFilter, search, users, tasks])
 
-  const awaitingApproval = brands.filter((b) => (b.workflow_stage || 'assigned') === 'approval').length
+  const awaitingApproval = openTasks.filter((t) => t.status === 'Under Review' || t.requires_review).length
   const completedToday = tasks.filter((t) => {
     if (t.status !== 'Completed') return false
     const d = t.updated_at || t.completed_at
@@ -257,25 +253,6 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
     return String(name || '?').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase()
   }
 
-  async function saveStage(brandId: string, stage: string) {
-    setSaving(true)
-    setActionError('')
-    const res = await fetch(`/api/brands/${brandId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workflow_stage: stage }),
-    })
-    setSaving(false)
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      setActionError(body.detail || 'Could not update stage')
-      return
-    }
-    const updated = await res.json()
-    setBrands((rows) => rows.map((b) => (String(b.id) === String(brandId) ? { ...b, ...updated } : b)))
-    setStageBrandId(null)
-  }
-
   async function submitFlag() {
     if (!flagBrandId) return
     setSaving(true)
@@ -304,7 +281,7 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
         subtitle="Real-time view of all active campaigns · Last updated: just now"
       />
 
-      <div className="sf-workflow-stage-pills" role="tablist" aria-label="Filter by task phase">
+      <div className="sf-workflow-stage-pills" role="tablist" aria-label="Filter brands by task phase">
         {WORKFLOW_PHASES.map((s) => (
           <button
             key={s.id}
@@ -324,7 +301,7 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
             placeholder="Search brands…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            aria-label="Search tasks and brands"
+            aria-label="Search brands"
           />
         </div>
       </div>
@@ -374,10 +351,10 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
           ) : (
             <div className="sf-campaign-scroll-grid">
               {filteredBrands.map((brand) => {
-                const stage = brand.workflow_stage || 'assigned'
-                const stageIndex = Math.max(0, PHASE_ORDER.indexOf(stage))
                 const pri = priorityTone(brand.priority)
-                const deliverables = tasks.filter((t) => String(t.brand_id) === String(brand.id)).length
+                const brandTasks = tasks.filter((t) => String(t.brand_id) === String(brand.id))
+                const open = brandTasks.filter((t) => t.status !== 'Completed').length
+                const inReview = brandTasks.filter((t) => t.status === 'Under Review' || t.requires_review).length
                 const people = brandPeople(brand)
                 return (
                   <article key={brand.id} className="sf-workflow-active-card" style={{ '--wf-pri': pri.color } as React.CSSProperties}>
@@ -386,13 +363,14 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
                         <div className="sf-workflow-active-brand">{brand.name}</div>
                         <span className="sf-workflow-active-pri">{pri.label}</span>
                       </div>
-                      <div className="sf-workflow-active-deliv">{deliverables} deliverable{deliverables === 1 ? '' : 's'}</div>
-                      <div className="sf-workflow-active-segments" aria-hidden>
-                        {PHASE_ORDER.map((id, i) => (
-                          <span key={id} className={i <= stageIndex ? 'is-done' : ''} />
-                        ))}
+                      <div className="sf-workflow-active-deliv">
+                        {open} open · {brandTasks.length} task{brandTasks.length === 1 ? '' : 's'}
                       </div>
-                      <div className="sf-workflow-active-phase">Current: <strong>{stageDisplay(stage)}</strong></div>
+                      {inReview > 0 && (
+                        <div className="sf-workflow-active-phase">
+                          <strong>{inReview}</strong> task{inReview === 1 ? '' : 's'} in review
+                        </div>
+                      )}
                       {people.length > 0 && (
                         <div className="sf-workflow-active-avatars">
                           {people.slice(0, 4).map((u: any) => (
@@ -404,7 +382,7 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
                     </button>
                     {canEdit && (
                       <div className="sf-workflow-active-actions">
-                        <button type="button" className="sf-btn sf-btn-ghost" onClick={() => { setActionError(''); setStageBrandId(String(brand.id)) }}>Update Stage</button>
+                        <Link href={`/brands?brand=${brand.id}&tab=team`} className="sf-btn sf-btn-ghost" onClick={() => setDetailOpen(false)}>Assign</Link>
                         <button type="button" className="sf-btn sf-btn-ghost" onClick={() => { setActionError(''); setFlagNote(''); setFlagBrandId(String(brand.id)) }}>Flag Issue</button>
                       </div>
                     )}
@@ -458,34 +436,6 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
             )}
           </div>
           <WorkflowBrandDetail brand={selected} tasks={tasks} users={users} inModal />
-        </Modal>
-      )}
-
-      {stageBrandId && (
-        <Modal
-          open
-          onClose={() => setStageBrandId(null)}
-          title="Update Stage"
-          subtitle={brands.find((b) => String(b.id) === stageBrandId)?.name || 'Campaign'}
-          zIndex={100}
-        >
-          <div className="sf-workflow-stage-picker">
-            {PHASE_ORDER.map((id) => {
-              const current = (brands.find((b) => String(b.id) === stageBrandId)?.workflow_stage || 'assigned') === id
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  className={`sf-workflow-stage-option${current ? ' is-current' : ''}`}
-                  disabled={saving}
-                  onClick={() => saveStage(stageBrandId, id)}
-                >
-                  {stageDisplay(id)}
-                </button>
-              )
-            })}
-          </div>
-          {actionError && <p className="sf-workflow-action-error">{actionError}</p>}
         </Modal>
       )}
 

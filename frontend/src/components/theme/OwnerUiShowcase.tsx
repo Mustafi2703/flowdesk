@@ -478,11 +478,11 @@ export function OwnerUiShowcase({ pkg, mode, compact = false }: { pkg: UiStylePa
               <div className="tp-mob-section">Active Campaigns</div>
               <article className="tp-mob-card">
                 <header><strong>Dinamoo</strong><em>HIGH</em></header>
-                <div>15 deliverables</div>
-                <div className="tp-mob-phase">Current: Design Phase</div>
+                <div>12 open · 15 tasks</div>
+                <div className="tp-mob-phase"><strong>2</strong> tasks in review</div>
                 <footer>
                   <span>A A B · Bhautik</span>
-                  <span>Update Stage</span>
+                  <span>Assign</span>
                 </footer>
               </article>
             </div>

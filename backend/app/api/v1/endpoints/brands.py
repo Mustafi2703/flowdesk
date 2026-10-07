@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -362,6 +363,10 @@ async def upload_brand_logo(
         mime_type=file.content_type or "image/png",
         user=user,
     )
+    # Logos are identity assets — never enter the file review queue.
+    row.review_status = "approved"
+    row.reviewed_by = user.id
+    row.reviewed_at = datetime.now(timezone.utc)
     brand.logo_url = f"/api/attachments/{row.id}"
     if not brand.logo:
         brand.logo = (brand.name or "BR")[:2].upper()

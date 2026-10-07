@@ -253,6 +253,15 @@ def review_queue(
     if status_filter:
         stmt = stmt.where(FileAttachment.review_status == status_filter)
     rows = db.scalars(stmt).all()
+    # Brand logos are identity assets and never need review.
+    brand_logo_ids: set[uuid.UUID] = set()
+    brand_rows = [r for r in rows if r.entity_type == "brand"]
+    if brand_rows:
+        brand_ids = {r.entity_id for r in brand_rows}
+        for brand in db.scalars(select(Brand).where(Brand.id.in_(brand_ids))).all():
+            lid = logo_attachment_id(brand.logo_url)
+            if lid:
+                brand_logo_ids.add(lid)
     uploaders = {
         p.id: p
         for p in db.scalars(
@@ -261,6 +270,10 @@ def review_queue(
     } if rows else {}
     out = []
     for row in rows:
+        if row.id in brand_logo_ids:
+            continue
+        if row.entity_type == "brand" and str(row.file_name or "").lower().startswith("brand logo"):
+            continue
         item = _serialize(row)
         uploader = uploaders.get(row.uploaded_by) if row.uploaded_by else None
         item["uploader"] = (

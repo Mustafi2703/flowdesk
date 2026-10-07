@@ -20,6 +20,14 @@ const ROLE_TAG: Record<string, string> = {
   developer: 'Your build desk',
 }
 
+function deskHealth(open: number, overdue: number, dueToday: number) {
+  if (open === 0) return { label: 'Clear desk', tone: 'good', hint: 'Nothing open right now.' }
+  if (overdue >= 3) return { label: 'Needs attention', tone: 'bad', hint: `${overdue} overdue — clear the oldest first.` }
+  if (overdue > 0) return { label: 'At risk', tone: 'warn', hint: `${overdue} overdue · ${dueToday} due today.` }
+  if (dueToday > 0) return { label: 'On track', tone: 'good', hint: `${dueToday} due today — keep momentum.` }
+  return { label: 'Healthy', tone: 'good', hint: `${open} open · none overdue.` }
+}
+
 export default function OverviewClient({ session }: { session: SessionUser }) {
   const router = useRouter()
   const [tasks, setTasks] = useState<any[]>([])
@@ -32,6 +40,8 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const [emailNotice, setEmailNotice] = useState('')
   const [driveStatus, setDriveStatus] = useState<any>(null)
   const [driveBusy, setDriveBusy] = useState(false)
+  const [teamAtt, setTeamAtt] = useState<any[]>([])
+  const [teamUsers, setTeamUsers] = useState<any[]>([])
   const today = todayIST()
 
   const isOwner = session.role === 'owner'
@@ -45,20 +55,30 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   }, [])
 
   useEffect(() => {
-    Promise.all([
+    const loads: Promise<any>[] = [
       fetch('/api/tasks').then((r) => r.json()),
       fetch('/api/leave').then((r) => r.json()).catch(() => []),
       fetch('/api/attendance').then((r) => r.json()).catch(() => []),
-    ]).then(([t, l, att]) => {
+    ]
+    if (isAdmin) {
+      loads.push(fetch('/api/attendance?report=true&days=1').then((r) => r.json()).catch(() => []))
+      loads.push(fetch('/api/users').then((r) => r.json()).catch(() => []))
+    }
+    Promise.all(loads).then((results) => {
+      const [t, l, att] = results
       setTasks(Array.isArray(t) ? t : [])
       setLeaves(Array.isArray(l) ? l : [])
       const logs = Array.isArray(att) ? att : []
       const todays = logs.find((x: any) => x.date === today)
       setTodayLog(todays || null)
       setClocked(Boolean(todays?.login_time && !todays?.logout_time))
+      if (isAdmin) {
+        setTeamAtt(Array.isArray(results[3]) ? results[3] : [])
+        setTeamUsers(Array.isArray(results[4]) ? results[4] : [])
+      }
       setLoading(false)
     })
-  }, [today])
+  }, [today, isAdmin])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -143,9 +163,54 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const mineAssigned = openTasks.filter((t) => isTaskAssignee(t, session.id))
   const overdue = openTasks.filter((t) => t.due_date && t.due_date < today)
   const dueToday = openTasks.filter((t) => t.due_date === today)
+  const inProgress = openTasks.filter((t) => t.status === 'In Progress')
   const underReview = openTasks.filter((t) => t.status === 'Under Review' || t.requires_review)
+  const onTrack = Math.max(0, openTasks.length - overdue.length)
   const pendingLeave = leaves.filter((l) => l.status === 'Pending')
   const upNext = openTasks.slice(0, 10)
+  const health = deskHealth(openTasks.length, overdue.length, dueToday.length)
+
+  const teamToday = useMemo(() => {
+    if (!isAdmin) return []
+    const byUser: Record<string, any> = {}
+    for (const u of teamUsers.filter((x: any) => x.is_active !== false && x.role !== 'owner')) {
+      byUser[u.id] = { user: u, log: null as any }
+    }
+    for (const row of teamAtt) {
+      if (row.date !== today) continue
+      const uid = row.user_id
+      if (!byUser[uid]) {
+        byUser[uid] = {
+          user: row.user || { id: uid, name: 'Unknown', role: '' },
+          log: row,
+        }
+      } else {
+        byUser[uid].log = row
+      }
+    }
+    return Object.values(byUser).sort((a: any, b: any) => {
+      const rank = (row: any) => {
+        if (row.log?.login_time && !row.log?.logout_time) return 0
+        if (row.log?.login_time) return 1
+        return 2
+      }
+      const d = rank(a) - rank(b)
+      if (d !== 0) return d
+      return (a.user.name || '').localeCompare(b.user.name || '')
+    })
+  }, [isAdmin, teamUsers, teamAtt, today])
+
+  const attSummary = useMemo(() => {
+    let inNow = 0
+    let done = 0
+    let out = 0
+    for (const row of teamToday) {
+      if (row.log?.login_time && !row.log?.logout_time) inNow += 1
+      else if (row.log?.login_time) done += 1
+      else out += 1
+    }
+    return { inNow, done, out, total: teamToday.length }
+  }, [teamToday])
 
   const hour = new Date().getHours()
   const greet = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
@@ -215,6 +280,34 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
         </div>
       </header>
 
+      <section className={`sf-home-health is-${health.tone}`} aria-label="Desk health">
+        <div className="sf-home-health-main">
+          <span className="sf-home-health-badge">{health.label}</span>
+          <p className="sf-home-health-hint">{health.hint}</p>
+        </div>
+        <div className="sf-home-health-stats">
+          <button type="button" className="sf-home-health-stat" onClick={() => router.push('/tasks')}>
+            <strong>{onTrack}</strong>
+            <span>On track</span>
+          </button>
+          <button type="button" className="sf-home-health-stat" onClick={() => router.push('/calendar')}>
+            <strong>{dueToday.length}</strong>
+            <span>Due today</span>
+          </button>
+          <button type="button" className="sf-home-health-stat" onClick={() => router.push('/tasks')}>
+            <strong>{overdue.length}</strong>
+            <span>Overdue</span>
+          </button>
+          <button type="button" className="sf-home-health-stat" onClick={() => router.push('/tasks')}>
+            <strong>{inProgress.length}</strong>
+            <span>In progress</span>
+          </button>
+        </div>
+        <button type="button" className="sf-link-btn" onClick={() => router.push('/performance')}>
+          Performance →
+        </button>
+      </section>
+
       <div className="sf-home-metrics" role="list">
         {metrics.map((m) => (
           <button
@@ -229,6 +322,50 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
           </button>
         ))}
       </div>
+
+      {isAdmin && (
+        <section className="sf-home-att" aria-label="Team attendance">
+          <div className="sf-home-next-head">
+            <h2>Team today</h2>
+            <button type="button" className="sf-link-btn" onClick={() => router.push('/attendance')}>
+              Full attendance →
+            </button>
+          </div>
+          <div className="sf-home-att-summary">
+            <span><strong>{attSummary.inNow}</strong> in now</span>
+            <span><strong>{attSummary.done}</strong> finished</span>
+            <span><strong>{attSummary.out}</strong> not in</span>
+          </div>
+          {teamToday.length === 0 ? (
+            <div className="sf-home-att-empty">No team members to show.</div>
+          ) : (
+            <div className="sf-home-att-list">
+              {teamToday.slice(0, 12).map((row: any) => {
+                const active = row.log?.login_time && !row.log?.logout_time
+                const finished = Boolean(row.log?.logout_time)
+                const status = active ? 'In' : finished ? 'Out' : 'Away'
+                return (
+                  <button
+                    key={row.user.id}
+                    type="button"
+                    className="sf-home-att-row"
+                    onClick={() => router.push('/attendance')}
+                  >
+                    <span className="sf-home-att-name">{row.user.name}</span>
+                    <span className="sf-home-att-role">{row.user.role || row.user.designation || ''}</span>
+                    <span className={`sf-home-att-pill is-${status.toLowerCase()}`}>{status}</span>
+                    <span className="sf-home-att-time">
+                      {row.log?.login_time
+                        ? `${row.log.login_time}${row.log.logout_time ? `–${row.log.logout_time}` : ''}`
+                        : '—'}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="sf-home-next" aria-label="Up next">
         <div className="sf-home-next-head">

@@ -17,15 +17,15 @@ import { BrandBadge } from '@/components/app/BrandBadge'
 const STATUSES = TASK_STATUSES
 const PRIORITIES = ['Critical','High','Medium','Low']
 const TYPES = ['Design','Content','Development','Strategy','Operations','Other']
-const BOARD_COLUMNS: { status: TaskStatus; label: string; accent: string }[] = [
-  { status: 'Not Started', label: 'To Do', accent: '#64748b' },
-  { status: 'In Progress', label: 'Doing', accent: '#3b82f6' },
-  { status: 'Under Review', label: 'In Review', accent: '#a855f7' },
-  { status: 'Revision Needed', label: 'Revisions', accent: '#f59e0b' },
-  { status: 'Completed', label: 'Done', accent: '#22c55e' },
-  { status: 'On Hold', label: 'On Hold', accent: '#94a3b8' },
-  { status: 'Struggling', label: 'Struggling', accent: '#ef4444' },
-  { status: 'Needs Attention', label: 'Attention', accent: '#fb923c' },
+const BOARD_COLUMNS: { status: TaskStatus; label: string }[] = [
+  { status: 'Not Started', label: 'To Do' },
+  { status: 'In Progress', label: 'Doing' },
+  { status: 'Under Review', label: 'In Review' },
+  { status: 'Revision Needed', label: 'Revisions' },
+  { status: 'Completed', label: 'Done' },
+  { status: 'On Hold', label: 'On Hold' },
+  { status: 'Struggling', label: 'Struggling' },
+  { status: 'Needs Attention', label: 'Attention' },
 ]
 const PRIORITY_RANK: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 }
 const PRIORITY_COLORS: Record<string, { bg: string; text: string }> = {
@@ -439,16 +439,16 @@ export default function TasksClient({ session }: { session: SessionUser }) {
       ) : (
         <Section
           title="Task board"
-          subtitle="Scroll inside each column — about 4 cards visible; drag the board sideways for more statuses"
+          subtitle="Scroll each column for the full list — swipe sideways for more statuses"
           flush
           flex={1}
           className="sf-tasks-board-section"
         >
           <div className="sf-trello-board">
-          {BOARD_COLUMNS.map(({ status: col, label, accent }) => {
+          {BOARD_COLUMNS.map(({ status: col, label }) => {
             const colTasks = filtered.filter(t => t.status === col)
             return (
-              <div key={col} className="sf-trello-col" style={{ '--col-accent': accent } as React.CSSProperties}>
+              <div key={col} className="sf-trello-col">
                 <div className="sf-trello-col-head">
                   <span className="sf-trello-col-title">{label}</span>
                   <span className="sf-trello-col-count" title={`${colTasks.length} in ${label}`}>{colTasks.length}</span>
@@ -461,24 +461,14 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                 {colTasks.map(task => {
                   const due = dueChip(task)
                   const initials = assigneeInitials(task)
-                  const pri = PRIORITY_COLORS[task.priority || 'Low'] || PRIORITY_COLORS.Low
                   return (
-                  <div
-                    key={task.id}
-                    className="sf-trello-card"
-                    style={{ borderLeftColor: pri.text }}
-                  >
-                    <div className="sf-trello-card-labels">
-                      <span className="sf-trello-label" style={{ background: pri.bg, color: pri.text }}>{task.priority || 'Low'}</span>
-                      {task.requires_review && <span className="sf-trello-label sf-trello-label-review">Review</span>}
-                      {task.recurring_config?.enabled && <span className="sf-trello-label sf-trello-label-recur">Recurring</span>}
-                      {task.type && <span className="sf-trello-label sf-trello-label-type">{task.type}</span>}
-                    </div>
+                  <div key={task.id} className={`sf-trello-card${due?.late ? ' is-late' : ''}`}>
                     <button type="button" className="sf-trello-card-title" onClick={() => openTask(task)}>
                       {task.title}
                     </button>
                     <div className="sf-trello-card-meta">
                       <span className="sf-trello-brand"><BrandBadge brand={task.brand} /></span>
+                      <span className="sf-trello-pri">{task.priority || 'Medium'}</span>
                       {due && (
                         <span className={`sf-trello-due${due.late ? ' sf-trello-due-late' : ''}`}>
                           {due.late ? `${Math.abs(due.dl)}d late` : due.dl === 0 ? 'Today' : `${due.dl}d`}
@@ -500,7 +490,6 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                         value={task.status}
                         onChange={e => updateTaskStatus(task.id, e.target.value)}
                         className="sf-trello-status"
-                        style={statusTint(task.status)}
                       >
                         {statusOptions(task).map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
@@ -709,14 +698,17 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
   const sSel = { ...sInp, cursor:'pointer' }
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:20 }} onClick={onClose}>
-      <div style={{ background:'var(--sf-surface)', border:'1px solid var(--sf-border)', borderRadius:16, padding:28, width:'100%', maxWidth:560, maxHeight:'88vh', overflowY:'auto' }} onClick={e => e.stopPropagation()}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-          <h3 style={{ color:'var(--sf-text)', fontFamily:"'Space Grotesk',sans-serif", fontSize:18, fontWeight:700 }}>
-            {forceProjectMode && !isEdit ? 'Create Project' : (isEdit && task?.task_mode === 'project' ? 'Edit Project' : (isEdit ? 'Edit Task' : 'Create New Task'))}
-          </h3>
-          <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--sf-muted)', cursor:'pointer', fontSize:22 }}>×</button>
+    <div className="sf-modal-overlay" style={{ zIndex: 1000 }} onClick={onClose}>
+      <div className="sf-modal-panel sf-modal-panel-wide sf-task-form-modal" onClick={e => e.stopPropagation()}>
+        <div className="sf-modal-header">
+          <div className="sf-modal-header-copy">
+            <h3 className="sf-modal-title">
+              {forceProjectMode && !isEdit ? 'Create Project' : (isEdit && task?.task_mode === 'project' ? 'Edit Project' : (isEdit ? 'Edit Task' : 'Create New Task'))}
+            </h3>
+          </div>
+          <button type="button" className="sf-modal-close" onClick={onClose} aria-label="Close">×</button>
         </div>
+        <div className="sf-modal-body">
 
         {!isEdit && !forceProjectMode && (
         <div style={{ background:'rgba(6,182,212,0.08)', border:'1px solid rgba(6,182,212,0.2)', borderRadius:9, padding:'8px 12px', marginBottom:14, color:'var(--sf-text-secondary)', fontSize:12 }}>
@@ -871,6 +863,7 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
             </button>
           )}
         </div>
+        </div>
       </div>
     </div>
   )
@@ -921,13 +914,16 @@ export function TaskProgressModal({ session, task, onClose, onSaved }: any) {
   }
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:20 }} onClick={onClose}>
-      <div style={{ background:'var(--sf-surface)', border:'1px solid var(--sf-border)', borderRadius:16, padding:28, width:'100%', maxWidth:560, maxHeight:'88vh', overflowY:'auto' }} onClick={e => e.stopPropagation()}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
-          <h3 style={{ color:'var(--sf-text)', fontFamily:"'Space Grotesk',sans-serif", fontSize:18, fontWeight:700 }}>Update progress</h3>
-          <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--sf-muted)', cursor:'pointer', fontSize:22 }}>×</button>
+    <div className="sf-modal-overlay" style={{ zIndex: 1000 }} onClick={onClose}>
+      <div className="sf-modal-panel sf-modal-panel-wide sf-task-form-modal" onClick={e => e.stopPropagation()}>
+        <div className="sf-modal-header">
+          <div className="sf-modal-header-copy">
+            <h3 className="sf-modal-title">Update progress</h3>
+            <p className="sf-modal-subtitle">{task.title}</p>
+          </div>
+          <button type="button" className="sf-modal-close" onClick={onClose} aria-label="Close">×</button>
         </div>
-        <p style={{ color:'var(--sf-muted)', fontSize:13, marginBottom:16 }}>{task.title}</p>
+        <div className="sf-modal-body">
         {isParentAssignee && (
           <div style={{ marginBottom:12 }}>
             <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:5, display:'block' }}>Status</label>
@@ -975,6 +971,7 @@ export function TaskProgressModal({ session, task, onClose, onSaved }: any) {
         <div style={{ display:'flex', gap:8 }}>
           <button onClick={save} disabled={saving} className="sf-btn sf-btn-primary">{saving ? 'Saving…' : 'Save progress'}</button>
           <button onClick={onClose} className="sf-btn sf-btn-ghost">Cancel</button>
+        </div>
         </div>
       </div>
     </div>

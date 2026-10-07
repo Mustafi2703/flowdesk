@@ -164,7 +164,13 @@ html[data-theme='morning'] body {
   flex-shrink: 0;
 }
 .sf-modal-panel-wide {
-  width: min(720px, 100%);
+  width: min(920px, 100%);
+}
+.sf-task-form-modal {
+  max-height: min(92vh, 960px);
+}
+.sf-task-form-modal .sf-modal-body {
+  padding: 18px 22px 22px;
 }
 .sf-modal-panel-full {
   width: min(1360px, calc(100vw - 40px));
@@ -3609,6 +3615,183 @@ html[data-theme='morning'] body {
 .sf-home-ops {
   margin-top: 1.25rem;
 }
+.sf-home-health {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  background: var(--sf-surface);
+  border-left: 3px solid var(--sf-border-strong);
+}
+.sf-home-health.is-good {
+  border-left-color: var(--sf-success);
+}
+.sf-home-health.is-warn {
+  border-left-color: var(--sf-warning);
+}
+.sf-home-health.is-bad {
+  border-left-color: var(--sf-danger);
+}
+.sf-home-health-main {
+  min-width: 160px;
+}
+.sf-home-health-badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sf-text);
+  margin-bottom: 4px;
+}
+.sf-home-health-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--sf-muted);
+  max-width: 280px;
+  line-height: 1.4;
+}
+.sf-home-health-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+  justify-content: flex-end;
+}
+.sf-home-health-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 72px;
+  padding: 8px 10px;
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius-sm);
+  background: var(--sf-surface-2);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+.sf-home-health-stat:hover {
+  background: var(--sf-surface-hover);
+}
+.sf-home-health-stat strong {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.15rem;
+  color: var(--sf-text);
+  line-height: 1;
+}
+.sf-home-health-stat span {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--sf-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.sf-home-att {
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  background: var(--sf-surface);
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+}
+.sf-home-att-summary {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--sf-border);
+  font-size: 12px;
+  color: var(--sf-muted);
+  background: var(--sf-surface-2);
+}
+.sf-home-att-summary strong {
+  color: var(--sf-text);
+  font-weight: 700;
+}
+.sf-home-att-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.sf-home-att-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  border-bottom: 1px solid var(--sf-border);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+.sf-home-att-row:last-child {
+  border-bottom: none;
+}
+.sf-home-att-row:hover {
+  background: var(--sf-surface-hover);
+}
+.sf-home-att-name {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--sf-text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sf-home-att-role {
+  font-size: 11px;
+  color: var(--sf-muted);
+  text-transform: capitalize;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sf-home-att-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--sf-radius-sm);
+  border: 1px solid var(--sf-border);
+  background: var(--sf-surface-2);
+  color: var(--sf-muted);
+}
+.sf-home-att-pill.is-in {
+  color: var(--sf-success);
+  border-color: color-mix(in srgb, var(--sf-success) 30%, var(--sf-border));
+  background: rgba(16, 185, 129, 0.1);
+}
+.sf-home-att-pill.is-out {
+  color: var(--sf-text-secondary);
+}
+.sf-home-att-pill.is-away {
+  color: var(--sf-warning);
+  border-color: color-mix(in srgb, var(--sf-warning) 30%, var(--sf-border));
+  background: rgba(217, 119, 6, 0.1);
+}
+.sf-home-att-time {
+  font-size: 11px;
+  color: var(--sf-muted);
+  font-variant-numeric: tabular-nums;
+  justify-self: end;
+}
+.sf-home-att-empty {
+  padding: 20px 16px;
+  color: var(--sf-muted);
+  font-size: 13px;
+  text-align: center;
+}
 
 @media (max-width: 720px) {
   .sf-dash-clock-bar {
@@ -3657,6 +3840,26 @@ html[data-theme='morning'] body {
   .sf-admin-desk {
     grid-template-columns: 1fr !important;
   }
+  .sf-home-health {
+    align-items: stretch;
+  }
+  .sf-home-health-stats {
+    justify-content: stretch;
+    width: 100%;
+  }
+  .sf-home-health-stat {
+    flex: 1 1 40%;
+  }
+  .sf-home-att-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'name pill'
+      'role time';
+  }
+  .sf-home-att-name { grid-area: name; }
+  .sf-home-att-role { grid-area: role; }
+  .sf-home-att-pill { grid-area: pill; justify-self: end; }
+  .sf-home-att-time { grid-area: time; }
 }
 
 .sf-dash-clock-alert {
@@ -5944,19 +6147,21 @@ html[data-theme='morning'] .sf-table tr:hover td {
 }
 .sf-trello-board {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   overflow-x: auto;
   overflow-y: hidden;
   flex: 1 1 auto;
   min-height: 0;
-  max-height: min(520px, calc(100dvh - 13.5rem));
-  padding: 12px 14px 16px;
+  height: min(720px, calc(100dvh - 11rem));
+  max-height: none;
+  padding: 14px 16px 18px;
   align-items: stretch;
   -webkit-overflow-scrolling: touch;
 }
 .sf-trello-col {
-  flex: 0 0 272px;
-  width: 272px;
+  flex: 0 0 300px;
+  width: 300px;
+  height: 100%;
   max-height: 100%;
   min-height: 0;
   display: flex;
@@ -5964,7 +6169,7 @@ html[data-theme='morning'] .sf-table tr:hover td {
   background: var(--sf-surface);
   border: 1px solid var(--sf-border);
   border-radius: 12px;
-  border-top: 3px solid var(--col-accent, var(--sf-border-strong));
+  border-top: 2px solid var(--sf-border-strong);
 }
 .sf-trello-col-head {
   display: flex;
@@ -5991,73 +6196,48 @@ html[data-theme='morning'] .sf-table tr:hover td {
 .sf-trello-col-body {
   flex: 1 1 auto;
   min-height: 0;
-  max-height: min(440px, calc(100dvh - 16rem));
+  max-height: none;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
-  padding: 0 10px 10px;
+  padding: 0 10px 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   scrollbar-width: thin;
 }
 .sf-trello-col-body[data-count='0'] {
-  max-height: 120px;
-}
-.sf-trello-col-body:not([data-count='0']) {
-  /* ~3–5 cards visible (card ~88–110px + gap) */
-  min-height: 120px;
+  justify-content: center;
 }
 @media (max-width: 860px) {
   .sf-trello-board {
-    max-height: min(480px, calc(100dvh - 11rem));
+    height: min(640px, calc(100dvh - 9.5rem));
   }
-  .sf-trello-col-body {
-    max-height: min(400px, calc(100dvh - 13rem));
+  .sf-trello-col {
+    flex: 0 0 280px;
+    width: 280px;
   }
 }
 .sf-trello-card {
   background: var(--sf-surface-2);
   border: 1px solid var(--sf-border);
-  border-left: 4px solid var(--sf-accent);
+  border-left: 3px solid var(--sf-border-strong);
   border-radius: 10px;
-  padding: 10px 10px 8px;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  padding: 12px 12px 10px;
+  box-shadow: none;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.sf-trello-card.is-late {
+  border-left-color: var(--sf-danger);
 }
 .sf-trello-card:hover {
-  box-shadow: var(--sf-shadow);
-  transform: translateY(-1px);
+  background: var(--sf-surface-hover);
+  border-color: var(--sf-border-strong);
 }
-[data-theme='morning'] .sf-trello-card:hover {
-  box-shadow: var(--sf-shadow-lg);
-}
-[data-theme='morning'] .sf-trello-label-review {
-  color: #7c3aed;
-}
-[data-theme='morning'] .sf-trello-label-type {
-  color: #2563eb;
-}
-.sf-trello-card-labels {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 6px;
-}
-.sf-trello-label {
+.sf-trello-pri {
   font-size: 10px;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-  line-height: 1.3;
-}
-.sf-trello-label-review {
-  background: rgba(168, 85, 247, 0.18);
-  color: #c084fc;
-}
-.sf-trello-label-type {
-  background: rgba(96, 165, 250, 0.15);
-  color: #93c5fd;
+  font-weight: 600;
+  color: var(--sf-muted);
 }
 .sf-trello-card-title {
   display: block;

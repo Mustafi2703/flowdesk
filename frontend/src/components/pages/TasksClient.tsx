@@ -248,64 +248,63 @@ export default function TasksClient({ session }: { session: SessionUser }) {
 
   return (
     <PageShell fill={view === 'kanban'} className={`sf-tasks-page${view === 'kanban' ? ' sf-tasks-page--board' : ''}`}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexShrink:0 }}>
-        <PageHeader
-          title={session.role === 'team' ? 'My Tasks' : 'Tasks'}
-          subtitle={`${filtered.length} items`}
-        />
-        {canCreate && (
-          <button onClick={() => setShowCreate(true)} className="sf-btn sf-btn-primary" style={{ marginTop:4 }}>New task</button>
+      <div className="sf-tasks-top">
+        <div className="sf-tasks-top-row">
+          <PageHeader
+            title={session.role === 'team' ? 'My Tasks' : 'Tasks'}
+            subtitle={`${filtered.length} items`}
+          />
+          {canCreate && (
+            <button onClick={() => setShowCreate(true)} className="sf-btn sf-btn-primary">New task</button>
+          )}
+        </div>
+        {view !== 'kanban' && canEdit && (
+          <p className="sf-tasks-hint">
+            Owners and managers can edit tasks and set prices. Assigned members upload files to send review tasks forward — status moves automatically.
+          </p>
         )}
-      </div>
-      {canEdit && (
-        <p style={{ color:'var(--sf-muted)', fontSize:12, margin:'-8px 0 12px', flexShrink:0 }}>
-          Owners and managers can edit tasks and set prices. Assigned members upload files to send review tasks forward — status moves automatically.
-        </p>
-      )}
-      {!clockedIn && (
-        <p style={{ color:'#FBBF24', fontSize:12, margin:'-8px 0 12px', flexShrink:0 }}>
-          Clock in from the top bar before updating task progress or status.
-        </p>
-      )}
-      {clockedIn && (
-        <p style={{ color:'var(--sf-muted)', fontSize:12, margin:'-8px 0 12px', flexShrink:0 }}>
-          Open a task for the full page. Status, review, and files live there — not in a popup.
-        </p>
-      )}
+        {!clockedIn && (
+          <p className="sf-tasks-hint is-warn">
+            Clock in from the top bar before updating task progress or status.
+          </p>
+        )}
 
-      <Section title="Filters & view" subtitle="Sort and filter the task list" flush style={{ flexShrink:0 }}>
-        <div style={{ padding:'0.75rem 1rem', display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
-        <div style={{ display:'flex', background:'var(--sf-surface)', border:'1px solid var(--sf-border)', borderRadius:8, overflow:'hidden' }}>
-          {(['list','kanban'] as const).map(v => (
-            <button key={v} onClick={() => setView(v)} style={{ padding:'7px 14px', background:view===v?'var(--sf-accent)':'transparent', border:'none', color:view===v?'#fff':'var(--sf-muted)', cursor:'pointer', fontSize:12, fontWeight:600 }}>
-              {v === 'list' ? 'List' : 'Board'}
-            </button>
-          ))}
+        <div className="sf-tasks-toolbar">
+          <div className="sf-tasks-view-toggle">
+            {(['list','kanban'] as const).map(v => (
+              <button key={v} type="button" onClick={() => setView(v)} className={view === v ? 'is-active' : ''}>
+                {v === 'list' ? 'List' : 'Board'}
+              </button>
+            ))}
+          </div>
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={toolbarSelect}>
+            <option value="All">All statuses</option>
+            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} style={toolbarSelect}>
+            <option value="All">All brands</option>
+            {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+          {view === 'list' && (
+            <>
+              <select value={sortBy} onChange={e => setSortBy(e.target.value as SortKey)} style={toolbarSelect}>
+                <option value="due_date">Sort: Due date</option>
+                <option value="priority">Sort: Priority</option>
+                <option value="status">Sort: Status</option>
+                <option value="title">Sort: Title</option>
+                <option value="brand">Sort: Brand</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                style={{ ...toolbarSelect, cursor:'pointer' }}
+              >
+                {sortDir === 'asc' ? 'Ascending' : 'Descending'}
+              </button>
+            </>
+          )}
         </div>
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={toolbarSelect}>
-          <option value="All">All statuses</option>
-          {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} style={toolbarSelect}>
-          <option value="All">All brands</option>
-          {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-        </select>
-        <select value={sortBy} onChange={e => setSortBy(e.target.value as SortKey)} style={toolbarSelect}>
-          <option value="due_date">Sort: Due date</option>
-          <option value="priority">Sort: Priority</option>
-          <option value="status">Sort: Status</option>
-          <option value="title">Sort: Title</option>
-          <option value="brand">Sort: Brand</option>
-        </select>
-        <button
-          type="button"
-          onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
-          style={{ ...toolbarSelect, cursor:'pointer' }}
-        >
-          {sortDir === 'asc' ? 'Ascending' : 'Descending'}
-        </button>
-        </div>
-      </Section>
+      </div>
 
       {view === 'list' ? (
         <Section title="Task list" subtitle={`${filtered.length} tasks`} flush flex={1}>
@@ -437,13 +436,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
           </div>
         </Section>
       ) : (
-        <Section
-          title="Task board"
-          subtitle="Scroll each column for the full list — swipe sideways for more statuses"
-          flush
-          flex={1}
-          className="sf-tasks-board-section"
-        >
+        <div className="sf-tasks-board-section" aria-label="Task board">
           <div className="sf-trello-board">
           {BOARD_COLUMNS.map(({ status: col, label }) => {
             const colTasks = filtered.filter(t => t.status === col)
@@ -481,24 +474,12 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                           <span key={i} className="sf-trello-avatar" title="Assignee">{ini}</span>
                         ))}
                       </div>
-                      {canUpdateStatus(task) && task.status === 'Not Started' && (
-                        <button type="button" onClick={() => updateTaskStatus(task.id, 'In Progress')} className="sf-btn sf-btn-primary sf-trello-start">Start</button>
-                      )}
-                    </div>
-                    {canUpdateStatus(task) && task.status !== 'Not Started' && (
-                      <select
-                        value={task.status}
-                        onChange={e => updateTaskStatus(task.id, e.target.value)}
-                        className="sf-trello-status"
-                      >
-                        {statusOptions(task).map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    )}
-                    <div className="sf-trello-card-actions">
-                      <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-ghost">Open</button>
-                      {canEdit && task.requires_review && task.status === 'Under Review' && (
-                        <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-primary">Review</button>
-                      )}
+                      <div className="sf-trello-card-actions">
+                        {canUpdateStatus(task) && task.status === 'Not Started' && (
+                          <button type="button" onClick={() => updateTaskStatus(task.id, 'In Progress')} className="sf-btn sf-btn-primary sf-trello-start">Start</button>
+                        )}
+                        <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-ghost">Open</button>
+                      </div>
                     </div>
                   </div>
                   )
@@ -509,7 +490,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
             )
           })}
           </div>
-        </Section>
+        </div>
       )}
 
       {showCreate && canCreate && (

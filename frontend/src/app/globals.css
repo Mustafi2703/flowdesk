@@ -6277,33 +6277,91 @@ html[data-theme='morning'] .sf-table tr:hover td {
   }
 }
 
-/* Trello-style task board */
+/* Full-page Trello-style task board */
+.sf-tasks-top {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sf-tasks-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.sf-tasks-top-row .sf-page-header {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+.sf-tasks-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--sf-muted);
+}
+.sf-tasks-hint.is-warn {
+  color: #FBBF24;
+}
+.sf-tasks-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius-sm);
+  background: var(--sf-surface);
+}
+.sf-tasks-view-toggle {
+  display: inline-flex;
+  background: var(--sf-surface-2);
+  border: 1px solid var(--sf-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.sf-tasks-view-toggle button {
+  padding: 7px 14px;
+  border: none;
+  background: transparent;
+  color: var(--sf-muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+}
+.sf-tasks-view-toggle button.is-active {
+  background: var(--sf-accent);
+  color: #fff;
+}
+
 .sf-tasks-page--board.sf-page-fill {
   min-height: 0;
 }
-.sf-tasks-page--board .sf-tasks-board-section.sf-section-fill {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+.sf-tasks-page--board .sf-page-canvas-fill {
+  gap: 10px;
 }
-.sf-tasks-page--board .sf-tasks-board-section > .sf-section-body-flush {
+.sf-tasks-page--board .sf-tasks-board-section {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden;
+  height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  background: var(--sf-surface-2);
 }
 .sf-trello-board {
   display: flex;
-  gap: 14px;
+  gap: 12px;
   overflow-x: auto;
   overflow-y: hidden;
   flex: 1 1 auto;
   min-height: 0;
-  height: min(720px, calc(100dvh - 11rem));
+  height: 100%;
   max-height: none;
-  padding: 14px 16px 18px;
+  padding: 12px;
   align-items: stretch;
   -webkit-overflow-scrolling: touch;
 }
@@ -6318,14 +6376,14 @@ html[data-theme='morning'] .sf-table tr:hover td {
   background: var(--sf-surface);
   border: 1px solid var(--sf-border);
   border-radius: 12px;
-  border-top: 2px solid var(--sf-border-strong);
 }
 .sf-trello-col-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 10px 12px 8px;
+  padding: 12px 12px 10px;
+  flex-shrink: 0;
 }
 .sf-trello-col-title {
   font-size: 12px;
@@ -6345,7 +6403,7 @@ html[data-theme='morning'] .sf-table tr:hover td {
 .sf-trello-col-body {
   flex: 1 1 auto;
   min-height: 0;
-  max-height: none;
+  max-height: none !important;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
@@ -6359,12 +6417,9 @@ html[data-theme='morning'] .sf-table tr:hover td {
   justify-content: center;
 }
 @media (max-width: 860px) {
-  .sf-trello-board {
-    height: min(640px, calc(100dvh - 9.5rem));
-  }
   .sf-trello-col {
-    flex: 0 0 280px;
-    width: 280px;
+    flex: 0 0 min(85vw, 300px);
+    width: min(85vw, 300px);
   }
 }
 .sf-trello-card {
@@ -6372,9 +6427,10 @@ html[data-theme='morning'] .sf-table tr:hover td {
   border: 1px solid var(--sf-border);
   border-left: 3px solid var(--sf-border-strong);
   border-radius: 10px;
-  padding: 12px 12px 10px;
+  padding: 10px;
   box-shadow: none;
   transition: background 0.12s ease, border-color 0.12s ease;
+  flex-shrink: 0;
 }
 .sf-trello-card.is-late {
   border-left-color: var(--sf-danger);
@@ -6439,7 +6495,10 @@ html[data-theme='morning'] .sf-table tr:hover td {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-top: 4px;
+}
+.sf-trello-card-foot .sf-trello-card-actions {
+  margin: 0;
 }
 .sf-trello-avatars {
   display: flex;
@@ -8510,22 +8569,26 @@ html[data-theme='morning'] .sf-sidebar .sf-sidebar-collapse-btn {
   }
   .sf-trello-board {
     max-height: none;
-    padding: 8px 8px 16px;
+    height: 100%;
+    padding: 8px;
     scroll-snap-type: x mandatory;
   }
   .sf-trello-col {
-    flex: 0 0 min(88vw, 340px);
-    width: min(88vw, 340px);
+    flex: 0 0 min(88vw, 320px);
+    width: min(88vw, 320px);
     scroll-snap-align: start;
   }
   .sf-trello-col-title {
     font-size: 13px;
   }
   .sf-trello-col-body {
-    max-height: min(62dvh, 520px);
+    max-height: none !important;
   }
   .sf-trello-card {
-    padding: 12px;
+    padding: 10px;
+  }
+  .sf-tasks-page--board .sf-tasks-board-section {
+    min-height: 55dvh;
   }
   .sf-page-tab {
     min-height: 44px;

@@ -20,28 +20,27 @@ const ROLE_TAG: Record<string, string> = {
   developer: 'Your build desk',
 }
 
-function deskHealth(open: number, overdue: number, dueToday: number) {
-  if (open === 0) return { label: 'Clear desk', tone: 'good', hint: 'Nothing open right now.' }
-  if (overdue >= 3) return { label: 'Needs attention', tone: 'bad', hint: `${overdue} overdue — clear the oldest first.` }
-  if (overdue > 0) return { label: 'At risk', tone: 'warn', hint: `${overdue} overdue · ${dueToday} due today.` }
-  if (dueToday > 0) return { label: 'On track', tone: 'good', hint: `${dueToday} due today — keep momentum.` }
-  return { label: 'Healthy', tone: 'good', hint: `${open} open · none overdue.` }
+function formatUpdateTime(iso?: string) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 export default function OverviewClient({ session }: { session: SessionUser }) {
   const router = useRouter()
   const [tasks, setTasks] = useState<any[]>([])
-  const [leaves, setLeaves] = useState<any[]>([])
+  const [updates, setUpdates] = useState<any[]>([])
   const [todayLog, setTodayLog] = useState<any>(null)
   const [clocked, setClocked] = useState(false)
   const [loading, setLoading] = useState(true)
   const [nowTick, setNowTick] = useState(Date.now())
+  const [attSummary, setAttSummary] = useState({ inNow: 0, total: 0 })
+  const [opsOpen, setOpsOpen] = useState(false)
   const [emailBusy, setEmailBusy] = useState('')
   const [emailNotice, setEmailNotice] = useState('')
   const [driveStatus, setDriveStatus] = useState<any>(null)
   const [driveBusy, setDriveBusy] = useState(false)
-  const [teamAtt, setTeamAtt] = useState<any[]>([])
-  const [teamUsers, setTeamUsers] = useState<any[]>([])
   const today = todayIST()
 
   const isOwner = session.role === 'owner'
@@ -57,7 +56,7 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   useEffect(() => {
     const loads: Promise<any>[] = [
       fetch('/api/tasks').then((r) => r.json()),
-      fetch('/api/leave').then((r) => r.json()).catch(() => []),
+      fetch('/api/updates').then((r) => r.json()).catch(() => []),
       fetch('/api/attendance').then((r) => r.json()).catch(() => []),
     ]
     if (isAdmin) {
@@ -65,28 +64,34 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
       loads.push(fetch('/api/users').then((r) => r.json()).catch(() => []))
     }
     Promise.all(loads).then((results) => {
-      const [t, l, att] = results
+      const [t, u, att] = results
       setTasks(Array.isArray(t) ? t : [])
-      setLeaves(Array.isArray(l) ? l : [])
+      setUpdates(Array.isArray(u) ? u : [])
       const logs = Array.isArray(att) ? att : []
       const todays = logs.find((x: any) => x.date === today)
       setTodayLog(todays || null)
       setClocked(Boolean(todays?.login_time && !todays?.logout_time))
       if (isAdmin) {
-        setTeamAtt(Array.isArray(results[3]) ? results[3] : [])
-        setTeamUsers(Array.isArray(results[4]) ? results[4] : [])
+        const report = Array.isArray(results[3]) ? results[3] : []
+        const users = Array.isArray(results[4]) ? results[4] : []
+        const activeUsers = users.filter((x: any) => x.is_active !== false && x.role !== 'owner')
+        let inNow = 0
+        for (const row of report) {
+          if (row.date === today && row.login_time && !row.logout_time) inNow += 1
+        }
+        setAttSummary({ inNow, total: activeUsers.length || report.length })
       }
       setLoading(false)
     })
   }, [today, isAdmin])
 
   useEffect(() => {
-    if (!isAdmin) return
+    if (!isAdmin || !opsOpen) return
     fetch('/api/drive/status')
       .then((r) => r.json())
       .then(setDriveStatus)
       .catch(() => setDriveStatus(null))
-  }, [isAdmin])
+  }, [isAdmin, opsOpen])
 
   async function connectDrive() {
     setDriveBusy(true)
@@ -160,77 +165,32 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
       })
   }, [scopeTasks])
 
-  const mineAssigned = openTasks.filter((t) => isTaskAssignee(t, session.id))
   const overdue = openTasks.filter((t) => t.due_date && t.due_date < today)
   const dueToday = openTasks.filter((t) => t.due_date === today)
   const inProgress = openTasks.filter((t) => t.status === 'In Progress')
-  const underReview = openTasks.filter((t) => t.status === 'Under Review' || t.requires_review)
-  const onTrack = Math.max(0, openTasks.length - overdue.length)
-  const pendingLeave = leaves.filter((l) => l.status === 'Pending')
-  const upNext = openTasks.slice(0, 10)
-  const health = deskHealth(openTasks.length, overdue.length, dueToday.length)
+  const underReview = openTasks.filter((t) => t.status === 'Under Review')
+  const taskList = openTasks.slice(0, 12)
 
-  const clientChips = useMemo(() => {
-    const map = new Map<string, number>()
+  const updateFeed = useMemo(() => {
+    const byTask = new Map()
+    for (const u of updates) {
+      const prev = byTask.get(u.task_id)
+      if (!prev || new Date(u.created_at) > new Date(prev.created_at)) byTask.set(u.task_id, u)
+    }
+    const rows = []
     for (const t of openTasks) {
-      const name = t.brand?.name || 'No brand'
-      map.set(name, (map.get(name) || 0) + 1)
+      if (t.updates_closed) continue
+      const last = byTask.get(t.id)
+      rows.push({
+        task: t,
+        lastMessage: last?.message || null,
+        lastAt: last?.created_at || t.updated_at || t.created_at,
+        lastSender: last?.sender?.name || null,
+      })
     }
-    return Array.from(map.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
-      .slice(0, 10)
-  }, [openTasks])
-
-  const threadChips = useMemo(() => {
-    return openTasks.slice(0, 8).map((t) => ({
-      id: t.id,
-      title: t.title,
-      brand: t.brand?.name || 'No brand',
-    }))
-  }, [openTasks])
-
-  const teamToday = useMemo(() => {
-    if (!isAdmin) return []
-    const byUser: Record<string, any> = {}
-    for (const u of teamUsers.filter((x: any) => x.is_active !== false && x.role !== 'owner')) {
-      byUser[u.id] = { user: u, log: null as any }
-    }
-    for (const row of teamAtt) {
-      if (row.date !== today) continue
-      const uid = row.user_id
-      if (!byUser[uid]) {
-        byUser[uid] = {
-          user: row.user || { id: uid, name: 'Unknown', role: '' },
-          log: row,
-        }
-      } else {
-        byUser[uid].log = row
-      }
-    }
-    return Object.values(byUser).sort((a: any, b: any) => {
-      const rank = (row: any) => {
-        if (row.log?.login_time && !row.log?.logout_time) return 0
-        if (row.log?.login_time) return 1
-        return 2
-      }
-      const d = rank(a) - rank(b)
-      if (d !== 0) return d
-      return (a.user.name || '').localeCompare(b.user.name || '')
-    })
-  }, [isAdmin, teamUsers, teamAtt, today])
-
-  const attSummary = useMemo(() => {
-    let inNow = 0
-    let done = 0
-    let out = 0
-    for (const row of teamToday) {
-      if (row.log?.login_time && !row.log?.logout_time) inNow += 1
-      else if (row.log?.login_time) done += 1
-      else out += 1
-    }
-    return { inNow, done, out, total: teamToday.length }
-  }, [teamToday])
+    rows.sort((a, b) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime())
+    return rows.slice(0, 10)
+  }, [updates, openTasks])
 
   const hour = new Date().getHours()
   const greet = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
@@ -240,29 +200,12 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const todayInTime = todayLog?.login_time || null
   const hoursTodayLabel = todayInTime ? `${liveHoursToday(todayLog).toFixed(1)}h` : '0h'
 
-  const deskBlurb = isOwner
-    ? 'Agency-wide open work'
-    : isManager
-      ? 'Only tasks assigned to you or your delivery desk'
-      : 'Only tasks assigned to you'
-
   const metrics = [
-    {
-      label: personalOnly ? 'My open' : 'Open',
-      value: openTasks.length,
-      href: '/tasks',
-    },
-    ...(isManager
-      ? [{ label: 'Assigned to me', value: mineAssigned.length, href: '/tasks' }]
-      : []),
+    { label: 'Open', value: openTasks.length, href: '/tasks' },
+    { label: 'In progress', value: inProgress.length, href: '/tasks' },
     { label: 'Due today', value: dueToday.length, href: '/calendar' },
     { label: 'Overdue', value: overdue.length, href: '/tasks' },
-    ...(isAdmin || session.role === 'team' || session.role === 'developer'
-      ? [{ label: 'In review', value: underReview.length, href: isAdmin ? '/review' : '/tasks' }]
-      : []),
-    ...(isAdmin || session.role === 'hr'
-      ? [{ label: 'Leave', value: pendingLeave.length, href: '/leave' }]
-      : []),
+    { label: 'In review', value: underReview.length, href: isAdmin ? '/review' : '/tasks' },
   ]
 
   if (loading) {
@@ -278,6 +221,11 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
           </span>
           <span className="sf-dash-clock-stat">In <strong>{todayInTime || '—'}</strong></span>
           <span className="sf-dash-clock-stat">Today <strong>{hoursTodayLabel}</strong></span>
+          {isAdmin && (
+            <button type="button" className="sf-home-att-mini" onClick={() => router.push('/attendance')}>
+              Team <strong>{attSummary.inNow}</strong>/{attSummary.total} in
+            </button>
+          )}
         </div>
         <button type="button" onClick={clocked ? clockOut : clockIn} className="sf-btn sf-btn-primary">
           {clocked ? 'Clock out' : 'Clock in'}
@@ -288,96 +236,16 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
         <div>
           <h1 className="sf-home-title">Good {greet}, {firstName}</h1>
           <p className="sf-home-sub">{roleTag} · {dateStr}</p>
-          <p className="sf-home-blurb">{deskBlurb}</p>
         </div>
         <div className="sf-home-hero-actions">
-          <button type="button" className="sf-btn sf-btn-ghost" onClick={() => router.push('/updates')}>
+          <button type="button" className="sf-btn sf-btn-ghost" onClick={() => router.push('/tasks')}>
+            Tasks
+          </button>
+          <button type="button" className="sf-btn sf-btn-primary" onClick={() => router.push('/updates')}>
             Updates
-          </button>
-          <button type="button" className="sf-btn sf-btn-ghost" onClick={() => router.push('/calendar')}>
-            Calendar
-          </button>
-          <button type="button" className="sf-btn sf-btn-primary" onClick={() => router.push('/tasks')}>
-            Open tasks
           </button>
         </div>
       </header>
-
-      <section className="sf-home-quick" aria-label="Clients and task threads">
-        <div className="sf-home-quick-block">
-          <div className="sf-home-quick-label">Clients</div>
-          <div className="sf-home-quick-chips">
-            {clientChips.length === 0 ? (
-              <span className="sf-home-quick-empty">No brands on open tasks</span>
-            ) : (
-              clientChips.map((c) => (
-                <button
-                  key={c.name}
-                  type="button"
-                  className="sf-home-chip"
-                  onClick={() => router.push(`/updates?brand=${encodeURIComponent(c.name)}`)}
-                  title={`${c.count} open · open Updates for ${c.name}`}
-                >
-                  <span className="sf-home-chip-name">{c.name}</span>
-                  <span className="sf-home-chip-count">{c.count}</span>
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-        <div className="sf-home-quick-block">
-          <div className="sf-home-quick-label">Task threads</div>
-          <div className="sf-home-quick-chips">
-            {threadChips.length === 0 ? (
-              <span className="sf-home-quick-empty">No open threads</span>
-            ) : (
-              threadChips.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  className="sf-home-chip is-task"
-                  onClick={() => router.push(`/updates?task=${t.id}`)}
-                  title={`Open Updates for ${t.title}`}
-                >
-                  <span className="sf-home-chip-brand">{t.brand}</span>
-                  <span className="sf-home-chip-name">{t.title}</span>
-                </button>
-              ))
-            )}
-            <button type="button" className="sf-home-chip is-link" onClick={() => router.push('/updates')}>
-              All Updates →
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section className={`sf-home-health is-${health.tone}`} aria-label="Desk health">
-        <div className="sf-home-health-main">
-          <span className="sf-home-health-badge">{health.label}</span>
-          <p className="sf-home-health-hint">{health.hint}</p>
-        </div>
-        <div className="sf-home-health-stats">
-          <button type="button" className="sf-home-health-stat" onClick={() => router.push('/tasks')}>
-            <strong>{onTrack}</strong>
-            <span>On track</span>
-          </button>
-          <button type="button" className="sf-home-health-stat" onClick={() => router.push('/calendar')}>
-            <strong>{dueToday.length}</strong>
-            <span>Due today</span>
-          </button>
-          <button type="button" className="sf-home-health-stat" onClick={() => router.push('/tasks')}>
-            <strong>{overdue.length}</strong>
-            <span>Overdue</span>
-          </button>
-          <button type="button" className="sf-home-health-stat" onClick={() => router.push('/tasks')}>
-            <strong>{inProgress.length}</strong>
-            <span>In progress</span>
-          </button>
-        </div>
-        <button type="button" className="sf-link-btn" onClick={() => router.push('/performance')}>
-          Performance →
-        </button>
-      </section>
 
       <div className="sf-home-metrics" role="list">
         {metrics.map((m) => (
@@ -394,183 +262,135 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
         ))}
       </div>
 
-      {isAdmin && (
-        <section className="sf-home-att" aria-label="Team attendance">
+      <div className="sf-home-split">
+        <section className="sf-home-next" aria-label="Tasks">
           <div className="sf-home-next-head">
-            <h2>Team today</h2>
-            <button type="button" className="sf-link-btn" onClick={() => router.push('/attendance')}>
-              Full attendance →
+            <h2>{personalOnly ? 'Your tasks' : 'Tasks'}</h2>
+            <button type="button" className="sf-link-btn" onClick={() => router.push('/tasks')}>
+              All tasks →
             </button>
           </div>
-          <div className="sf-home-att-summary">
-            <span><strong>{attSummary.inNow}</strong> in now</span>
-            <span><strong>{attSummary.done}</strong> finished</span>
-            <span><strong>{attSummary.out}</strong> not in</span>
-          </div>
-          {teamToday.length === 0 ? (
-            <div className="sf-home-att-empty">No team members to show.</div>
+          {taskList.length === 0 ? (
+            <EmptyState icon="tasks" title={personalOnly ? 'Nothing on your desk right now.' : 'No open tasks.'} />
           ) : (
-            <div className="sf-home-att-list">
-              {teamToday.slice(0, 12).map((row: any) => {
-                const active = row.log?.login_time && !row.log?.logout_time
-                const finished = Boolean(row.log?.logout_time)
-                const status = active ? 'In' : finished ? 'Out' : 'Away'
+            <div className="sf-home-next-list">
+              {taskList.map((t) => {
+                const dl = t.due_date ? Math.ceil((new Date(t.due_date).getTime() - Date.now()) / 86400000) : null
+                const late = dl !== null && dl < 0
                 return (
                   <button
-                    key={row.user.id}
+                    key={t.id}
                     type="button"
-                    className="sf-home-att-row"
-                    onClick={() => router.push('/attendance')}
+                    className="sf-home-task"
+                    onClick={() => router.push(`/tasks/${t.id}`)}
                   >
-                    <span className="sf-home-att-name">{row.user.name}</span>
-                    <span className="sf-home-att-role">{row.user.role || row.user.designation || ''}</span>
-                    <span className={`sf-home-att-pill is-${status.toLowerCase()}`}>{status}</span>
-                    <span className="sf-home-att-time">
-                      {row.log?.login_time
-                        ? `${row.log.login_time}${row.log.logout_time ? `–${row.log.logout_time}` : ''}`
-                        : '—'}
-                    </span>
+                    <div className="sf-home-task-main">
+                      <div className="sf-home-task-title">{t.title}</div>
+                      <div className="sf-home-task-meta">
+                        <BrandBadge brand={t.brand} />
+                        <span>{t.priority || 'Medium'}</span>
+                        {isManager && isTaskAssignee(t, session.id) && (
+                          <span className="sf-home-task-chip">Assigned to you</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="sf-home-task-side">
+                      <StatusBadge status={t.status} />
+                      {dl !== null && (
+                        <span className={late ? 'sf-dash-task-late' : 'sf-dash-task-due'}>
+                          {late ? `${Math.abs(dl)}d late` : dl === 0 ? 'Today' : `${dl}d`}
+                        </span>
+                      )}
+                    </div>
                   </button>
                 )
               })}
             </div>
           )}
         </section>
-      )}
 
-      <section className="sf-home-next" aria-label="Up next">
-        <div className="sf-home-next-head">
-          <h2>{personalOnly ? 'Your tasks' : 'Up next'}</h2>
-          <button type="button" className="sf-link-btn" onClick={() => router.push('/tasks')}>
-            All tasks →
-          </button>
-        </div>
-
-        {upNext.length === 0 ? (
-          <EmptyState
-            icon="tasks"
-            title={personalOnly ? 'Nothing on your desk right now.' : 'No open tasks.'}
-          />
-        ) : (
-          <div className="sf-home-next-list">
-            {upNext.map((t) => {
-              const dl = t.due_date ? Math.ceil((new Date(t.due_date).getTime() - Date.now()) / 86400000) : null
-              const late = dl !== null && dl < 0
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  className="sf-home-task"
-                  onClick={() => router.push(`/tasks/${t.id}`)}
-                >
-                  <div className="sf-home-task-main">
-                    <div className="sf-home-task-title">{t.title}</div>
-                    <div className="sf-home-task-meta">
-                      <BrandBadge brand={t.brand} />
-                      <span>{t.priority || 'Medium'}</span>
-                      {isManager && isTaskAssignee(t, session.id) && (
-                        <span className="sf-home-task-chip">Assigned to you</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="sf-home-task-side">
-                    <StatusBadge status={t.status} />
-                    {dl !== null && (
-                      <span className={late ? 'sf-dash-task-late' : 'sf-dash-task-due'}>
-                        {late ? `${Math.abs(dl)}d late` : dl === 0 ? 'Today' : `${dl}d`}
-                      </span>
-                    )}
-                  </div>
-                </button>
-              )
-            })}
+        <section className="sf-home-updates" aria-label="Updates">
+          <div className="sf-home-next-head">
+            <h2>Updates</h2>
+            <button type="button" className="sf-link-btn" onClick={() => router.push('/updates')}>
+              Open Updates →
+            </button>
           </div>
-        )}
-      </section>
+          {updateFeed.length === 0 ? (
+            <div className="sf-home-updates-empty">No active threads yet.</div>
+          ) : (
+            <div className="sf-home-updates-list">
+              {updateFeed.map((row) => (
+                <button
+                  key={row.task.id}
+                  type="button"
+                  className="sf-home-update-row"
+                  onClick={() => router.push(`/updates?task=${row.task.id}`)}
+                >
+                  <span className="sf-home-update-brand">{row.task.brand?.name || 'No brand'}</span>
+                  <span className="sf-home-update-title">{row.task.title}</span>
+                  <span className="sf-home-update-preview">
+                    {row.lastMessage
+                      ? `${row.lastSender || 'Someone'}: ${row.lastMessage}`
+                      : 'No messages yet'}
+                  </span>
+                  <span className="sf-home-update-time">{formatUpdateTime(row.lastAt)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
 
       {isAdmin && (
-        <div className="sf-admin-desk sf-home-ops">
-          <div className="sf-admin-desk-card">
-            <div className="sf-admin-desk-head">
-              <div>
-                <div className="sf-page-eyebrow">Operations</div>
-                <h3 className="sf-admin-desk-title">Email dispatch</h3>
-                <p className="sf-admin-desk-sub">Morning and evening briefs for the team</p>
-              </div>
-              <span className="sf-admin-badge sf-admin-badge-brand">SMTP</span>
-            </div>
-            <div className="sf-admin-desk-actions">
-              <button type="button" className="sf-btn sf-btn-ghost" disabled={!!emailBusy} onClick={() => runEmailAction('test')}>
-                {emailBusy === 'test' ? 'Sending…' : 'Test connection'}
-              </button>
-              <button type="button" className="sf-btn sf-btn-ghost" disabled={!!emailBusy} onClick={() => runEmailAction('morning-sample')}>
-                {emailBusy === 'morning-sample' ? 'Sending…' : 'Preview brief'}
-              </button>
-              <button type="button" className="sf-btn sf-btn-primary" disabled={!!emailBusy} onClick={() => runEmailAction('morning')}>
-                {emailBusy === 'morning' ? 'Sending…' : 'Send morning brief'}
-              </button>
-              <button type="button" className="sf-btn sf-btn-ghost" disabled={!!emailBusy} onClick={() => runEmailAction('evening')}>
-                {emailBusy === 'evening' ? 'Sending…' : 'Send evening brief'}
-              </button>
-            </div>
-            {emailNotice && (
-              <p className={`sf-admin-desk-notice${emailNotice.includes('fail') || emailNotice.includes('Could') ? ' is-error' : ''}`}>
-                {emailNotice}
-              </p>
-            )}
-          </div>
-
-          <div className="sf-admin-desk-card">
-            <div className="sf-admin-desk-head">
-              <div>
-                <div className="sf-page-eyebrow">Integrations</div>
-                <h3 className="sf-admin-desk-title">Google Drive</h3>
-                <p className="sf-admin-desk-sub">Per-task folders in your workspace</p>
-              </div>
-              <span className={`sf-admin-badge${driveStatus?.connected ? ' sf-admin-badge-ok' : ' sf-admin-badge-warn'}`}>
-                {!driveStatus ? '…' : driveStatus.connected ? 'Connected' : driveStatus.configured ? 'Not linked' : 'Not configured'}
-              </span>
-            </div>
-            <div className="sf-admin-desk-body">
-              {!driveStatus ? (
-                <p className="sf-admin-desk-copy">Checking connection…</p>
-              ) : driveStatus.connected ? (
-                <>
-                  <p className="sf-admin-desk-copy">
-                    Signed in as <strong>{driveStatus.account_email || 'Google account'}</strong>.
-                    Create folders from any task&apos;s Files tab.
-                  </p>
-                  <div className="sf-admin-desk-actions">
-                    {driveStatus.root_folder_url && (
-                      <a href={driveStatus.root_folder_url} target="_blank" rel="noreferrer" className="sf-btn sf-btn-ghost" style={{ textDecoration: 'none' }}>
-                        Open root folder
-                      </a>
-                    )}
-                    {isOwner && (
-                      <button type="button" className="sf-btn sf-btn-ghost" disabled={driveBusy} onClick={disconnectDrive} style={{ color: 'var(--sf-danger)' }}>
-                        Disconnect
-                      </button>
-                    )}
+        <div className="sf-home-ops-wrap">
+          <button type="button" className="sf-link-btn" onClick={() => setOpsOpen((v) => !v)}>
+            {opsOpen ? 'Hide email & Drive' : 'Email & Drive ops'}
+          </button>
+          {opsOpen && (
+            <div className="sf-admin-desk sf-home-ops">
+              <div className="sf-admin-desk-card">
+                <div className="sf-admin-desk-head">
+                  <div>
+                    <h3 className="sf-admin-desk-title">Email dispatch</h3>
+                    <p className="sf-admin-desk-sub">Morning and evening briefs</p>
                   </div>
-                </>
-              ) : driveStatus.configured ? (
-                <>
-                  <p className="sf-admin-desk-copy">
-                    Drive is ready to connect. In-app file uploads continue to work without it.
-                  </p>
-                  {isOwner && (
-                    <button type="button" className="sf-btn sf-btn-primary" disabled={driveBusy} onClick={connectDrive}>
-                      {driveBusy ? 'Redirecting…' : 'Connect Google Drive'}
-                    </button>
-                  )}
-                </>
-              ) : (
-                <p className="sf-admin-desk-copy">
-                  Drive is not set up on the server yet. Use task file uploads in the meantime.
-                </p>
-              )}
+                </div>
+                <div className="sf-admin-desk-actions">
+                  <button type="button" className="sf-btn sf-btn-ghost" disabled={!!emailBusy} onClick={() => runEmailAction('test')}>
+                    {emailBusy === 'test' ? 'Sending…' : 'Test'}
+                  </button>
+                  <button type="button" className="sf-btn sf-btn-primary" disabled={!!emailBusy} onClick={() => runEmailAction('morning')}>
+                    {emailBusy === 'morning' ? 'Sending…' : 'Morning brief'}
+                  </button>
+                  <button type="button" className="sf-btn sf-btn-ghost" disabled={!!emailBusy} onClick={() => runEmailAction('evening')}>
+                    {emailBusy === 'evening' ? 'Sending…' : 'Evening brief'}
+                  </button>
+                </div>
+                {emailNotice && <p className="sf-admin-desk-notice">{emailNotice}</p>}
+              </div>
+              <div className="sf-admin-desk-card">
+                <div className="sf-admin-desk-head">
+                  <div>
+                    <h3 className="sf-admin-desk-title">Google Drive</h3>
+                    <p className="sf-admin-desk-sub">
+                      {!driveStatus ? 'Checking…' : driveStatus.connected ? `Connected as ${driveStatus.account_email || 'Google'}` : driveStatus.configured ? 'Not linked' : 'Not configured'}
+                    </p>
+                  </div>
+                </div>
+                {isOwner && driveStatus?.configured && !driveStatus?.connected && (
+                  <button type="button" className="sf-btn sf-btn-primary" disabled={driveBusy} onClick={connectDrive}>
+                    {driveBusy ? 'Redirecting…' : 'Connect Drive'}
+                  </button>
+                )}
+                {isOwner && driveStatus?.connected && (
+                  <button type="button" className="sf-btn sf-btn-ghost" disabled={driveBusy} onClick={disconnectDrive} style={{ color: 'var(--sf-danger)' }}>
+                    Disconnect
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </PageShell>

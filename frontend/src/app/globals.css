@@ -166,11 +166,160 @@ html[data-theme='morning'] body {
 .sf-modal-panel-wide {
   width: min(920px, 100%);
 }
-.sf-task-form-modal {
-  max-height: min(92vh, 960px);
+/* Trello-style task create/edit — nearly full viewport */
+.sf-modal-overlay:has(.sf-task-form-modal) {
+  padding: 16px;
+  align-items: stretch;
+  justify-content: center;
 }
-.sf-task-form-modal .sf-modal-body {
-  padding: 18px 22px 22px;
+.sf-task-form-modal.sf-modal-panel {
+  width: min(1280px, calc(100vw - 32px));
+  height: calc(100vh - 32px);
+  max-height: calc(100vh - 32px);
+  border-radius: 12px;
+  align-self: center;
+}
+.sf-task-form-modal .sf-modal-header {
+  padding: 18px 28px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--sf-border);
+}
+.sf-task-form-modal .sf-modal-title {
+  font-size: 1.35rem;
+}
+.sf-task-form-body.sf-modal-body {
+  padding: 0 !important;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.55fr) minmax(300px, 360px);
+  gap: 0;
+}
+.sf-task-form-main {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px 28px 28px;
+  -webkit-overflow-scrolling: touch;
+}
+.sf-task-form-side {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px 22px 28px;
+  border-left: 1px solid var(--sf-border);
+  background: var(--sf-surface-2);
+  -webkit-overflow-scrolling: touch;
+}
+.sf-task-form-field {
+  margin-bottom: 16px;
+}
+.sf-task-form-field > label,
+.sf-task-form-field label {
+  display: block;
+  color: var(--sf-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 6px;
+}
+.sf-task-form-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.sf-task-form-label-row label {
+  margin-bottom: 0;
+}
+.sf-task-form-ai {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--sf-accent-soft);
+  border: 1px solid color-mix(in srgb, var(--sf-accent) 30%, var(--sf-border));
+  border-radius: 6px;
+  color: var(--sf-accent);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 9px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.sf-task-form-ai:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sf-task-form-note {
+  background: var(--sf-surface-2);
+  border: 1px solid var(--sf-border);
+  border-radius: 9px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  color: var(--sf-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.sf-task-form-note.is-project {
+  border-left: 3px solid var(--sf-accent);
+}
+.sf-task-form-hint {
+  color: var(--sf-muted);
+  font-size: 11px;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+.sf-task-form-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--sf-border);
+  border-radius: 10px;
+  background: var(--sf-surface);
+  margin-bottom: 16px;
+}
+.sf-task-form-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sf-text);
+}
+.sf-task-form-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  position: sticky;
+  bottom: 0;
+  padding-top: 8px;
+}
+@media (max-width: 900px) {
+  .sf-modal-overlay:has(.sf-task-form-modal) {
+    padding: 8px;
+  }
+  .sf-task-form-modal.sf-modal-panel {
+    width: calc(100vw - 16px);
+    height: calc(100vh - 16px);
+    max-height: calc(100vh - 16px);
+    border-radius: 10px;
+  }
+  .sf-task-form-body.sf-modal-body {
+    grid-template-columns: 1fr !important;
+    overflow-y: auto;
+  }
+  .sf-task-form-side {
+    border-left: none;
+    border-top: 1px solid var(--sf-border);
+  }
+  .sf-task-form-main,
+  .sf-task-form-side {
+    overflow: visible;
+    padding: 16px;
+  }
 }
 .sf-modal-panel-full {
   width: min(1360px, calc(100vw - 40px));

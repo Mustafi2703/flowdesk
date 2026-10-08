@@ -699,7 +699,7 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
 
   return (
     <div className="sf-modal-overlay" style={{ zIndex: 1000 }} onClick={onClose}>
-      <div className="sf-modal-panel sf-modal-panel-wide sf-task-form-modal" onClick={e => e.stopPropagation()}>
+      <div className="sf-modal-panel sf-task-form-modal" onClick={e => e.stopPropagation()}>
         <div className="sf-modal-header">
           <div className="sf-modal-header-copy">
             <h3 className="sf-modal-title">
@@ -708,161 +708,157 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
           </div>
           <button type="button" className="sf-modal-close" onClick={onClose} aria-label="Close">×</button>
         </div>
-        <div className="sf-modal-body">
+        <div className="sf-modal-body sf-task-form-body">
+          <div className="sf-task-form-main">
+            {!isEdit && !forceProjectMode && (
+              <div className="sf-task-form-note">
+                After creating the task, add sub-tasks on the task page (Sub-tasks tab). They stay on this task — they are not a separate project.
+              </div>
+            )}
 
-        {!isEdit && !forceProjectMode && (
-        <div style={{ background:'rgba(6,182,212,0.08)', border:'1px solid rgba(6,182,212,0.2)', borderRadius:9, padding:'8px 12px', marginBottom:14, color:'var(--sf-text-secondary)', fontSize:12 }}>
-          After creating the task, add sub-tasks on the task page (Sub-tasks tab). They stay on this task — they are not a separate project.
-        </div>
-        )}
+            {(forceProjectMode || taskMode === 'project') && !isEdit && (
+              <div className="sf-task-form-note is-project">
+                Project container — use this only to group work. Sub-tasks belong on each task’s Sub-task tab.
+              </div>
+            )}
 
-        {(forceProjectMode || taskMode === 'project') && !isEdit && (
-          <div style={{ background:'rgba(6,182,212,0.1)', border:'1px solid rgba(6,182,212,0.25)', borderRadius:9, padding:'8px 12px', marginBottom:14, color:'#06B6D4', fontSize:12, fontWeight:600 }}>
-            Project container — use this only to group work. Sub-tasks belong on each task’s Sub-task tab.
-          </div>
-        )}
+            <div className="sf-task-form-field">
+              <label>Task Title *</label>
+              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Dinamoo Instagram Campaign" style={sInp} />
+            </div>
 
-        {isEdit && (
-          <div style={{ marginBottom:12 }}>
-            <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:5, display:'block' }}>Status</label>
-            <select value={status} onChange={e => setStatus(e.target.value)} style={sSel}>
-              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-        )}
+            <div className="sf-task-form-field">
+              <div className="sf-task-form-label-row">
+                <label>Description</label>
+                <button onClick={aiWrite} disabled={!title||aiLoading} type="button" className="sf-task-form-ai">
+                  <Icon name="sparkles" size={12} />
+                  {aiLoading ? 'Writing…' : 'AI Write'}
+                </button>
+              </div>
+              <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Describe the task…" rows={8} style={{ ...sInp, resize:'vertical', minHeight: 160 }} />
+            </div>
 
-        <div style={{ marginBottom:12 }}>
-          <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:5, display:'block' }}>Task Title *</label>
-          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Dinamoo Instagram Campaign" style={sInp} />
-        </div>
+            <div className="sf-task-form-field">
+              <label>Assign To</label>
+              <PeoplePicker
+                users={teamUsers}
+                selectedIds={assignedTo}
+                onChange={setAssignedTo}
+                variant="dropdown"
+                placeholder="Assign team members…"
+                emptyLabel="No Team members found. Owner/Manager: add people under Team first."
+              />
+            </div>
 
-        <div style={{ marginBottom:12 }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
-            <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em' }}>Description</label>
-            <button onClick={aiWrite} disabled={!title||aiLoading} type="button" style={{ display:'inline-flex', alignItems:'center', gap:6, background:'rgba(232,99,10,0.15)', border:'1px solid rgba(232,99,10,0.3)', borderRadius:6, color:'var(--sf-accent)', fontSize:11, fontWeight:700, padding:'3px 9px', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-              <Icon name="sparkles" size={12} />
-              {aiLoading ? 'Writing…' : 'AI Write'}
-            </button>
-          </div>
-          <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Describe the task…" rows={3} style={{ ...sInp, resize:'vertical' }} />
-        </div>
+            {isEdit && task?.id && (
+              <div className="sf-task-form-field">
+                <FileAttachmentsPanel entityType="task" entityId={task.id} title="Task files & review uploads" />
+              </div>
+            )}
 
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
-          <div>
-            <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:5, display:'block' }}>Brand</label>
-            <select value={brandId} onChange={e => { setBrandId(e.target.value); if (e.target.value) setNewBrandName('') }} style={sSel}>
-              <option value="">No brand</option>
-              {brands.map((b:any) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-            {needsBrandName && (
-              <div style={{ marginTop: 8 }}>
-                <label style={{ color:'#F59E0B', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:5, display:'block' }}>New project / brand name *</label>
-                <input
-                  value={newBrandName}
-                  onChange={e => setNewBrandName(e.target.value)}
-                  placeholder="e.g. Internal Q3 Campaign"
-                  style={sInp}
-                />
-                <div style={{ color:'var(--sf-muted)', fontSize:11, marginTop:4 }}>Creates a project brand and opens this as a project task.</div>
+            {isEdit && task?.id && (
+              <div className="sf-task-form-field">
+                <TaskThreadBox taskId={task.id} sessionId={session.id} />
               </div>
             )}
           </div>
-          <div>
-            <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:5, display:'block' }}>Type</label>
-            <select value={type} onChange={e => setType(e.target.value)} style={sSel}>
-              {TYPES.map(t => <option key={t}>{t}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:5, display:'block' }}>Priority</label>
-            <select value={priority} onChange={e => setPriority(e.target.value)} style={{ ...sSel, borderColor: (PRIORITY_COLORS[priority]||PRIORITY_COLORS.Medium).text, color: (PRIORITY_COLORS[priority]||PRIORITY_COLORS.Medium).text }}>
-              {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:5, display:'block' }}>Due Date *</label>
-            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} style={sInp} />
-          </div>
-        </div>
 
-        <div style={{ marginBottom:12 }}>
-          <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:7, display:'block' }}>Assign To</label>
-          <PeoplePicker
-            users={teamUsers}
-            selectedIds={assignedTo}
-            onChange={setAssignedTo}
-            variant="dropdown"
-            placeholder="Assign team members…"
-            emptyLabel="No Team members found. Owner/Manager: add people under Team first."
-          />
-        </div>
+          <aside className="sf-task-form-side">
+            {isEdit && (
+              <div className="sf-task-form-field">
+                <label>Status</label>
+                <select value={status} onChange={e => setStatus(e.target.value)} style={sSel}>
+                  {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            )}
 
-        <div style={{ background:'rgba(6,182,212,0.08)', border:'1px solid rgba(6,182,212,0.2)', borderRadius:9, padding:'8px 12px', marginBottom:14, color:'var(--sf-text-secondary)', fontSize:12 }}>
-          After creating, open the task page and use the <strong>Sub-tasks</strong> tab. Sub-tasks stay on this task — they are not a separate project.
-        </div>
-
-        <div style={{ background:'var(--sf-surface-2)', borderRadius:10, padding:14, marginBottom:16, display:'flex', flexDirection:'column', gap:10 }}>
-          {[
-            ['Billable Task', isBillable, setIsBillable, '#EC4899', canSeeBilling],
-            ['Requires Review', requiresReview, setRequiresReview, '#F59E0B', true],
-            ['Recurring Task', recurring, setRecurring, '#8B5CF6', true],
-          ].filter(([,,,,show]) => show).map(([label, val, set, color]: any) => (
-            <label key={label} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
-              <input type="checkbox" checked={val} onChange={e => set(e.target.checked)} style={{ accentColor:color, width:14, height:14 }} />
-              <span style={{ color, fontWeight:600, fontSize:13 }}>{label}</span>
-            </label>
-          ))}
-          {recurring && (
-            <select value={recurFreq} onChange={e => setRecurFreq(e.target.value)} style={{ ...sSel, width:180, marginTop:4 }}>
-              {['daily','weekly','monthly','yearly'].map(f => <option key={f} value={f}>{f.charAt(0).toUpperCase()+f.slice(1)}</option>)}
-            </select>
-          )}
-          {canSetPrice && isBillable && (
-            <div style={{ marginTop:4 }}>
-              <label style={{ color:'#EC4899', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:5, display:'block' }}>Price (₹)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={billableAmount}
-                onChange={e => setBillableAmount(e.target.value)}
-                placeholder="e.g. 15000"
-                style={sInp}
-              />
+            <div className="sf-task-form-field">
+              <label>Brand</label>
+              <select value={brandId} onChange={e => { setBrandId(e.target.value); if (e.target.value) setNewBrandName('') }} style={sSel}>
+                <option value="">No brand</option>
+                {brands.map((b:any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+              {needsBrandName && (
+                <div style={{ marginTop: 8 }}>
+                  <label style={{ color:'var(--sf-warning)' }}>New project / brand name *</label>
+                  <input
+                    value={newBrandName}
+                    onChange={e => setNewBrandName(e.target.value)}
+                    placeholder="e.g. Internal Q3 Campaign"
+                    style={sInp}
+                  />
+                  <div className="sf-task-form-hint">Creates a project brand and opens this as a project task.</div>
+                </div>
+              )}
             </div>
-          )}
-          {!canSetPrice && canSeeBilling && isBillable && (
-            <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 4 }}>
-              Marked billable — price is set by Admin / Accounts only.
+
+            <div className="sf-task-form-field">
+              <label>Type</label>
+              <select value={type} onChange={e => setType(e.target.value)} style={sSel}>
+                {TYPES.map(t => <option key={t}>{t}</option>)}
+              </select>
             </div>
-          )}
-        </div>
 
-        {isEdit && task?.id && (
-          <div style={{ marginBottom: 16 }}>
-            <FileAttachmentsPanel entityType="task" entityId={task.id} title="Task files & review uploads" />
-          </div>
-        )}
+            <div className="sf-task-form-field">
+              <label>Priority</label>
+              <select value={priority} onChange={e => setPriority(e.target.value)} style={sSel}>
+                {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
 
-        {isEdit && task?.id && (
-          <div style={{ marginBottom: 16 }}>
-            <TaskThreadBox taskId={task.id} sessionId={session.id} />
-          </div>
-        )}
+            <div className="sf-task-form-field">
+              <label>Due Date *</label>
+              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} style={sInp} />
+            </div>
 
-        <div style={{ display:'flex', gap:8, justifyContent:'space-between', flexWrap:'wrap' }}>
-          <div style={{ display:'flex', gap:8 }}>
-            <button onClick={save} disabled={!title||!dueDate||saving||deleting||(needsBrandName&&!newBrandName.trim())} style={{ padding:'10px 20px', background: forceProjectMode ? '#06B6D4' : 'var(--sf-accent)', border:'none', borderRadius:9, color:'var(--sf-text)', fontWeight:700, fontSize:13, cursor:(!title||!dueDate||saving||(needsBrandName&&!newBrandName.trim()))?'not-allowed':'pointer', opacity:(!title||!dueDate||(needsBrandName&&!newBrandName.trim()))?0.5:1, fontFamily:"'DM Sans',sans-serif" }}>
-              {saving ? (isEdit ? 'Saving…' : 'Creating…') : (isEdit ? 'Save Changes' : (forceProjectMode ? 'Create Project' : 'Create Task'))}
-            </button>
-            <button onClick={onClose} style={{ padding:'10px 20px', background:'var(--sf-surface-2)', border:'1px solid #2A2A45', borderRadius:9, color:'#A0A0C0', fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
-          </div>
-          {isEdit && canDelete && (
-            <button onClick={remove} disabled={deleting||saving} style={{ padding:'10px 20px', background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.35)', borderRadius:9, color:'#F87171', fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-              {deleting ? 'Deleting…' : 'Delete Task'}
-            </button>
-          )}
-        </div>
+            <div className="sf-task-form-options">
+              {[
+                ['Billable Task', isBillable, setIsBillable, canSeeBilling],
+                ['Requires Review', requiresReview, setRequiresReview, true],
+                ['Recurring Task', recurring, setRecurring, true],
+              ].filter(([,,,show]) => show).map(([label, val, set]: any) => (
+                <label key={label} className="sf-task-form-check">
+                  <input type="checkbox" checked={val} onChange={e => set(e.target.checked)} />
+                  <span>{label}</span>
+                </label>
+              ))}
+              {recurring && (
+                <select value={recurFreq} onChange={e => setRecurFreq(e.target.value)} style={{ ...sSel, marginTop: 4 }}>
+                  {['daily','weekly','monthly','yearly'].map(f => <option key={f} value={f}>{f.charAt(0).toUpperCase()+f.slice(1)}</option>)}
+                </select>
+              )}
+              {canSetPrice && isBillable && (
+                <div className="sf-task-form-field" style={{ marginTop: 8, marginBottom: 0 }}>
+                  <label>Price (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={billableAmount}
+                    onChange={e => setBillableAmount(e.target.value)}
+                    placeholder="e.g. 15000"
+                    style={sInp}
+                  />
+                </div>
+              )}
+              {!canSetPrice && canSeeBilling && isBillable && (
+                <div className="sf-task-form-hint">Marked billable — price is set by Admin / Accounts only.</div>
+              )}
+            </div>
+
+            <div className="sf-task-form-actions">
+              <button type="button" onClick={save} disabled={!title||!dueDate||saving||deleting||(needsBrandName&&!newBrandName.trim())} className="sf-btn sf-btn-primary" style={{ width: '100%' }}>
+                {saving ? (isEdit ? 'Saving…' : 'Creating…') : (isEdit ? 'Save Changes' : (forceProjectMode ? 'Create Project' : 'Create Task'))}
+              </button>
+              <button type="button" onClick={onClose} className="sf-btn sf-btn-ghost" style={{ width: '100%' }}>Cancel</button>
+              {isEdit && canDelete && (
+                <button type="button" onClick={remove} disabled={deleting||saving} className="sf-btn sf-btn-ghost" style={{ width: '100%', color: 'var(--sf-danger)' }}>
+                  {deleting ? 'Deleting…' : 'Delete Task'}
+                </button>
+              )}
+            </div>
+          </aside>
         </div>
       </div>
     </div>
@@ -915,7 +911,7 @@ export function TaskProgressModal({ session, task, onClose, onSaved }: any) {
 
   return (
     <div className="sf-modal-overlay" style={{ zIndex: 1000 }} onClick={onClose}>
-      <div className="sf-modal-panel sf-modal-panel-wide sf-task-form-modal" onClick={e => e.stopPropagation()}>
+      <div className="sf-modal-panel sf-task-form-modal" onClick={e => e.stopPropagation()}>
         <div className="sf-modal-header">
           <div className="sf-modal-header-copy">
             <h3 className="sf-modal-title">Update progress</h3>
@@ -923,7 +919,7 @@ export function TaskProgressModal({ session, task, onClose, onSaved }: any) {
           </div>
           <button type="button" className="sf-modal-close" onClick={onClose} aria-label="Close">×</button>
         </div>
-        <div className="sf-modal-body">
+        <div className="sf-modal-body" style={{ padding: '20px 28px 28px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
         {isParentAssignee && (
           <div style={{ marginBottom:12 }}>
             <label style={{ color:'var(--sf-muted)', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:5, display:'block' }}>Status</label>

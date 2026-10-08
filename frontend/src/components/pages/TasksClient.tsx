@@ -219,6 +219,8 @@ export default function TasksClient({ session }: { session: SessionUser }) {
     return () => window.removeEventListener(ATTENDANCE_CHANGED, refreshAttendance)
   }, [])
 
+  const isRecurringTask = (t: any) => Boolean(t?.recurring_config?.enabled)
+
   const filtered = useMemo(() => {
     const rows = tasks.filter(t =>
       (filterStatus==='All'||t.status===filterStatus) &&
@@ -243,6 +245,118 @@ export default function TasksClient({ session }: { session: SessionUser }) {
     })
     return rows
   }, [tasks, filterStatus, filterBrand, sortBy, sortDir])
+
+  const recurringFiltered = useMemo(() => filtered.filter(isRecurringTask), [filtered])
+  const regularFiltered = useMemo(() => filtered.filter((t) => !isRecurringTask(t)), [filtered])
+
+  function freqShort(t: any) {
+    const f = String(t?.recurring_config?.frequency || 'monthly')
+    return f.charAt(0).toUpperCase() + f.slice(1)
+  }
+
+  function renderTaskRow(task: any) {
+    const dl = task.due_date ? Math.ceil((new Date(task.due_date).getTime()-Date.now())/86400000) : null
+    const late = dl !== null && dl < 0 && task.status !== 'Completed'
+    const recurring = isRecurringTask(task)
+    const assigneeLabel = (task.assigned_to || [])
+      .map((id: string) => users.find((u: any) => sameUserId(u.id, id))?.name)
+      .filter(Boolean)
+      .join(', ') || '—'
+    return (
+      <tr key={task.id} className={recurring ? 'sf-task-row--recur' : undefined}>
+        <td
+          onClick={() => openTask(task)}
+          style={{ cursor: 'pointer' }}
+        >
+          <div style={{ fontWeight:600, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+            {task.title}
+            {recurring && (
+              <span className="sf-recur-badge">{freqShort(task)}</span>
+            )}
+          </div>
+          {task.task_mode === 'project' && (
+            <div style={{ color:'#06B6D4', fontSize:10, fontWeight:700, marginTop:2 }}>PROJECT</div>
+          )}
+          {task.is_billable && canSeeBilling && (
+            <div style={{ color:'var(--sf-muted)', fontSize:11, marginTop:2 }}>
+              Billable{task.billable_amount ? ` · ₹${Number(task.billable_amount).toLocaleString('en-IN')}` : task.has_price ? ' · priced' : ' · no price'}
+            </div>
+          )}
+        </td>
+        <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default' }}>
+          <BrandBadge brand={task.brand} />
+        </td>
+        <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default', color: 'var(--sf-text-secondary)', fontSize: 12, maxWidth: 160 }}>
+          {assigneeLabel}
+        </td>
+        <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default', color: 'var(--sf-muted)', fontSize: 12 }}>
+          {task.assigned_by?.name || '—'}
+        </td>
+        <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default' }}>{task.type || '—'}</td>
+        <td onClick={e => e.stopPropagation()}>
+          {canUpdateStatus(task) ? (
+            <select
+              value={task.status}
+              onChange={e => updateTaskStatus(task.id, e.target.value)}
+              style={{ ...toolbarSelect, padding: '4px 8px', fontSize: 11, ...statusTint(task.status) }}
+            >
+              {statusOptions(task).map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          ) : (
+            <StatusBadge status={task.status} />
+          )}
+        </td>
+        <td>
+          {task.requires_review ? (
+            <span style={{ fontSize: 10, fontWeight: 700, color: task.review_status === 'approved' ? '#15803D' : task.review_status === 'rejected' ? '#C2410C' : '#7E22CE' }}>
+              v{task.review_version || '1'} · {task.review_status && task.review_status !== 'none' ? task.review_status : 'pending'}
+            </span>
+          ) : <span style={{ color: 'var(--sf-muted)', fontSize: 11 }}>—</span>}
+        </td>
+        <td><PriorityBadge priority={task.priority} /></td>
+        <td style={{ color: late ? 'var(--sf-danger)' : 'var(--sf-text-secondary)' }}>
+          {task.due_date
+            ? late
+              ? `${Math.abs(dl)}d overdue`
+              : dl === 0
+                ? 'Today'
+                : new Date(task.due_date).toLocaleDateString()
+            : '—'}
+        </td>
+        {canEdit && (
+          <td onClick={e => e.stopPropagation()}>
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-ghost" style={{ fontSize:11, padding:'4px 8px' }}>Open</button>
+              {canUpdateStatus(task) && task.status === 'Not Started' && (
+                <button type="button" onClick={() => updateTaskStatus(task.id, 'In Progress')} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px' }}>Start</button>
+              )}
+              <button
+                type="button"
+                onClick={() => emailBrief(task)}
+                disabled={emailingId === task.id || !(task.assigned_to || []).length}
+                className="sf-btn sf-btn-ghost"
+                style={{ fontSize:11, padding:'4px 8px' }}
+                title="Email assignment brief to assignees"
+              >
+                {emailingId === task.id ? '…' : 'Email'}
+              </button>
+              {canEdit && task.requires_review && task.status === 'Under Review' && (
+                <button type="button" onClick={() => router.push(`/tasks/${task.id}?tab=review`)} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px' }}>Review</button>
+              )}
+            </div>
+          </td>
+        )}
+        {!canEdit && (
+          <td onClick={e => e.stopPropagation()}>
+            <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-ghost" style={{ fontSize:11, padding:'4px 8px' }}>Open</button>
+            {canUpdateStatus(task) && task.status === 'Not Started' && (
+              <button type="button" onClick={() => updateTaskStatus(task.id, 'In Progress')} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px', marginLeft: 6 }}>Start</button>
+            )}
+          </td>
+        )}
+      </tr>
+    )
+  }
 
   if (loading) return <div style={{ color:'var(--sf-muted)', padding:40, textAlign:'center' }}>Loading tasks…</div>
 
@@ -307,7 +421,12 @@ export default function TasksClient({ session }: { session: SessionUser }) {
       </div>
 
       {view === 'list' ? (
-        <Section title="Task list" subtitle={`${filtered.length} tasks`} flush flex={1}>
+        <Section
+          title="Task list"
+          subtitle={`${filtered.length} tasks${recurringFiltered.length ? ` · ${recurringFiltered.length} recurring` : ''}`}
+          flush
+          flex={1}
+        >
           <div className="sf-list-scroll">
           <div className="sf-table-wrap" style={{ border:'none', borderRadius:0, boxShadow:'none' }}>
             <table className="sf-table">
@@ -327,106 +446,23 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(task => {
-                  const dl = task.due_date ? Math.ceil((new Date(task.due_date).getTime()-Date.now())/86400000) : null
-                  const late = dl !== null && dl < 0 && task.status !== 'Completed'
-                  const assigneeLabel = (task.assigned_to || [])
-                    .map((id: string) => users.find((u: any) => sameUserId(u.id, id))?.name)
-                    .filter(Boolean)
-                    .join(', ') || '—'
-                  return (
-                    <tr key={task.id}>
-                      <td
-                        onClick={() => openTask(task)}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <div style={{ fontWeight:600, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-                          {task.title}
-                          {task.recurring_config?.enabled && <span className="sf-recur-badge">Recurring</span>}
-                        </div>
-                        {task.task_mode === 'project' && (
-                          <div style={{ color:'#06B6D4', fontSize:10, fontWeight:700, marginTop:2 }}>PROJECT</div>
-                        )}
-                        {task.is_billable && canSeeBilling && (
-                          <div style={{ color:'var(--sf-muted)', fontSize:11, marginTop:2 }}>
-                            Billable{task.billable_amount ? ` · ₹${Number(task.billable_amount).toLocaleString('en-IN')}` : task.has_price ? ' · priced' : ' · no price'}
-                          </div>
-                        )}
-                      </td>
-                      <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default' }}>
-                        <BrandBadge brand={task.brand} />
-                      </td>
-                      <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default', color: 'var(--sf-text-secondary)', fontSize: 12, maxWidth: 160 }}>
-                        {assigneeLabel}
-                      </td>
-                      <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default', color: 'var(--sf-muted)', fontSize: 12 }}>
-                        {task.assigned_by?.name || '—'}
-                      </td>
-                      <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default' }}>{task.type || '—'}</td>
-                      <td onClick={e => e.stopPropagation()}>
-                        {canUpdateStatus(task) ? (
-                          <select
-                            value={task.status}
-                            onChange={e => updateTaskStatus(task.id, e.target.value)}
-                            style={{ ...toolbarSelect, padding: '4px 8px', fontSize: 11, ...statusTint(task.status) }}
-                          >
-                            {statusOptions(task).map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                        ) : (
-                          <StatusBadge status={task.status} />
-                        )}
-                      </td>
-                      <td>
-                        {task.requires_review ? (
-                          <span style={{ fontSize: 10, fontWeight: 700, color: task.review_status === 'approved' ? '#15803D' : task.review_status === 'rejected' ? '#C2410C' : '#7E22CE' }}>
-                            v{task.review_version || '1'} · {task.review_status && task.review_status !== 'none' ? task.review_status : 'pending'}
-                          </span>
-                        ) : <span style={{ color: 'var(--sf-muted)', fontSize: 11 }}>—</span>}
-                      </td>
-                      <td><PriorityBadge priority={task.priority} /></td>
-                      <td style={{ color: late ? 'var(--sf-danger)' : 'var(--sf-text-secondary)' }}>
-                        {task.due_date
-                          ? late
-                            ? `${Math.abs(dl)}d overdue`
-                            : dl === 0
-                              ? 'Today'
-                              : new Date(task.due_date).toLocaleDateString()
-                          : '—'}
-                      </td>
-                      {canEdit && (
-                        <td onClick={e => e.stopPropagation()}>
-                          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                            <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-ghost" style={{ fontSize:11, padding:'4px 8px' }}>Open</button>
-                            {canUpdateStatus(task) && task.status === 'Not Started' && (
-                              <button type="button" onClick={() => updateTaskStatus(task.id, 'In Progress')} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px' }}>Start</button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => emailBrief(task)}
-                              disabled={emailingId === task.id || !(task.assigned_to || []).length}
-                              className="sf-btn sf-btn-ghost"
-                              style={{ fontSize:11, padding:'4px 8px' }}
-                              title="Email assignment brief to assignees"
-                            >
-                              {emailingId === task.id ? '…' : 'Email'}
-                            </button>
-                            {canEdit && task.requires_review && task.status === 'Under Review' && (
-                              <button type="button" onClick={() => router.push(`/tasks/${task.id}?tab=review`)} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px' }}>Review</button>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                      {!canEdit && (
-                        <td onClick={e => e.stopPropagation()}>
-                          <button type="button" onClick={() => openTask(task)} className="sf-btn sf-btn-ghost" style={{ fontSize:11, padding:'4px 8px' }}>Open</button>
-                          {canUpdateStatus(task) && task.status === 'Not Started' && (
-                            <button type="button" onClick={() => updateTaskStatus(task.id, 'In Progress')} className="sf-btn sf-btn-primary" style={{ fontSize:11, padding:'4px 8px', marginLeft: 6 }}>Start</button>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                  )
-                })}
+                {recurringFiltered.length > 0 && (
+                  <tr className="sf-task-section-row sf-task-section-row--recur">
+                    <td colSpan={10}>
+                      Recurring <span className="sf-home-count">{recurringFiltered.length}</span>
+                      <span className="sf-task-section-hint">Shown first · next cycle spawns when completed</span>
+                    </td>
+                  </tr>
+                )}
+                {recurringFiltered.map((task) => renderTaskRow(task))}
+                {regularFiltered.length > 0 && recurringFiltered.length > 0 && (
+                  <tr className="sf-task-section-row">
+                    <td colSpan={10}>
+                      Other tasks <span className="sf-home-count">{regularFiltered.length}</span>
+                    </td>
+                  </tr>
+                )}
+                {regularFiltered.map((task) => renderTaskRow(task))}
               </tbody>
             </table>
             {filtered.length === 0 && (
@@ -454,12 +490,14 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                 {colTasks.map(task => {
                   const due = dueChip(task)
                   const initials = assigneeInitials(task)
+                  const recurring = isRecurringTask(task)
                   return (
-                  <div key={task.id} className={`sf-trello-card${due?.late ? ' is-late' : ''}`}>
+                  <div key={task.id} className={`sf-trello-card${due?.late ? ' is-late' : ''}${recurring ? ' sf-trello-card--recur' : ''}`}>
                     <button type="button" className="sf-trello-card-title" onClick={() => openTask(task)}>
                       {task.title}
                     </button>
                     <div className="sf-trello-card-meta">
+                      {recurring && <span className="sf-recur-badge">{freqShort(task)}</span>}
                       <span className="sf-trello-brand"><BrandBadge brand={task.brand} /></span>
                       <span className="sf-trello-pri">{task.priority || 'Medium'}</span>
                       {due && (

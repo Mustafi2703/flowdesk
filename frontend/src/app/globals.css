@@ -3677,6 +3677,11 @@ html[data-theme='morning'] body {
 }
 .sf-home-recur {
   max-height: min(280px, 36vh);
+  border-color: color-mix(in srgb, var(--sf-accent) 45%, var(--sf-border));
+  box-shadow: inset 3px 0 0 var(--sf-accent);
+}
+.sf-home-recur-label {
+  color: var(--sf-accent);
 }
 .sf-home-updates {
   min-height: 220px;
@@ -3709,8 +3714,8 @@ html[data-theme='morning'] body {
   width: 100%;
   padding: 11px 14px;
   border: none;
-  border-bottom: 1px solid var(--sf-border);
-  background: transparent;
+  border-bottom: 1px solid color-mix(in srgb, var(--sf-accent) 16%, var(--sf-border));
+  background: color-mix(in srgb, var(--sf-accent) 5%, transparent);
   text-align: left;
   cursor: pointer;
   font-family: inherit;
@@ -3719,7 +3724,7 @@ html[data-theme='morning'] body {
   border-bottom: none;
 }
 .sf-home-recur-row:hover {
-  background: var(--sf-surface-hover);
+  background: color-mix(in srgb, var(--sf-accent) 12%, var(--sf-surface-hover));
 }
 .sf-home-recur-main {
   min-width: 0;
@@ -3727,6 +3732,12 @@ html[data-theme='morning'] body {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+.sf-home-recur-topline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 .sf-home-recur-meta {
   font-size: 11px;
@@ -8310,6 +8321,40 @@ html[data-theme='morning'] .sf-sidebar .sf-sidebar-collapse-btn {
 .sf-trello-label-recur {
   background: color-mix(in srgb, var(--sf-accent) 14%, var(--sf-surface)) !important;
   color: var(--sf-accent) !important;
+}
+.sf-trello-card--recur {
+  border-color: color-mix(in srgb, var(--sf-accent) 40%, var(--sf-border));
+  background: color-mix(in srgb, var(--sf-accent) 6%, var(--sf-surface));
+  box-shadow: inset 3px 0 0 var(--sf-accent);
+}
+.sf-task-section-row td {
+  padding: 10px 14px !important;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sf-muted);
+  background: var(--sf-surface-2);
+  border-bottom: 1px solid var(--sf-border);
+}
+.sf-task-section-row--recur td {
+  color: var(--sf-accent);
+  background: color-mix(in srgb, var(--sf-accent) 10%, var(--sf-surface));
+  border-bottom-color: color-mix(in srgb, var(--sf-accent) 28%, var(--sf-border));
+}
+.sf-task-section-hint {
+  margin-left: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--sf-muted);
+}
+.sf-task-row--recur td {
+  background: color-mix(in srgb, var(--sf-accent) 5%, transparent);
+}
+.sf-task-row--recur:hover td {
+  background: color-mix(in srgb, var(--sf-accent) 10%, var(--sf-surface-hover));
 }
 
 .sf-dash-hero-stat--link {

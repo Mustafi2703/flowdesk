@@ -326,7 +326,10 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
         <div className="sf-home-right-stack">
           <section className="sf-home-recur" aria-label="Recurring tasks">
             <div className="sf-home-next-head">
-              <h2>Recurring <span className="sf-home-count">{recurringTasks.length}</span></h2>
+              <h2>
+                <span className="sf-home-recur-label">Recurring</span>
+                <span className="sf-home-count">{recurringTasks.length}</span>
+              </h2>
               <button type="button" className="sf-link-btn" onClick={() => router.push('/tasks')}>
                 View all →
               </button>
@@ -349,11 +352,13 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
                       onClick={() => router.push(`/tasks/${t.id}`)}
                     >
                       <div className="sf-home-recur-main">
-                        <span className="sf-home-update-brand">{t.brand?.name || 'No brand'}</span>
+                        <div className="sf-home-recur-topline">
+                          <span className="sf-home-update-brand">{t.brand?.name || 'No brand'}</span>
+                          <span className="sf-recur-badge">{freqLabel(t)}</span>
+                        </div>
                         <span className="sf-home-update-title">{t.title}</span>
                         <span className="sf-home-recur-meta">
-                          {freqLabel(t)}
-                          {nextDue ? ` · next ${nextDue}` : ''}
+                          {nextDue ? `Next due ${nextDue}` : 'No next due set'}
                         </span>
                       </div>
                       <div className="sf-home-task-side">

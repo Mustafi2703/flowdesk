@@ -436,6 +436,11 @@ def update_task(
         task.review_status = "rejected"
     if update.get("status") == "Completed":
         task.review_status = "approved"
+    spawned = None
+    if update.get("status") == "Completed":
+        from app.services.recurring_tasks import process_completed_recurring
+
+        spawned = process_completed_recurring(db, task)
     task.timeline = [
         *(task.timeline or []),
         {
@@ -480,7 +485,11 @@ def update_task(
     DASHBOARD_CACHE.invalidate()
     brands = _brand_map(db, [task.brand_id] if task.brand_id else [])
     people = _people_map(db, [task.created_by, task.assigned_by])
-    return _serialize(task, brands, role=role, creators=people, assigners=people)
+    out = _serialize(task, brands, role=role, creators=people, assigners=people)
+    if spawned is not None:
+        out["spawned_recurring_task_id"] = str(spawned.id)
+        out["spawned_recurring_due_date"] = spawned.due_date.isoformat() if spawned.due_date else None
+    return out
 
 
 @router.post("/{task_id}/status")
@@ -535,6 +544,11 @@ def review_task(
             task.updates_closed = True
             task.updates_closed_at = datetime.now(timezone.utc)
             task.updates_closed_by = user.id
+    spawned = None
+    if payload.decision == "approved":
+        from app.services.recurring_tasks import process_completed_recurring
+
+        spawned = process_completed_recurring(db, task)
     task.timeline = [
         *(task.timeline or []),
         {
@@ -555,7 +569,11 @@ def review_task(
     DASHBOARD_CACHE.invalidate()
     brands = _brand_map(db, [task.brand_id] if task.brand_id else [])
     people = _people_map(db, [task.created_by, task.assigned_by])
-    return _serialize(task, brands, role=Role(user.role), creators=people, assigners=people)
+    out = _serialize(task, brands, role=Role(user.role), creators=people, assigners=people)
+    if spawned is not None:
+        out["spawned_recurring_task_id"] = str(spawned.id)
+        out["spawned_recurring_due_date"] = spawned.due_date.isoformat() if spawned.due_date else None
+    return out
 
 
 @router.delete("/{task_id}")

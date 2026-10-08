@@ -165,11 +165,20 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
       })
   }, [scopeTasks])
 
+  const isRecurring = (t: any) => Boolean(t?.recurring_config?.enabled)
+
+  const recurringTasks = useMemo(() => {
+    return openTasks
+      .filter(isRecurring)
+      .sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999'))
+  }, [openTasks])
+
   const overdue = openTasks.filter((t) => t.due_date && t.due_date < today)
   const dueToday = openTasks.filter((t) => t.due_date === today)
   const inProgress = openTasks.filter((t) => t.status === 'In Progress')
   const underReview = openTasks.filter((t) => t.status === 'Under Review')
-  const taskList = openTasks.slice(0, 12)
+  // Main list excludes recurring — those sit in their own panel above Updates.
+  const taskList = openTasks.filter((t) => !isRecurring(t)).slice(0, 12)
 
   const updateFeed = useMemo(() => {
     const byTask = new Map()
@@ -191,6 +200,11 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
     rows.sort((a, b) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime())
     return rows.slice(0, 10)
   }, [updates, openTasks])
+
+  function freqLabel(t: any) {
+    const f = String(t?.recurring_config?.frequency || 'monthly')
+    return f.charAt(0).toUpperCase() + f.slice(1)
+  }
 
   const hour = new Date().getHours()
   const greet = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
@@ -309,37 +323,86 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
           )}
         </section>
 
-        <section className="sf-home-updates" aria-label="Updates">
-          <div className="sf-home-next-head">
-            <h2>Updates</h2>
-            <button type="button" className="sf-link-btn" onClick={() => router.push('/updates')}>
-              Open Updates →
-            </button>
-          </div>
-          {updateFeed.length === 0 ? (
-            <div className="sf-home-updates-empty">No active threads yet.</div>
-          ) : (
-            <div className="sf-home-updates-list">
-              {updateFeed.map((row) => (
-                <button
-                  key={row.task.id}
-                  type="button"
-                  className="sf-home-update-row"
-                  onClick={() => router.push(`/updates?task=${row.task.id}`)}
-                >
-                  <span className="sf-home-update-brand">{row.task.brand?.name || 'No brand'}</span>
-                  <span className="sf-home-update-title">{row.task.title}</span>
-                  <span className="sf-home-update-preview">
-                    {row.lastMessage
-                      ? `${row.lastSender || 'Someone'}: ${row.lastMessage}`
-                      : 'No messages yet'}
-                  </span>
-                  <span className="sf-home-update-time">{formatUpdateTime(row.lastAt)}</span>
-                </button>
-              ))}
+        <div className="sf-home-right-stack">
+          <section className="sf-home-recur" aria-label="Recurring tasks">
+            <div className="sf-home-next-head">
+              <h2>Recurring <span className="sf-home-count">{recurringTasks.length}</span></h2>
+              <button type="button" className="sf-link-btn" onClick={() => router.push('/tasks')}>
+                View all →
+              </button>
             </div>
-          )}
-        </section>
+            {recurringTasks.length === 0 ? (
+              <div className="sf-home-updates-empty">
+                {personalOnly ? 'No recurring tasks on your desk.' : 'No open recurring tasks.'}
+              </div>
+            ) : (
+              <div className="sf-home-recur-list">
+                {recurringTasks.map((t) => {
+                  const dl = t.due_date ? Math.ceil((new Date(t.due_date).getTime() - Date.now()) / 86400000) : null
+                  const late = dl !== null && dl < 0
+                  const nextDue = t.recurring_config?.next_due || t.due_date
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className="sf-home-recur-row"
+                      onClick={() => router.push(`/tasks/${t.id}`)}
+                    >
+                      <div className="sf-home-recur-main">
+                        <span className="sf-home-update-brand">{t.brand?.name || 'No brand'}</span>
+                        <span className="sf-home-update-title">{t.title}</span>
+                        <span className="sf-home-recur-meta">
+                          {freqLabel(t)}
+                          {nextDue ? ` · next ${nextDue}` : ''}
+                        </span>
+                      </div>
+                      <div className="sf-home-task-side">
+                        <StatusBadge status={t.status} />
+                        {dl !== null && (
+                          <span className={late ? 'sf-dash-task-late' : 'sf-dash-task-due'}>
+                            {late ? `${Math.abs(dl)}d late` : dl === 0 ? 'Today' : `${dl}d`}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+
+          <section className="sf-home-updates" aria-label="Updates">
+            <div className="sf-home-next-head">
+              <h2>Updates</h2>
+              <button type="button" className="sf-link-btn" onClick={() => router.push('/updates')}>
+                Open Updates →
+              </button>
+            </div>
+            {updateFeed.length === 0 ? (
+              <div className="sf-home-updates-empty">No active threads yet.</div>
+            ) : (
+              <div className="sf-home-updates-list">
+                {updateFeed.map((row) => (
+                  <button
+                    key={row.task.id}
+                    type="button"
+                    className="sf-home-update-row"
+                    onClick={() => router.push(`/updates?task=${row.task.id}`)}
+                  >
+                    <span className="sf-home-update-brand">{row.task.brand?.name || 'No brand'}</span>
+                    <span className="sf-home-update-title">{row.task.title}</span>
+                    <span className="sf-home-update-preview">
+                      {row.lastMessage
+                        ? `${row.lastSender || 'Someone'}: ${row.lastMessage}`
+                        : 'No messages yet'}
+                    </span>
+                    <span className="sf-home-update-time">{formatUpdateTime(row.lastAt)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
       </div>
 
       {isAdmin && (

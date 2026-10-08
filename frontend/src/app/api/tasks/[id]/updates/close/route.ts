@@ -6,7 +6,6 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const purge = req.nextUrl.searchParams.get('purge')
-  const q = purge != null ? `?purge=${purge}` : '?purge=true'
-  return proxy(req, { to: `/api/v1/tasks/${id}/updates/close${q}`, method: 'POST' })
+  // Close only — never purge/delete chat history.
+  return proxy(req, { to: `/api/v1/tasks/${id}/updates/close?purge=false`, method: 'POST' })
 }

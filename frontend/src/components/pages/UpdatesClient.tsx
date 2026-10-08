@@ -57,7 +57,6 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
   const [mobileShowThread, setMobileShowThread] = useState(false)
   const [closing, setClosing] = useState(false)
   const [reviewNotes, setReviewNotes] = useState('')
-  const [menuOpen, setMenuOpen] = useState(false)
   const [showTools, setShowTools] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const channelScrollRef = useRef<HTMLDivElement | null>(null)
@@ -85,7 +84,6 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     if (!soft) {
       setSelectedTaskId(taskId)
       setShowTools(false)
-      setMenuOpen(false)
       setMobileShowThread(true)
     }
     const res = await fetch(`/api/tasks/${taskId}/chat`)
@@ -335,7 +333,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
         <div className="sf-upd-pagehead">
           <PageHeader
             title="Updates"
-            subtitle="Brand first — active threads per task (close chat when done; history stays)"
+            subtitle="Brand name first on every thread — close chat when done; history is never deleted"
           />
           <div className="sf-upd-filter-tabs" role="tablist" aria-label="Thread filter">
             {([
@@ -395,7 +393,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
           <div className="sf-updates-channels">
             <div className="sf-upd-channel-search">
               <div className="sf-upd-channel-search-row">
-                <div className="sf-upd-channel-heading">Channels</div>
+                <div className="sf-upd-channel-heading">Active threads</div>
                 <span className="sf-upd-channel-count">
                   {query.trim()
                     ? `${channels.length} of ${channelTotal}`
@@ -435,7 +433,10 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                         onClick={() => loadThread(task.id)}
                       >
                         <div className="sf-upd-channel-top">
-                          <span className="sf-upd-channel-name">{task.title}</span>
+                          <div className="sf-upd-channel-titles">
+                            <span className="sf-upd-channel-brand">{task.brand?.name || 'No brand'}</span>
+                            <span className="sf-upd-channel-name">{task.title}</span>
+                          </div>
                           <span className="sf-upd-channel-time">{formatChannelTime(lastAt)}</span>
                         </div>
                         <span className="sf-upd-channel-meta">
@@ -482,27 +483,20 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                     </div>
                     <div className="sf-upd-head-tools">
                       <StatusBadge status={selectedTask.status} />
-                      <Link href={`/tasks/${selectedTask.id}`} className="sf-btn sf-btn-ghost">Open</Link>
+                      <Link href={`/tasks/${selectedTask.id}`} className="sf-btn sf-btn-ghost">Open task</Link>
                       <button type="button" className="sf-btn sf-btn-ghost" onClick={() => setShowTools((v) => !v)}>
                         {showTools ? 'Hide tools' : 'Task tools'}
                       </button>
                       {isMgmt && (
-                        <div className="sf-upd-menu">
-                          <button type="button" className="sf-btn sf-btn-ghost" onClick={() => setMenuOpen((v) => !v)}>···</button>
-                          {menuOpen && (
-                            <div className="sf-upd-menu-list">
-                              {selectedTask.updates_closed ? (
-                                <button type="button" disabled={closing} onClick={() => { setMenuOpen(false); reopenChannel() }}>
-                                  {closing ? '…' : 'Reopen channel'}
-                                </button>
-                              ) : (
-                                <button type="button" disabled={closing} onClick={() => { setMenuOpen(false); closeChannel() }}>
-                                  {closing ? '…' : 'Close chat'}
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                        selectedTask.updates_closed ? (
+                          <button type="button" className="sf-btn sf-btn-ghost" disabled={closing} onClick={reopenChannel}>
+                            {closing ? '…' : 'Reopen chat'}
+                          </button>
+                        ) : (
+                          <button type="button" className="sf-btn sf-btn-ghost" disabled={closing} onClick={closeChannel}>
+                            {closing ? '…' : 'Close chat'}
+                          </button>
+                        )
                       )}
                     </div>
                   </div>
@@ -612,7 +606,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-                        placeholder={`Message # ${selectedTask.title}`}
+                        placeholder={`Message · ${selectedTask.brand?.name || 'Brand'} · ${selectedTask.title}`}
                         className="sf-input"
                       />
                       <button type="button" onClick={send} disabled={sending || !message.trim()} className="sf-btn sf-btn-primary">

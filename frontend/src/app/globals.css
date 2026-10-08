@@ -3764,6 +3764,94 @@ html[data-theme='morning'] body {
 .sf-home-ops {
   margin-top: 1.25rem;
 }
+.sf-home-quick {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 1.25rem;
+  padding: 12px 14px;
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  background: var(--sf-surface);
+}
+.sf-home-quick-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.sf-home-quick-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sf-muted);
+}
+.sf-home-quick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sf-home-quick-empty {
+  font-size: 12px;
+  color: var(--sf-muted);
+}
+.sf-home-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 10px;
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius-sm);
+  background: var(--sf-surface-2);
+  color: var(--sf-text);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.sf-home-chip:hover {
+  background: var(--sf-surface-hover);
+  border-color: var(--sf-border-strong);
+}
+.sf-home-chip.is-task {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 6px 10px;
+}
+.sf-home-chip.is-link {
+  color: var(--sf-accent);
+  border-style: dashed;
+}
+.sf-home-chip-brand {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sf-accent);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sf-home-chip-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sf-home-chip-count {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--sf-muted);
+  background: var(--sf-surface);
+  border: 1px solid var(--sf-border);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
 .sf-home-health {
   display: flex;
   align-items: center;
@@ -5939,6 +6027,23 @@ html[data-theme='morning'] .sf-table tr:hover td {
 .sf-upd-channel.is-active {
   background: var(--sf-accent-soft);
   border-left-color: var(--sf-accent);
+}
+.sf-upd-channel-titles {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sf-upd-channel-brand {
+  color: var(--sf-accent);
+  font-weight: 800;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .sf-upd-channel-name {
   color: var(--sf-text);

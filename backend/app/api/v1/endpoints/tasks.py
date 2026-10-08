@@ -425,7 +425,7 @@ def update_task(
         if "status" not in update:
             task.status = "In Progress"
             update["status"] = "In Progress"
-    # Auto-close Updates when marked Completed (owner/manager can reopen or purge later).
+    # Auto-close Updates when marked Completed (owner/manager can reopen; history is kept).
     if update.get("status") == "Completed" and not task.updates_closed and allowed_manager:
         task.updates_closed = True
         task.updates_closed_at = datetime.now(timezone.utc)
@@ -598,22 +598,21 @@ def delete_task(
 @router.post("/{task_id}/updates/close")
 def close_updates(
     task_id: uuid.UUID,
-    purge: bool = Query(default=True, description="Delete chat messages to free storage"),
+    purge: bool = Query(
+        default=False,
+        description="Ignored — chat history is never deleted. Close only freezes new messages.",
+    ),
     db: Session = Depends(get_db),
     user: Profile = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Owner/Manager closes the Updates channel for a finished task."""
+    """Owner/Manager closes the Updates channel. History is always kept (no purge)."""
     if Role(user.role) not in {Role.OWNER, Role.MANAGER}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner/Manager only")
     task = db.get(Task, task_id)
     if not task or not _can_view_db(db, task, user):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    purged = 0
-    if purge:
-        chats = db.scalars(select(TaskChat).where(TaskChat.task_id == task_id)).all()
-        purged = len(chats)
-        for chat in chats:
-            db.delete(chat)
+    # Never delete chat history — close only stops new messages.
+    _ = purge
     task.updates_closed = True
     task.updates_closed_at = datetime.now(timezone.utc)
     task.updates_closed_by = user.id
@@ -621,19 +620,18 @@ def close_updates(
         *(task.timeline or []),
         {
             "by": str(user.id),
-            "action": "Closed updates channel" + (f" (purged {purged} messages)" if purge else ""),
+            "action": "Closed updates channel",
             "at": datetime.now(timezone.utc).isoformat(),
         },
     ]
-    if not purge:
-        log_task_activity(db, task, user, "Updates channel closed", notify=True, notif_type="chat")
+    log_task_activity(db, task, user, "Updates channel closed", notify=True, notif_type="chat")
     db.commit()
     db.refresh(task)
     DASHBOARD_CACHE.invalidate()
     brands = _brand_map(db, [task.brand_id] if task.brand_id else [])
     people = _people_map(db, [task.created_by, task.assigned_by])
     out = _serialize(task, brands, role=Role(user.role), creators=people, assigners=people)
-    out["purged_messages"] = purged
+    out["purged_messages"] = 0
     return out
 
 

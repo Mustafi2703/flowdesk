@@ -170,6 +170,26 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const upNext = openTasks.slice(0, 10)
   const health = deskHealth(openTasks.length, overdue.length, dueToday.length)
 
+  const clientChips = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const t of openTasks) {
+      const name = t.brand?.name || 'No brand'
+      map.set(name, (map.get(name) || 0) + 1)
+    }
+    return Array.from(map.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+      .slice(0, 10)
+  }, [openTasks])
+
+  const threadChips = useMemo(() => {
+    return openTasks.slice(0, 8).map((t) => ({
+      id: t.id,
+      title: t.title,
+      brand: t.brand?.name || 'No brand',
+    }))
+  }, [openTasks])
+
   const teamToday = useMemo(() => {
     if (!isAdmin) return []
     const byUser: Record<string, any> = {}
@@ -271,6 +291,9 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
           <p className="sf-home-blurb">{deskBlurb}</p>
         </div>
         <div className="sf-home-hero-actions">
+          <button type="button" className="sf-btn sf-btn-ghost" onClick={() => router.push('/updates')}>
+            Updates
+          </button>
           <button type="button" className="sf-btn sf-btn-ghost" onClick={() => router.push('/calendar')}>
             Calendar
           </button>
@@ -279,6 +302,54 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
           </button>
         </div>
       </header>
+
+      <section className="sf-home-quick" aria-label="Clients and task threads">
+        <div className="sf-home-quick-block">
+          <div className="sf-home-quick-label">Clients</div>
+          <div className="sf-home-quick-chips">
+            {clientChips.length === 0 ? (
+              <span className="sf-home-quick-empty">No brands on open tasks</span>
+            ) : (
+              clientChips.map((c) => (
+                <button
+                  key={c.name}
+                  type="button"
+                  className="sf-home-chip"
+                  onClick={() => router.push(`/updates?brand=${encodeURIComponent(c.name)}`)}
+                  title={`${c.count} open · open Updates for ${c.name}`}
+                >
+                  <span className="sf-home-chip-name">{c.name}</span>
+                  <span className="sf-home-chip-count">{c.count}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+        <div className="sf-home-quick-block">
+          <div className="sf-home-quick-label">Task threads</div>
+          <div className="sf-home-quick-chips">
+            {threadChips.length === 0 ? (
+              <span className="sf-home-quick-empty">No open threads</span>
+            ) : (
+              threadChips.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className="sf-home-chip is-task"
+                  onClick={() => router.push(`/updates?task=${t.id}`)}
+                  title={`Open Updates for ${t.title}`}
+                >
+                  <span className="sf-home-chip-brand">{t.brand}</span>
+                  <span className="sf-home-chip-name">{t.title}</span>
+                </button>
+              ))
+            )}
+            <button type="button" className="sf-home-chip is-link" onClick={() => router.push('/updates')}>
+              All Updates →
+            </button>
+          </div>
+        </div>
+      </section>
 
       <section className={`sf-home-health is-${health.tone}`} aria-label="Desk health">
         <div className="sf-home-health-main">

@@ -143,12 +143,20 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
       .filter(Boolean)
   }, [task, users])
 
+  const tasksBackHref = (() => {
+    const from = searchParams.get('from')
+    if (from && from.startsWith('/tasks')) return from
+    const brandId = task?.brand_id || task?.brand?.id
+    if (brandId) return `/tasks?brand=${encodeURIComponent(String(brandId))}`
+    return '/tasks'
+  })()
+
   if (loading) return <div style={{ color: 'var(--sf-muted)', padding: 40, textAlign: 'center' }}>Loading task…</div>
   if (!task) {
     return (
       <PageShell>
         <PageHeader title="Task" subtitle={error || 'Not found'} />
-        <Link href="/tasks" className="sf-btn sf-btn-ghost">Back to tasks</Link>
+        <Link href={tasksBackHref} className="sf-btn sf-btn-ghost">Back to tasks</Link>
       </PageShell>
     )
   }
@@ -164,7 +172,7 @@ export default function TaskDetailClient({ session, taskId }: { session: Session
 
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <div>
-          <Link href="/tasks" style={{ color: 'var(--sf-muted)', fontSize: 12, textDecoration: 'none' }}>← Tasks</Link>
+          <Link href={tasksBackHref} style={{ color: 'var(--sf-muted)', fontSize: 12, textDecoration: 'none' }}>← Tasks</Link>
           <PageHeader title={task.title} subtitle={`${task.brand?.name || 'No brand'} · v${task.review_version || '1'}`} />
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>

@@ -128,7 +128,7 @@ export type NavIcon =
 export const NAV_ITEMS = [
   { id: 'overview',      label: 'Dashboard',     icon: 'dashboard' as NavIcon, roles: ['owner','manager','team','hr','accountant'] },
   { id: 'calendar',      label: 'Calendar',      icon: 'calendar' as NavIcon, roles: ['owner','manager','team','hr','accountant'] },
-  { id: 'tasks',         label: 'Tasks',         icon: 'tasks' as NavIcon, roles: ['owner','manager','team'] },
+  { id: 'tasks',         label: 'Tasks',         icon: 'tasks' as NavIcon, roles: ['owner','manager','team','hr','accountant'] },
   { id: 'updates',       label: 'Updates',       icon: 'inbox' as NavIcon, roles: ['owner','manager','team','hr','accountant'] },
   { id: 'devboard',      label: 'Workflow',      icon: 'code' as NavIcon, roles: ['owner','manager','team'] },
   { id: 'brands',        label: 'Brands',        icon: 'brands' as NavIcon, roles: ['owner','manager','hr','accountant','team'] },

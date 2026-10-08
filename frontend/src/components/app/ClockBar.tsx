@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { clockOutWithConfirm, todayIST } from '@/lib/clock'
-import { notifyAttendanceChanged } from '@/lib/attendance'
+import { ATTENDANCE_CHANGED, notifyAttendanceChanged } from '@/lib/attendance'
 
 /** Compact clock status for the top bar. */
 export function ClockBar() {
@@ -19,7 +19,12 @@ export function ClockBar() {
     setClocked(Boolean(todays?.login_time && !todays?.logout_time))
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    const onChange = () => { load() }
+    window.addEventListener(ATTENDANCE_CHANGED, onChange)
+    return () => window.removeEventListener(ATTENDANCE_CHANGED, onChange)
+  }, [])
 
   async function clockIn() {
     setBusy(true)

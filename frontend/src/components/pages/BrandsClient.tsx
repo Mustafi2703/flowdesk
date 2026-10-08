@@ -431,7 +431,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
 
   useEffect(() => {
     setAllocSaved(false)
-  }, [brand.id, managerIds, memberIds])
+  }, [brand.id])
 
   useEffect(() => {
     if (identityEditNonce > 0) setEditingIdentity(true)
@@ -457,6 +457,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
     const updated = await res.json().catch(() => null)
     if (updated?.id) onBrandUpdated?.(updated)
     setAllocSaved(true)
+    window.setTimeout(() => setAllocSaved(false), 4000)
     onRefresh()
   }
 
@@ -724,23 +725,41 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                 {canAssignManagers && (
                   <div style={{ marginBottom: 12 }}>
                     <div style={{ fontSize: 12, fontWeight: 650, marginBottom: 6, color: 'var(--sf-text)' }}>Managers</div>
-                    <PeoplePicker users={assignableManagers} selectedIds={managerIds} onChange={setManagerIds} variant="dropdown" placeholder="Add managers…" emptyLabel="No Manager users yet." groupByRole={false} />
+                    <PeoplePicker
+                      users={assignableManagers}
+                      selectedIds={managerIds}
+                      onChange={(ids) => { setAllocSaved(false); setManagerIds(ids) }}
+                      variant="dropdown"
+                      placeholder="Add managers…"
+                      emptyLabel="No Manager users yet."
+                      groupByRole={false}
+                    />
                   </div>
                 )}
                 {canAssignTeam && (
                   <div style={{ marginBottom: 10 }}>
                     <div style={{ fontSize: 12, fontWeight: 650, marginBottom: 6, color: 'var(--sf-text)' }}>Team members</div>
-                    <PeoplePicker users={assignableTeam} selectedIds={memberIds} onChange={setMemberIds} variant="dropdown" placeholder="Add team members…" emptyLabel="No Team users yet." groupByRole={false} />
+                    <PeoplePicker
+                      users={assignableTeam}
+                      selectedIds={memberIds}
+                      onChange={(ids) => { setAllocSaved(false); setMemberIds(ids) }}
+                      variant="dropdown"
+                      placeholder="Add team members…"
+                      emptyLabel="No Team users yet."
+                      groupByRole={false}
+                    />
                   </div>
                 )}
-                <button type="button" onClick={saveMembers} disabled={savingMembers} className="sf-btn sf-btn-primary" style={{ fontSize: 12 }}>
-                  {savingMembers ? 'Saving…' : 'Save allocation'}
-                </button>
-                {allocSaved && (
-                  <span style={{ display: 'block', marginTop: 8, fontSize: 12, color: 'var(--sf-success)' }}>
-                    Allocation saved — existing brand data unchanged.
-                  </span>
-                )}
+                <div className="sf-brand-alloc-actions">
+                  <button type="button" onClick={saveMembers} disabled={savingMembers} className="sf-btn sf-btn-primary" style={{ fontSize: 12 }}>
+                    {savingMembers ? 'Saving…' : 'Save allocation'}
+                  </button>
+                  {allocSaved && (
+                    <span className="sf-brand-alloc-toast" role="status">
+                      Successfully Saved
+                    </span>
+                  )}
+                </div>
               </div>
             )}
           </div>

@@ -2799,6 +2799,28 @@ html[data-theme='morning'] body {
   color: var(--sf-muted);
   margin-bottom: 8px;
 }
+.sf-brand-alloc-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.sf-brand-alloc-toast {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sf-success);
+  background: color-mix(in srgb, var(--sf-success) 12%, var(--sf-surface));
+  border: 1px solid color-mix(in srgb, var(--sf-success) 35%, var(--sf-border));
+  border-radius: 8px;
+  padding: 6px 10px;
+  animation: sf-alloc-toast-in 0.2s ease-out;
+}
+@keyframes sf-alloc-toast-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: translateX(0); }
+}
 
 .sf-people-picker {
   position: relative;
@@ -7170,6 +7192,25 @@ html[data-theme='morning'] .sf-table tr:hover td {
   font-size: 11px;
   color: var(--sf-muted);
   line-height: 1.4;
+}
+.sf-team-temp-pass {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sf-team-temp-pass-box {
+  margin-top: 12px;
+  padding: 14px 16px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: var(--sf-text);
+  background: var(--sf-surface-2);
+  border: 1px dashed color-mix(in srgb, var(--sf-accent) 40%, var(--sf-border));
+  border-radius: 10px;
+  user-select: all;
 }
 .sf-team-field-check {
   flex-direction: row;

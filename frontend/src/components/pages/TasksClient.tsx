@@ -1,7 +1,7 @@
 // @ts-nocheck
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { SessionUser, STATUS_TEXT, TaskStatus } from '@/types'
 import { Icon } from '@/components/app/Icons'
 import { PageHeader, PageShell, Section } from '@/components/app/Section'
@@ -35,6 +35,8 @@ const PRIORITY_COLORS: Record<string, { bg: string; text: string }> = {
   Low: { bg: 'rgba(100,116,139,0.25)', text: '#94A3B8' },
 }
 type SortKey = 'due_date' | 'priority' | 'status' | 'title' | 'brand'
+
+const TASKS_FILTER_KEY = 'sf-tasks-list-filters'
 
 function statusClass(status: string) {
   const map: Record<string, string> = {
@@ -83,6 +85,7 @@ function normalizeSubTasks(raw: any[] | undefined) {
 
 export default function TasksClient({ session }: { session: SessionUser }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [tasks, setTasks] = useState<any[]>([])
   const [brands, setBrands] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
@@ -91,12 +94,44 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   const [filterBrand, setFilterBrand] = useState('All')
   const [sortBy, setSortBy] = useState<SortKey>('due_date')
   const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc')
+  const [filtersReady, setFiltersReady] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [attendance, setAttendance] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [emailingId, setEmailingId] = useState<string | null>(null)
   const today = todayIST()
   const clockedIn = isClockedInToday(attendance, session.id, today)
+
+  useEffect(() => {
+    const urlBrand = searchParams.get('brand')
+    const urlStatus = searchParams.get('status')
+    let restored: { brand?: string; status?: string; view?: string; sortBy?: string; sortDir?: string } = {}
+    try {
+      restored = JSON.parse(sessionStorage.getItem(TASKS_FILTER_KEY) || '{}')
+    } catch { /* ignore */ }
+    if (urlBrand) setFilterBrand(urlBrand)
+    else if (restored.brand) setFilterBrand(restored.brand)
+    if (urlStatus) setFilterStatus(urlStatus)
+    else if (restored.status) setFilterStatus(restored.status)
+    if (restored.view === 'list' || restored.view === 'kanban') setView(restored.view)
+    if (restored.sortBy) setSortBy(restored.sortBy as SortKey)
+    if (restored.sortDir === 'asc' || restored.sortDir === 'desc') setSortDir(restored.sortDir)
+    setFiltersReady(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- restore once on mount
+  }, [])
+
+  useEffect(() => {
+    if (!filtersReady) return
+    try {
+      sessionStorage.setItem(TASKS_FILTER_KEY, JSON.stringify({
+        brand: filterBrand,
+        status: filterStatus,
+        view,
+        sortBy,
+        sortDir,
+      }))
+    } catch { /* ignore */ }
+  }, [filterBrand, filterStatus, view, sortBy, sortDir, filtersReady])
 
   const canCreate = canManageTasks(session.role)
   const canEdit = canCreate
@@ -170,7 +205,11 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   }
 
   function openTask(task: any) {
-    router.push(`/tasks/${task.id}`)
+    const back = new URLSearchParams()
+    if (filterBrand && filterBrand !== 'All') back.set('brand', filterBrand)
+    if (filterStatus && filterStatus !== 'All') back.set('status', filterStatus)
+    const qs = back.toString()
+    router.push(`/tasks/${task.id}${qs ? `?from=${encodeURIComponent(`/tasks?${qs}`)}` : ''}`)
   }
 
   async function deleteTask(task: any) {

@@ -62,19 +62,23 @@ function UserFormFields({
         )}
         {(mode === 'create' || showOwnerFields) && (
           <label className="sf-team-field">
-            <span>System role</span>
+            <span>Login role (system)</span>
             <select value={normalizeRole(userForm.role)} onChange={e => setUserForm(f => ({ ...f, role: e.target.value }))} className="sf-input">
               {roleOptions.map(r => (
                 <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>
               ))}
             </select>
-            <span className="sf-team-field-hint">{ROLE_DESCRIPTIONS[normalizeRole(userForm.role)] || ''}</span>
+            <span className="sf-team-field-hint">
+              Access level only — Owner, Manager, Team Member, HR, Accounts. Not a department.
+              {ROLE_DESCRIPTIONS[normalizeRole(userForm.role)] ? ` ${ROLE_DESCRIPTIONS[normalizeRole(userForm.role)]}` : ''}
+            </span>
           </label>
         )}
         {mode === 'create' && (
           <label className="sf-team-field">
             <span>Password</span>
             <input type="password" placeholder="Leave blank to auto-generate" value={userForm.password} onChange={e => setUserForm(f => ({ ...f, password: e.target.value }))} className="sf-input" />
+            <span className="sf-team-field-hint">Leave blank and we generate one — shown once after Create.</span>
           </label>
         )}
         {showOwnerFields && mode === 'edit' && (
@@ -93,17 +97,31 @@ function UserFormFields({
         </label>
         <label className="sf-team-field">
           <span>Department / squad</span>
-          <input
-            list="sf-team-dept-suggestions"
-            placeholder="e.g. Design, Content, Video"
-            value={userForm.department}
-            onChange={e => setUserForm(f => ({ ...f, department: e.target.value, department_id: '' }))}
+          <select
+            value={departmentSuggestions.includes(userForm.department) ? userForm.department : (userForm.department ? '__custom__' : '')}
+            onChange={e => {
+              const v = e.target.value
+              if (v === '__custom__') setUserForm(f => ({ ...f, department: f.department && !departmentSuggestions.includes(f.department) ? f.department : '', department_id: '' }))
+              else setUserForm(f => ({ ...f, department: v, department_id: '' }))
+            }}
             className="sf-input"
-          />
-          <datalist id="sf-team-dept-suggestions">
-            {departmentSuggestions.map(d => <option key={d} value={d} />)}
-          </datalist>
-          <span className="sf-team-field-hint">Functional group — not the same as system role.</span>
+          >
+            <option value="">No department</option>
+            {departmentSuggestions.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+            <option value="__custom__">Other (type below)…</option>
+          </select>
+          {(!userForm.department || !departmentSuggestions.includes(userForm.department)) && (
+            <input
+              placeholder="Type department name"
+              value={userForm.department}
+              onChange={e => setUserForm(f => ({ ...f, department: e.target.value, department_id: '' }))}
+              className="sf-input"
+              style={{ marginTop: 8 }}
+            />
+          )}
+          <span className="sf-team-field-hint">Functional squad from Team → Departments (all listed above).</span>
         </label>
       </div>
 
@@ -167,6 +185,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   const [editingUser, setEditingUser] = useState<any | null>(null)
   const [viewingUser, setViewingUser] = useState<any | null>(null)
   const [notice, setNotice] = useState('')
+  const [createdPassword, setCreatedPassword] = useState<{ name: string; email: string; password: string } | null>(null)
   const [error, setError] = useState('')
   const [deptError, setDeptError] = useState('')
   const [memberQuery, setMemberQuery] = useState('')
@@ -328,7 +347,18 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     const data = await res.json().catch(() => ({}))
     setSaving(false)
     if (!res.ok) { setError(formatApiError(data, 'Could not create user')); return }
-    setNotice(`User created. Temporary password: ${data.temporary_password}`)
+    const temp = data.temporary_password || payload.password || ''
+    const createdName = data.user?.name || userForm.name
+    const createdEmail = data.user?.email || userForm.email
+    if (temp) {
+      try { await navigator.clipboard.writeText(temp) } catch { /* ignore */ }
+      setCreatedPassword({ name: createdName, email: createdEmail, password: temp })
+      const msg = `${createdName} created.\nTemporary password: ${temp}\n\nCopied to clipboard — share it once.`
+      setNotice(`User created. Temporary password: ${temp} (copied)`)
+      window.alert(msg)
+    } else {
+      setNotice(`${createdName} created. No temporary password returned — use Reset password.`)
+    }
     setUserForm({ name: '', email: '', role: assignableRoles[0] || 'team', department: '', department_id: '', designation: '', password: '', manager_id: '', manager_ids: [], is_active: true })
     setShowAdd(false)
     refresh()
@@ -491,14 +521,15 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     return byName(a, b)
   })
   const deptOptions = (() => {
+    // Prefer full Departments list so the picker is not limited to names already on users.
     const names = new Set<string>()
-    for (const u of users) {
-      if (u.department) names.add(u.department)
-    }
     for (const d of departments) {
-      if (d.name) names.add(d.name)
+      if (d.name) names.add(String(d.name).trim())
     }
-    return [...names].sort((a, b) => a.localeCompare(b))
+    for (const u of users) {
+      if (u.department) names.add(String(u.department).trim())
+    }
+    return [...names].filter(Boolean).sort((a, b) => a.localeCompare(b))
   })()
   const filteredTeam = team.filter((u) => {
     if (statusFilter === 'active' && !u.is_active) return false
@@ -516,6 +547,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   const online = team.filter(u => isOnline(u.id)).length
   const managerName = (id: string | null) => team.find(u => u.id === id)?.name
 
+  // Owner always sees all five login roles; managers only Team.
   const roleOptions = role === 'owner'
     ? [...SYSTEM_ROLES]
     : (assignableRoles.length ? assignableRoles : ['team']).filter(r => (SYSTEM_ROLES as readonly string[]).includes(r))
@@ -638,7 +670,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
         open={showAdd && panel === 'members'}
         onClose={() => setShowAdd(false)}
         title="Onboard new user"
-        subtitle={role === 'manager' ? 'Creates a Team login reporting to you' : 'Pick one of five system roles — department is separate'}
+        subtitle={role === 'manager' ? 'Creates a Team login reporting to you' : 'Login role (5 options) is separate from Department / squad'}
         width={520}
         footer={
           <>
@@ -659,6 +691,39 @@ export default function TeamClient({ session }: { session: SessionUser }) {
             showOwnerFields={role === 'owner'}
           />
         </form>
+      </Modal>
+
+      <Modal
+        open={!!createdPassword}
+        onClose={() => setCreatedPassword(null)}
+        title="User created — save this password"
+        subtitle="Shown once. Copy and share with the new hire."
+        width={440}
+        footer={
+          <>
+            <button
+              type="button"
+              className="sf-btn sf-btn-ghost"
+              onClick={async () => {
+                if (createdPassword?.password) {
+                  try { await navigator.clipboard.writeText(createdPassword.password) } catch { /* ignore */ }
+                }
+              }}
+            >
+              Copy password
+            </button>
+            <button type="button" className="sf-btn sf-btn-primary" onClick={() => setCreatedPassword(null)}>Done</button>
+          </>
+        }
+      >
+        {createdPassword && (
+          <div className="sf-team-temp-pass">
+            <div><strong>{createdPassword.name}</strong></div>
+            <div style={{ color: 'var(--sf-muted)', fontSize: 13, marginTop: 4 }}>{createdPassword.email}</div>
+            <div className="sf-team-temp-pass-box">{createdPassword.password}</div>
+            <p className="sf-team-field-hint">This temporary password will not be shown again. Use Reset password later if needed.</p>
+          </div>
+        )}
       </Modal>
 
       {panel === 'roles' && canManageRoles && (

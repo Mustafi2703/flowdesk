@@ -2583,6 +2583,11 @@ html[data-theme='morning'] body {
   gap: 8px;
   margin-bottom: 14px;
 }
+.sf-brand-task-scope-note {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--sf-muted);
+}
 .sf-brand-task-drive {
   display: flex;
   flex-wrap: wrap;

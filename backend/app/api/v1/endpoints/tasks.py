@@ -213,9 +213,12 @@ def _can_view(task: Task, user: Profile, brand: Brand | None = None) -> bool:
     role = Role(user.role)
     if role in {Role.OWNER, Role.MANAGER, Role.HR, Role.ACCOUNTANT}:
         return True
+    # Team/dev only see tasks assigned to them (Brand page still shows goals/docs;
+    # Brand → Tasks and /tasks stay assignee-only to cut clutter across disciplines).
+    if role in {Role.TEAM, Role.DEVELOPER}:
+        return _is_assignee(task, user)
     if _is_assignee(task, user):
         return True
-    # Brand-allocated people can open that brand's tasks (Updates + docs).
     if brand is not None and (
         str(user.id) in {str(x) for x in (brand.assigned_members or [])}
         or str(user.id) in {str(x) for x in (getattr(brand, "assigned_managers", None) or [])}
@@ -260,17 +263,17 @@ def list_tasks(
     status_filter: str | None = Query(default=None, alias="status"),
     scope: str | None = Query(
         default=None,
-        description="assigned = only my tasks; brand = brand-allocated can see brand mates' tasks",
+        description="Deprecated for team (always assignee-only). Kept for API compatibility.",
     ),
     db: Session = Depends(get_db),
     user: Profile = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     """List tasks.
 
-    Team desk (`/tasks`, no brand_id): only tasks assigned to the logged-in member.
-    Brand page (`brand_id` set): brand-allocated members can see all tasks on that brand
-    (UI may still filter to "mine" by default).
+    Team/dev: only tasks assigned to them — both `/tasks` and Brand → Tasks.
+    Owner/manager/hr/accountant: full brand (or desk) task lists.
     """
+    del scope  # team visibility is always assignee-only via _can_view
     stmt = select(Task).order_by(Task.created_at.desc())
     if brand_id:
         stmt = stmt.where(Task.brand_id == brand_id)
@@ -279,17 +282,10 @@ def list_tasks(
     tasks = db.scalars(stmt).all()
     brands = _brand_map(db, [task.brand_id for task in tasks if task.brand_id])
     role = Role(user.role)
-    want_assigned_only = (
-        role in {Role.TEAM, Role.DEVELOPER}
-        and not brand_id
-        and (scope or "assigned") != "brand"
-    )
     visible: list[Task] = []
     for task in tasks:
         brand = brands.get(task.brand_id) if task.brand_id else None
         if not _can_view(task, user, brand):
-            continue
-        if want_assigned_only and not _is_assignee(task, user):
             continue
         visible.append(task)
     creator_ids = [task.created_by for task in visible if task.created_by]

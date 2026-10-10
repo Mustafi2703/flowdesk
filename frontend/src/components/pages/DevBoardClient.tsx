@@ -180,19 +180,34 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
 
   const filteredBrands = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return brands.filter((brand) => {
-      if (stageFilter !== 'all') {
+    const rows = brands
+      .map((brand) => {
         const brandTasks = tasks.filter((t) => String(t.brand_id) === String(brand.id))
-        const match = brandTasks.some((t) => taskWorkflowPhase(t) === stageFilter)
-        if (!match) return false
-      }
-      if (!q) return true
-      const memberNames = [...(brand.assigned_members || []), ...(brand.assigned_managers || [])]
-        .map((id: string) => users.find((u) => String(u.id) === String(id))?.name || '')
-        .join(' ')
-        .toLowerCase()
-      return String(brand.name || '').toLowerCase().includes(q) || memberNames.includes(q)
+        const openCount = brandTasks.filter((t) => t.status !== 'Completed').length
+        const assignedOpen = brandTasks.filter(
+          (t) => t.status !== 'Completed' && Array.isArray(t.assigned_to) && t.assigned_to.length > 0
+        ).length
+        return { brand, brandTasks, openCount, assignedOpen }
+      })
+      .filter(({ brand, brandTasks }) => {
+        if (stageFilter !== 'all') {
+          const match = brandTasks.some((t) => taskWorkflowPhase(t) === stageFilter)
+          if (!match) return false
+        }
+        if (!q) return true
+        const memberNames = [...(brand.assigned_members || []), ...(brand.assigned_managers || [])]
+          .map((id: string) => users.find((u) => String(u.id) === String(id))?.name || '')
+          .join(' ')
+          .toLowerCase()
+        return String(brand.name || '').toLowerCase().includes(q) || memberNames.includes(q)
+      })
+    // Active Campaigns: brands with allocated open work come first.
+    rows.sort((a, b) => {
+      if (b.assignedOpen !== a.assignedOpen) return b.assignedOpen - a.assignedOpen
+      if (b.openCount !== a.openCount) return b.openCount - a.openCount
+      return String(a.brand.name || '').localeCompare(String(b.brand.name || ''))
     })
+    return rows.map((r) => r.brand)
   }, [brands, stageFilter, search, users, tasks])
 
   const awaitingApproval = openTasks.filter((t) => t.status === 'Under Review' || t.requires_review).length
@@ -368,7 +383,7 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
 
       <section className="sf-workflow-active-section" aria-label="Active campaigns">
         <h2 className="sf-workflow-section-title">Active Campaigns</h2>
-        <p className="sf-workflow-active-lead">Live brand cards with phase progress — filter stages above.</p>
+        <p className="sf-workflow-active-lead">Brands with allocated open work rise to the top — filter stages above.</p>
         <div className="sf-campaign-scroll">
           {filteredBrands.length === 0 ? (
             <div className="sf-workflow-empty sf-workflow-empty--wide">No brands match this filter.</div>

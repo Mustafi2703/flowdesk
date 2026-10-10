@@ -145,16 +145,30 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
 
   const filteredBrands = useMemo(() => {
     const q = brandSearch.trim().toLowerCase()
-    return visible.filter((b) => {
-      const brandTaskRows = tasks.filter((t) => sameId(t.brand_id, b.id))
-      const openCount = brandTaskRows.filter((t) => t.status !== 'Completed').length
-      if (!matchesRosterFilter(b, rosterFilter, openCount)) return false
-      if (!q) return true
-      return b.name?.toLowerCase().includes(q)
-        || b.client_type?.toLowerCase().includes(q)
-        || b.priority?.toLowerCase().includes(q)
-        || (b.description || '').toLowerCase().includes(q)
+    const rows = visible
+      .map((b) => {
+        const brandTaskRows = tasks.filter((t) => sameId(t.brand_id, b.id))
+        const openCount = brandTaskRows.filter((t) => t.status !== 'Completed').length
+        const assignedOpen = brandTaskRows.filter(
+          (t) => t.status !== 'Completed' && Array.isArray(t.assigned_to) && t.assigned_to.length > 0
+        ).length
+        return { brand: b, openCount, assignedOpen }
+      })
+      .filter(({ brand: b, openCount }) => {
+        if (!matchesRosterFilter(b, rosterFilter, openCount)) return false
+        if (!q) return true
+        return b.name?.toLowerCase().includes(q)
+          || b.client_type?.toLowerCase().includes(q)
+          || b.priority?.toLowerCase().includes(q)
+          || (b.description || '').toLowerCase().includes(q)
+      })
+    // Active work first: brands with allocated open tasks float to the top.
+    rows.sort((a, b) => {
+      if (b.assignedOpen !== a.assignedOpen) return b.assignedOpen - a.assignedOpen
+      if (b.openCount !== a.openCount) return b.openCount - a.openCount
+      return String(a.brand.name || '').localeCompare(String(b.brand.name || ''))
     })
+    return rows.map((r) => r.brand)
   }, [visible, brandSearch, rosterFilter, tasks])
 
   const modalHits = useMemo(() => {
@@ -298,6 +312,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
                   </div>
                 </div>
                 <h2 className="sf-workflow-section-title">Clients</h2>
+                <p className="sf-workflow-active-lead">Brands with allocated open tasks appear first.</p>
                 <div className="sf-campaign-scroll">
                   {filteredBrands.length === 0 ? (
                     <div className="sf-brand-roster-empty">No clients match your search.</div>
@@ -428,7 +443,6 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
     client_type: brand.client_type || 'Retainer',
   })
   const [savingIdentity, setSavingIdentity] = useState(false)
-  const [taskScope, setTaskScope] = useState<'mine' | 'all'>(session.role === 'team' ? 'mine' : 'all')
   const today = todayIST()
   const clockedIn = isClockedInToday(attendance || [], session.id, today)
   const isTeamRole = session.role === 'team'
@@ -592,11 +606,10 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
     )
   }
 
-  function inTaskScope(t: any) {
-    if (!isTeamRole || taskScope === 'all') return true
-    return isTaskAssignee(t, session.id)
-  }
-  const scopedTasks = tasks.filter(inTaskScope)
+  // Team: only tasks assigned to them. Owner/manager see the full brand task list.
+  const scopedTasks = isTeamRole
+    ? tasks.filter((t: any) => isTaskAssignee(t, session.id))
+    : tasks
   const projects = scopedTasks.filter((t: any) => t.task_mode === 'project')
   const standardTasks = scopedTasks.filter((t: any) => t.task_mode !== 'project')
   const fl = scopedTasks.filter((t: any) => ['Struggling', 'Needs Attention'].includes(t.status))
@@ -927,30 +940,11 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
       {tab === 'tasks' && (
         <div>
           {isTeamRole && (
-            <div className="sf-brand-task-scope" role="tablist" aria-label="Task visibility">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={taskScope === 'mine'}
-                className={`sf-workflow-stage-pill${taskScope === 'mine' ? ' is-active' : ''}`}
-                onClick={() => setTaskScope('mine')}
-              >
-                My tasks
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={taskScope === 'all'}
-                className={`sf-workflow-stage-pill${taskScope === 'all' ? ' is-active' : ''}`}
-                onClick={() => setTaskScope('all')}
-              >
-                All member tasks
-              </button>
-            </div>
+            <p className="sf-brand-task-scope-note">Showing only tasks assigned to you on this brand.</p>
           )}
           {standardTasks.length === 0 && (
             <div className="sf-brand-empty">
-              {isTeamRole && taskScope === 'mine'
+              {isTeamRole
                 ? `No tasks assigned to you on ${brand.name}.`
                 : `No standard tasks for ${brand.name}.`}
               {canEdit && <div style={{ marginTop: 12 }}><button type="button" onClick={openCreateTask} className="sf-btn sf-btn-primary">Add task</button></div>}

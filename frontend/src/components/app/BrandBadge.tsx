@@ -31,9 +31,20 @@ export function brandAccent(priority?: string | null) {
 }
 
 export function BrandLogoMark({ brand, size = 40 }: { brand: BrandLike; size?: number }) {
-  const initials = (brand.logo || brand.name?.slice(0, 2) || '?').slice(0, 2).toUpperCase()
+  const raw = String(brand.logo || brand.name || '?').trim()
+  // Small tiles stay short; brand header marks can show longer fallback initials.
+  const maxChars = size >= 100 ? 16 : size >= 72 ? 8 : size >= 48 ? 4 : 2
+  const initials = (raw.length <= maxChars ? raw : raw.slice(0, maxChars)).toUpperCase()
   const src = brandLogoSrc(brand)
-  const radius = size > 48 ? 12 : size > 36 ? 10 : 8
+  const radius = size > 96 ? 20 : size > 72 ? 16 : size > 48 ? 12 : size > 36 ? 10 : 8
+  const wide = !src && initials.length > 3
+  const boxW = wide
+    ? Math.min(Math.round(size * (0.42 + initials.length * 0.22)), Math.round(size * 2.6))
+    : size
+  const fontSize = Math.max(
+    11,
+    Math.round(size * (initials.length >= 8 ? 0.18 : initials.length >= 5 ? 0.22 : initials.length >= 3 ? 0.3 : 0.4))
+  )
 
   if (src) {
     return (
@@ -52,13 +63,17 @@ export function BrandLogoMark({ brand, size = 40 }: { brand: BrandLike; size?: n
     <div
       className="sf-brand-logo-fallback"
       style={{
-        width: size,
+        width: boxW,
+        minWidth: boxW,
         height: size,
         borderRadius: radius,
-        fontSize: size > 48 ? 14 : size > 32 ? 11 : 10,
+        fontSize,
+        letterSpacing: initials.length > 4 ? '-0.03em' : initials.length > 2 ? '-0.02em' : '0.02em',
+        padding: wide ? '0 14px' : '0 6%',
         background: `linear-gradient(145deg, ${brandAccent(brand.priority)}, color-mix(in srgb, ${brandAccent(brand.priority)} 55%, #fff))`,
       }}
       aria-hidden
+      title={raw}
     >
       {initials}
     </div>

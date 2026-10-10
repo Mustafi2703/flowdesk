@@ -686,7 +686,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
             </button>
           )}
           <div className="sf-brand-page-logo">
-            <BrandLogoMark brand={brand} size={64} />
+            <BrandLogoMark brand={brand} size={148} />
           </div>
           <div className="sf-brand-page-intro">
             <h1 className="sf-brand-page-name">{brand.name}</h1>
@@ -1031,8 +1031,8 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
             </div>
             {!editingIdentity ? (
               <>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 14, minWidth: 0 }}>
-                  <BrandLogoMark brand={brand} size={64} />
+                <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 14, minWidth: 0 }}>
+                  <BrandLogoMark brand={brand} size={88} />
                   <div style={{ minWidth: 0, overflow: 'hidden' }}>
                     <div className="sf-truncate" style={{ color: 'var(--sf-text)', fontWeight: 700 }} title={brand.name}>{brand.name}</div>
                     <div className="sf-truncate" style={{ color: 'var(--sf-muted)', fontSize: 12 }} title={brand.logo || ''}>
@@ -1261,10 +1261,10 @@ function CreateBrand({ onClose, onSaved }: any) {
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={createdBrand ? undefined : onClose}>
-      <div style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border)', borderRadius: 16, padding: 28, width: '100%', maxWidth: 580, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ color: 'var(--sf-text)', fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, fontWeight: 700 }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }} onClick={createdBrand ? undefined : onClose}>
+      <div className="sf-brand-create-modal" onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
+          <h3 style={{ color: 'var(--sf-text)', fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, fontWeight: 700 }}>
             {createdBrand ? `Documents · ${createdBrand.name}` : 'Add new brand'}
           </h3>
           <button type="button" onClick={createdBrand ? finish : onClose} style={{ background: 'none', border: 'none', color: 'var(--sf-muted)', cursor: 'pointer', fontSize: 22 }}>×</button>

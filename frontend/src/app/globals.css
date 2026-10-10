@@ -792,9 +792,10 @@ html[data-theme='morning'] body {
   flex: none;
 }
 
-/* Fill pages (Updates): lock the main pane so only channel/chat scroll */
+/* Fill pages (Updates / brand detail): lock the main pane; tighter padding for brand room */
 .sf-main-scroll:has(> .sf-page-fill) {
   overflow: hidden;
+  padding: 0.75rem 1rem 1rem;
 }
 
 .sf-page {
@@ -2320,30 +2321,39 @@ html[data-theme='morning'] body {
   }
 }
 
-/* Brand detail page (opened client) */
+/* Brand detail page (opened client) — fill the main pane */
 .sf-brand-inline {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   flex: 1 1 auto;
   min-height: 0;
-  height: calc(100dvh - 168px);
-  max-height: calc(100dvh - 168px);
+  width: 100%;
+  height: calc(100dvh - 132px);
+  max-height: calc(100dvh - 132px);
   overflow: hidden;
+}
+.sf-page-fill .sf-page-toolbar {
+  margin-bottom: 0.35rem;
+  padding-bottom: 0.4rem;
 }
 .sf-page-canvas-fill .sf-brand-inline {
   height: auto;
   max-height: none;
   flex: 1 1 auto;
   min-height: 0;
+  width: 100%;
 }
 .sf-page-canvas-fill {
   min-height: 0;
   overflow: hidden;
+  width: 100%;
+  max-width: none;
 }
 .sf-brand-inline > .sf-brand-page {
   flex: 1 1 auto;
   min-height: 0;
+  width: 100%;
 }
 .sf-brand-inline-find {
   display: flex;
@@ -2356,6 +2366,7 @@ html[data-theme='morning'] body {
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  width: 100%;
   border: 1px solid var(--sf-border);
   border-top: 3px solid var(--sf-accent);
   border-radius: var(--sf-radius);
@@ -2366,7 +2377,7 @@ html[data-theme='morning'] body {
 }
 
 .sf-brand-page-header {
-  padding: 22px 24px 0;
+  padding: 28px 32px 0;
   background: var(--sf-surface);
   border-bottom: 1px solid var(--sf-border);
   flex-shrink: 0;
@@ -2374,16 +2385,16 @@ html[data-theme='morning'] body {
 
 .sf-brand-page-header-top {
   display: flex;
-  gap: 18px;
-  align-items: flex-start;
+  gap: 24px;
+  align-items: center;
   flex-wrap: wrap;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .sf-brand-page-logo {
   flex-shrink: 0;
-  padding: 4px;
-  border-radius: var(--sf-radius);
+  padding: 8px;
+  border-radius: 22px;
   background: var(--sf-surface);
   border: 1px solid var(--sf-border);
   box-shadow: none;
@@ -2395,13 +2406,24 @@ html[data-theme='morning'] body {
 }
 
 .sf-brand-page-name {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 26px;
+  font-size: clamp(1.75rem, 2.4vw, 2.35rem);
   font-weight: 800;
   color: var(--sf-text);
-  line-height: 1.15;
+  line-height: 1.12;
   overflow-wrap: anywhere;
+}
+
+.sf-brand-create-modal {
+  background: var(--sf-surface);
+  border: 1px solid var(--sf-border);
+  border-radius: 16px;
+  padding: 36px 40px;
+  width: min(1100px, 96vw);
+  max-height: 94vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .sf-brand-page-tags {
@@ -2429,13 +2451,13 @@ html[data-theme='morning'] body {
 
 .sf-brand-page-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(72px, 1fr));
-  gap: 10px;
-  margin-bottom: 18px;
+  grid-template-columns: repeat(4, minmax(96px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
 }
 
 .sf-brand-page-stat {
-  padding: 12px 14px;
+  padding: 16px 16px;
   border-radius: var(--sf-radius-sm);
   border: 1px solid var(--sf-border);
   background: var(--sf-surface-2);
@@ -2445,7 +2467,7 @@ html[data-theme='morning'] body {
 .sf-brand-page-stat-val {
   display: block;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 22px;
+  font-size: 28px;
   font-weight: 800;
   line-height: 1.1;
 }
@@ -2571,11 +2593,20 @@ html[data-theme='morning'] body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 20px;
+  padding: 28px 32px 36px;
   min-height: 0;
   max-height: none;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+}
+.sf-brand-page-body .sf-brand-empty {
+  min-height: min(42vh, 420px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 15px;
 }
 .sf-brand-task-scope {
   display: flex;
@@ -3124,9 +3155,15 @@ html[data-theme='morning'] body {
   justify-content: center;
   color: #fff;
   font-weight: 800;
+  font-family: 'Space Grotesk', sans-serif;
+  line-height: 1;
   flex-shrink: 0;
   border: 1px solid color-mix(in srgb, #fff 20%, transparent);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  text-transform: uppercase;
+  overflow: hidden;
+  padding: 0 6%;
+  box-sizing: border-box;
 }
 
 .sf-brand-badge {

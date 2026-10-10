@@ -119,9 +119,28 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
     [visible, selectedId]
   )
 
+  const [brandScopedTasks, setBrandScopedTasks] = useState<any[]>([])
+
+  useEffect(() => {
+    if (!selectedId) {
+      setBrandScopedTasks([])
+      return
+    }
+    let cancelled = false
+    fetch(`/api/tasks?brand_id=${encodeURIComponent(selectedId)}`)
+      .then((r) => r.json())
+      .then((rows) => {
+        if (!cancelled) setBrandScopedTasks(Array.isArray(rows) ? rows : [])
+      })
+      .catch(() => {
+        if (!cancelled) setBrandScopedTasks([])
+      })
+    return () => { cancelled = true }
+  }, [selectedId, tasks])
+
   const brandTasks = useMemo(
-    () => (selected ? tasks.filter(t => sameId(t.brand_id, selected.id)) : []),
-    [tasks, selected]
+    () => (selectedId ? brandScopedTasks.filter((t) => sameId(t.brand_id, selectedId)) : []),
+    [brandScopedTasks, selectedId]
   )
 
   const filteredBrands = useMemo(() => {
@@ -181,7 +200,7 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
   }
 
   return (
-    <PageShell>
+    <PageShell fill={Boolean(selected)}>
       <PageToolbar>
         <PageHeader
           title={session.role === 'team' ? 'My brands' : isReadOnlyRole ? 'Brands (view)' : 'Brands'}
@@ -237,7 +256,13 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
             tab={section}
             onTabChange={changeTab}
             onBack={() => { setSelectedId(null); setModalFind(''); router.replace('/brands') }}
-            onRefresh={load}
+            onRefresh={async () => {
+              await load()
+              if (selectedId) {
+                const rows = await fetch(`/api/tasks?brand_id=${encodeURIComponent(selectedId)}`).then((r) => r.json()).catch(() => [])
+                setBrandScopedTasks(Array.isArray(rows) ? rows : [])
+              }
+            }}
             onBrandUpdated={patchBrand}
             attendance={attendance}
             identityEditNonce={identityEditNonce}
@@ -331,7 +356,16 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
         </>
       )}
 
-      {showCreate && canEdit && <CreateBrand onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); load() }} />}
+      {showCreate && canEdit && (
+        <CreateBrand
+          onClose={() => setShowCreate(false)}
+          onSaved={async (brand?: any) => {
+            setShowCreate(false)
+            await load()
+            if (brand?.id) selectBrand(brand, 'tasks')
+          }}
+        />
+      )}
 
       {flagBrandId && (
         <Modal
@@ -394,8 +428,10 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
     client_type: brand.client_type || 'Retainer',
   })
   const [savingIdentity, setSavingIdentity] = useState(false)
+  const [taskScope, setTaskScope] = useState<'mine' | 'all'>(session.role === 'team' ? 'mine' : 'all')
   const today = todayIST()
   const clockedIn = isClockedInToday(attendance || [], session.id, today)
+  const isTeamRole = session.role === 'team'
   const canSetPrice = canSetTaskPrice(session.role)
   const canSeeBilling = ['owner', 'manager', 'accountant'].includes(session.role)
   const statusSelectStyle = { padding: '4px 8px', background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 6, color: 'var(--sf-text)', fontSize: 11, fontFamily: 'inherit' }
@@ -487,7 +523,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: identityDraft.name?.trim() || brand.name,
-        logo: (identityDraft.logo || brand.name.slice(0, 2)).toUpperCase().slice(0, 8),
+        logo: (identityDraft.logo || brand.name.slice(0, 2)).toUpperCase().slice(0, 32),
         description: identityDraft.description || null,
         short_term_goals: lines(identityDraft.short_term_goals),
         long_term_goals: lines(identityDraft.long_term_goals),
@@ -556,10 +592,15 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
     )
   }
 
-  const projects = tasks.filter((t: any) => t.task_mode === 'project')
-  const standardTasks = tasks.filter((t: any) => t.task_mode !== 'project')
-  const fl = tasks.filter((t: any) => ['Struggling', 'Needs Attention'].includes(t.status))
-  const done = tasks.filter((t: any) => t.status === 'Completed').length
+  function inTaskScope(t: any) {
+    if (!isTeamRole || taskScope === 'all') return true
+    return isTaskAssignee(t, session.id)
+  }
+  const scopedTasks = tasks.filter(inTaskScope)
+  const projects = scopedTasks.filter((t: any) => t.task_mode === 'project')
+  const standardTasks = scopedTasks.filter((t: any) => t.task_mode !== 'project')
+  const fl = scopedTasks.filter((t: any) => ['Struggling', 'Needs Attention'].includes(t.status))
+  const done = scopedTasks.filter((t: any) => t.status === 'Completed').length
 
   function openCreateProject() {
     setCreateAsProject(true)
@@ -662,7 +703,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
         </div>
 
         <div className="sf-brand-page-stats">
-          {[['Total', tasks.length, 'var(--sf-text)'], ['Projects', projects.length, 'var(--sf-accent)'], ['Done', done, 'var(--sf-success)'], ['Flagged', fl.length, 'var(--sf-danger)']].map(([l, v, c]) => (
+          {[['Total', scopedTasks.length, 'var(--sf-text)'], ['Projects', projects.length, 'var(--sf-accent)'], ['Done', done, 'var(--sf-success)'], ['Flagged', fl.length, 'var(--sf-danger)']].map(([l, v, c]) => (
             <div key={String(l)} className="sf-brand-page-stat">
               <span className="sf-brand-page-stat-val" style={{ color: String(c) }}>{v}</span>
               <span className="sf-brand-page-stat-label">{l}</span>
@@ -885,18 +926,60 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
 
       {tab === 'tasks' && (
         <div>
+          {isTeamRole && (
+            <div className="sf-brand-task-scope" role="tablist" aria-label="Task visibility">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={taskScope === 'mine'}
+                className={`sf-workflow-stage-pill${taskScope === 'mine' ? ' is-active' : ''}`}
+                onClick={() => setTaskScope('mine')}
+              >
+                My tasks
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={taskScope === 'all'}
+                className={`sf-workflow-stage-pill${taskScope === 'all' ? ' is-active' : ''}`}
+                onClick={() => setTaskScope('all')}
+              >
+                All member tasks
+              </button>
+            </div>
+          )}
           {standardTasks.length === 0 && (
             <div className="sf-brand-empty">
-              No standard tasks for {brand.name}.
+              {isTeamRole && taskScope === 'mine'
+                ? `No tasks assigned to you on ${brand.name}.`
+                : `No standard tasks for ${brand.name}.`}
               {canEdit && <div style={{ marginTop: 12 }}><button type="button" onClick={openCreateTask} className="sf-btn sf-btn-primary">Add task</button></div>}
             </div>
           )}
           <div className="sf-brand-task-list">
-            {standardTasks.map((t: any) => (
+            {standardTasks.map((t: any) => {
+              const driveLinks = (t.external_links || []).filter((l: any) => l?.url)
+              return (
               <div key={t.id} className="sf-brand-task-row" style={{ cursor: 'default' }}>
                 <div style={{ flex: 1 }} onClick={() => router.push(`/tasks/${t.id}`)} role="button" tabIndex={0}>
                   <div className="sf-brand-task-row-title">{t.title}</div>
                   <div className="sf-brand-task-row-meta">{t.type} · {assigneeLabel(t)} · Due {t.due_date || '—'}</div>
+                  {driveLinks.length > 0 && (
+                    <div className="sf-brand-task-drive">
+                      {driveLinks.map((l: any, i: number) => (
+                        <a
+                          key={`${t.id}-drive-${i}`}
+                          href={l.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="sf-brand-task-drive-link"
+                        >
+                          {l.label || 'Google Drive'} →
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {renderStatus(t)}
                 <button type="button" onClick={() => router.push(`/tasks/${t.id}`)} className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '4px 8px' }}>Open</button>
@@ -906,7 +989,8 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                   </div>
                 )}
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
@@ -1016,7 +1100,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
                   <input type="email" value={identityDraft.contact_email} onChange={e => setIdentityDraft(d => ({ ...d, contact_email: e.target.value }))} placeholder="client@company.com" style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)' }} />
                 </label>
                 <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Initials fallback
-                  <input value={identityDraft.logo} onChange={e => setIdentityDraft(d => ({ ...d, logo: e.target.value.slice(0, 8) }))} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)' }} />
+                  <input value={identityDraft.logo} onChange={e => setIdentityDraft(d => ({ ...d, logo: e.target.value.slice(0, 32) }))} maxLength={32} placeholder="Up to 32 characters" style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)' }} />
                 </label>
                 <label style={{ fontSize: 11, color: 'var(--sf-muted)' }}>Client type
                   <select value={identityDraft.client_type} onChange={e => setIdentityDraft(d => ({ ...d, client_type: e.target.value }))} style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 8, color: 'var(--sf-text)' }}>
@@ -1147,7 +1231,7 @@ function CreateBrand({ onClose, onSaved }: any) {
   async function save() {
     if (!name.trim()) return
     setSaving(true)
-    const logoVal = (logo.trim() || name.trim().slice(0, 2)).toUpperCase().slice(0, 8)
+    const logoVal = (logo.trim() || name.trim().slice(0, 2)).toUpperCase().slice(0, 32)
     const res = await fetch('/api/brands', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1175,11 +1259,11 @@ function CreateBrand({ onClose, onSaved }: any) {
       setCreatedBrand(brand)
       return
     }
-    onSaved()
+    onSaved?.()
   }
 
   function finish() {
-    onSaved()
+    onSaved?.(createdBrand)
   }
 
   return (
@@ -1200,8 +1284,8 @@ function CreateBrand({ onClose, onSaved }: any) {
             </div>
             <div style={{ marginBottom: 12 }}>
               <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Logo initials (fallback)</label>
-              <input value={logo} onChange={e => setLogo(e.target.value.slice(0, 8))} placeholder="e.g. QF (max 8)" style={sInp} />
-              <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 4 }}>After create you can upload logo + brand documents in the next step.</div>
+              <input value={logo} onChange={e => setLogo(e.target.value.slice(0, 32))} maxLength={32} placeholder="e.g. Quick Furnish or QF (max 32)" style={sInp} />
+              <div style={{ color: 'var(--sf-muted)', fontSize: 11, marginTop: 4 }}>Up to 32 characters. After create you can upload a logo image + brand documents.</div>
             </div>
             <div style={{ marginBottom: 12 }}>
               <label style={{ color: 'var(--sf-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }}>Description</label>
@@ -1245,7 +1329,8 @@ function CreateBrand({ onClose, onSaved }: any) {
             </div>
             <FileAttachmentsPanel entityType="brand" entityId={createdBrand.id} canUpload title="Brand documents" />
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-              <button type="button" onClick={finish} className="sf-btn sf-btn-primary">Done</button>
+              <button type="button" onClick={finish} className="sf-btn sf-btn-primary">Open brand page</button>
+              <button type="button" onClick={() => onSaved?.(createdBrand)} className="sf-btn sf-btn-ghost">Done</button>
             </div>
           </>
         )}

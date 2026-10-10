@@ -192,6 +192,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
   const [roleFilter, setRoleFilter] = useState('all')
   const [deptFilter, setDeptFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('active')
+  const [capacityFilter, setCapacityFilter] = useState<'all' | 'Fully Loaded' | 'Moderate' | 'Available'>('all')
   const [userForm, setUserForm] = useState({ name: '', email: '', role: 'team', department: '', department_id: '', designation: '', password: '', manager_id: '', manager_ids: [] as string[], is_active: true })
   const [deptForm, setDeptForm] = useState({ name: '', description: '', manager_id: '' })
   const [systemRoles, setSystemRoles] = useState<{ id: string; label: string; description: string }[]>([])
@@ -473,9 +474,11 @@ export default function TeamClient({ session }: { session: SessionUser }) {
 
   function load(uid: string) {
     const active = tasks.filter(t => isAssigned(t, uid) && !['Completed', 'On Hold'].includes(t.status))
-    if (active.length === 0) return { label: 'Available', color: '#10B981' }
-    if (active.length <= 2) return { label: 'Moderate', color: '#FBBF24' }
-    return { label: 'Fully Loaded', color: '#EF4444' }
+    const cap = 8
+    const pct = Math.min(100, Math.round((active.length / cap) * 100))
+    if (active.length === 0) return { label: 'Available' as const, color: '#10B981', pct, open: 0 }
+    if (active.length <= 2) return { label: 'Moderate' as const, color: '#FBBF24', pct, open: active.length }
+    return { label: 'Fully Loaded' as const, color: '#EF4444', pct, open: active.length }
   }
 
   function sortByImportance(list: any[]) {
@@ -537,11 +540,18 @@ export default function TeamClient({ session }: { session: SessionUser }) {
     if (statusFilter === 'online' && !isOnline(u.id)) return false
     if (roleFilter !== 'all' && normalizeRole(u.role) !== roleFilter) return false
     if (deptFilter !== 'all' && (u.department || '') !== deptFilter) return false
+    if (capacityFilter !== 'all' && load(u.id).label !== capacityFilter) return false
     const q = memberQuery.trim().toLowerCase()
     if (!q) return true
     const hay = `${u.name || ''} ${u.email || ''} ${u.designation || ''} ${u.department || ''} ${u.role || ''}`.toLowerCase()
     return hay.includes(q)
   })
+
+  const capacityRoster = team
+    .filter((u) => u.is_active !== false && normalizeRole(u.role) === 'team')
+    .map((u) => ({ user: u, ...load(u.id) }))
+    .filter((row) => capacityFilter === 'all' || row.label === capacityFilter)
+    .sort((a, b) => b.pct - a.pct)
   const sortedDepartments = [...departments].sort(byName)
   const sortedManagers = [...managers].sort(byName)
   const online = team.filter(u => isOnline(u.id)).length
@@ -805,6 +815,52 @@ export default function TeamClient({ session }: { session: SessionUser }) {
             <StatCard label="Delayed" value={tasks.filter(t => t.due_date && t.due_date < today && t.status !== 'Completed').length} accent="#EF4444" />
           </StatGrid>
 
+          <section className="sf-team-capacity" aria-label="Team capacity">
+            <div className="sf-team-capacity-head">
+              <h2 className="sf-workflow-section-title">Team Capacity</h2>
+              <div className="sf-team-capacity-filters" role="tablist" aria-label="Capacity filter">
+                {(['all', 'Fully Loaded', 'Moderate', 'Available'] as const).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    role="tab"
+                    aria-selected={capacityFilter === f}
+                    className={`sf-workflow-stage-pill${capacityFilter === f ? ' is-active' : ''}`}
+                    onClick={() => setCapacityFilter(f)}
+                  >
+                    {f === 'all' ? 'All' : f}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {capacityRoster.length === 0 ? (
+              <div className="sf-team-capacity-empty">No team members match this capacity filter.</div>
+            ) : (
+              <div className="sf-workflow-capacity-grid">
+                {capacityRoster.map(({ user, pct, label, color }) => (
+                  <button
+                    key={user.id}
+                    type="button"
+                    className="sf-workflow-capacity-card sf-team-capacity-card"
+                    onClick={() => setViewingUser(user)}
+                  >
+                    <div className="sf-workflow-capacity-card-top">
+                      <span className="sf-workflow-capacity-name">{user.name}</span>
+                      <span className="sf-workflow-capacity-pct">{pct}%</span>
+                    </div>
+                    <div className="sf-workflow-capacity-bar">
+                      <div
+                        className={`sf-workflow-capacity-fill${pct >= 85 ? ' is-hot' : ''}`}
+                        style={{ width: `${pct}%`, background: color }}
+                      />
+                    </div>
+                    <span className="sf-team-capacity-label" style={{ color }}>{label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+
           <Section title="Team directory" subtitle={`${filteredTeam.length} shown · scrollable list · search & filter · edit in place`} style={{ marginTop: 16 }} flush>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--sf-border)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', background: 'var(--sf-surface-2)' }}>
               <input
@@ -827,6 +883,12 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                 <option value="online">Online now</option>
                 <option value="inactive">Inactive</option>
                 <option value="all">All statuses</option>
+              </select>
+              <select value={capacityFilter} onChange={(e) => setCapacityFilter(e.target.value as any)} className="sf-input" style={{ width: 'auto', minWidth: 140 }}>
+                <option value="all">All capacity</option>
+                <option value="Fully Loaded">Fully Loaded</option>
+                <option value="Moderate">Moderate</option>
+                <option value="Available">Available</option>
               </select>
             </div>
             <div style={{ maxHeight: 'min(62vh, 720px)', overflowY: 'auto', overflowX: 'auto' }}>

@@ -15,7 +15,7 @@ class Brand(UUIDPKMixin, TimestampsMixin, Base):
     __tablename__ = "brands"
 
     name: Mapped[str] = mapped_column(String(160), nullable=False, unique=True)
-    logo: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    logo: Mapped[str | None] = mapped_column(String(32), nullable=True)
     logo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     contact_email: Mapped[str | None] = mapped_column(String(180), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -211,14 +211,36 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ decision, notes: reviewNotes }),
     })
+    const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
       setNotice(data.error || data.detail || 'Could not review')
       return
     }
+    // Apply returned status immediately so the badge flips off "Under Review".
+    const tid = selectedTaskId
+    const nextStatus = decision === 'approved' ? 'Completed' : 'Revision Needed'
+    setTasks((prev) =>
+      prev.map((t) =>
+        String(t.id) === String(tid)
+          ? {
+              ...t,
+              ...data,
+              status: data.status || nextStatus,
+              review_status: data.review_status || decision,
+              updates_closed: decision === 'approved' ? true : Boolean(data.updates_closed ?? t.updates_closed),
+            }
+          : t
+      )
+    )
+    if (decision === 'approved') {
+      setChannelFilter('closed')
+      setNotice('Approved — task marked Completed.')
+    } else {
+      setNotice('Sent back for revisions.')
+    }
     setReviewNotes('')
     await loadFeed()
-    if (selectedTaskId) await loadThread(selectedTaskId, true)
+    if (tid) await loadThread(tid, true)
   }
 
   const { channels, channelTotal } = useMemo(() => {
@@ -313,7 +335,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     loadThread(channels[0].task.id)
   }, [loading, channels, selectedTaskId, searchParams])
 
-  const selectedTask = tasks.find((t) => t.id === selectedTaskId)
+  const selectedTask = tasks.find((t) => String(t.id) === String(selectedTaskId))
   const assigneeNames = (selectedTask?.assigned_to || [])
     .map((id: string) => users.find((u) => sameUserId(u.id, id))?.name)
     .filter(Boolean)
@@ -503,7 +525,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
 
                   {showTools && selectedTask && (
                     <div className="sf-upd-tools">
-                      {selectedTask.requires_review && (
+                      {selectedTask.requires_review && selectedTask.status !== 'Completed' && (
                         <TaskWorkflowBanner task={selectedTask} role={session.role} compact />
                       )}
                       <div className="sf-upd-tool-row">

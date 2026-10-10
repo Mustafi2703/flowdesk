@@ -8,6 +8,7 @@ import { BrandLogoMark } from '@/components/app/BrandBadge'
 import { Modal } from '@/components/app/Modal'
 import {
   PHASE_COLORS,
+  PHASE_ORDER,
   WORKFLOW_PHASES,
   phaseLabel,
   taskWorkflowPhase,
@@ -202,6 +203,8 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
     return String(d).slice(0, 10) === new Date().toISOString().slice(0, 10)
   }).length
 
+  const [capacityFilter, setCapacityFilter] = useState<'all' | 'Fully Loaded' | 'Moderate' | 'Available'>('all')
+
   const capacity = useMemo(() => {
     const team = users.filter((u) => u.role === 'team' && u.is_active !== false)
     return team.map((u) => {
@@ -212,9 +215,12 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
       ).length
       const cap = 8
       const pct = Math.min(100, Math.round((open / cap) * 100))
-      return { user: u, open, cap, pct }
-    }).sort((a, b) => b.pct - a.pct)
-  }, [users, tasks])
+      const label = open === 0 ? 'Available' : open <= 2 ? 'Moderate' : 'Fully Loaded'
+      const color = open === 0 ? '#10B981' : open <= 2 ? '#FBBF24' : '#EF4444'
+      return { user: u, open, cap, pct, label, color }
+    }).filter((row) => capacityFilter === 'all' || row.label === capacityFilter)
+      .sort((a, b) => b.pct - a.pct)
+  }, [users, tasks, capacityFilter])
 
   const brandsWithOpenTasks = useMemo(() => {
     const ids = new Set(openTasks.map((t) => String(t.brand_id)).filter(Boolean))
@@ -314,17 +320,33 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
       </div>
 
       <div className={`sf-workflow-capacity${showCapacity ? ' is-open' : ''}`}>
-        <h2 className="sf-workflow-section-title">Team Capacity</h2>
+        <div className="sf-team-capacity-head">
+          <h2 className="sf-workflow-section-title">Team Capacity</h2>
+          <div className="sf-team-capacity-filters" role="tablist" aria-label="Capacity filter">
+            {(['all', 'Fully Loaded', 'Moderate', 'Available'] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                role="tab"
+                aria-selected={capacityFilter === f}
+                className={`sf-workflow-stage-pill${capacityFilter === f ? ' is-active' : ''}`}
+                onClick={() => { setCapacityFilter(f); setShowCapacity(true) }}
+              >
+                {f === 'all' ? 'All' : f}
+              </button>
+            ))}
+          </div>
+        </div>
         <button type="button" className="sf-workflow-capacity-toggle" onClick={() => setShowCapacity((v) => !v)}>
-          <span>{capacity.filter((c) => c.pct >= 85).length} near limit · {brandsWithOpenTasks} brands with open work</span>
+          <span>{capacity.filter((c) => c.label === 'Fully Loaded').length} fully loaded · {brandsWithOpenTasks} brands with open work</span>
           <span style={{ fontSize: 11, color: 'var(--sf-muted)' }}>{showCapacity ? 'Hide' : 'Show'}</span>
         </button>
         {showCapacity && (
           capacity.length === 0 ? (
-            <div style={{ color: 'var(--sf-muted)', fontSize: 13, paddingTop: 8 }}>No team members yet.</div>
+            <div style={{ color: 'var(--sf-muted)', fontSize: 13, paddingTop: 8 }}>No team members match this filter.</div>
           ) : (
             <div className="sf-workflow-capacity-grid">
-              {capacity.map(({ user, pct }) => (
+              {capacity.map(({ user, pct, label, color }) => (
                 <div key={user.id} className="sf-workflow-capacity-card">
                   <div className="sf-workflow-capacity-card-top">
                     <span className="sf-workflow-capacity-name">{user.name}</span>
@@ -333,9 +355,10 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
                   <div className="sf-workflow-capacity-bar">
                     <div
                       className={`sf-workflow-capacity-fill${pct >= 85 ? ' is-hot' : ''}`}
-                      style={{ width: `${pct}%` }}
+                      style={{ width: `${pct}%`, background: color }}
                     />
                   </div>
+                  <span className="sf-team-capacity-label" style={{ color }}>{label}</span>
                 </div>
               ))}
             </div>
@@ -345,6 +368,7 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
 
       <section className="sf-workflow-active-section" aria-label="Active campaigns">
         <h2 className="sf-workflow-section-title">Active Campaigns</h2>
+        <p className="sf-workflow-active-lead">Live brand cards with phase progress — filter stages above.</p>
         <div className="sf-campaign-scroll">
           {filteredBrands.length === 0 ? (
             <div className="sf-workflow-empty sf-workflow-empty--wide">No brands match this filter.</div>
@@ -354,7 +378,19 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
                 const pri = priorityTone(brand.priority)
                 const brandTasks = tasks.filter((t) => String(t.brand_id) === String(brand.id))
                 const open = brandTasks.filter((t) => t.status !== 'Completed').length
-                const inReview = brandTasks.filter((t) => t.status === 'Under Review' || t.requires_review).length
+                const openTasksForBrand = brandTasks.filter((t) => t.status !== 'Completed')
+                const phaseCounts = PHASE_ORDER.map((phaseId) =>
+                  openTasksForBrand.filter((t) => taskWorkflowPhase(t) === phaseId).length
+                )
+                const dominantIdx = (() => {
+                  let best = 0
+                  for (let i = 0; i < phaseCounts.length; i += 1) {
+                    if (phaseCounts[i] >= phaseCounts[best]) best = i
+                  }
+                  if (open === 0) return PHASE_ORDER.length - 1
+                  return best
+                })()
+                const currentPhase = PHASE_ORDER[dominantIdx]
                 const people = brandPeople(brand)
                 return (
                   <article key={brand.id} className="sf-workflow-active-card" style={{ '--wf-pri': pri.color } as React.CSSProperties}>
@@ -364,13 +400,19 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
                         <span className="sf-workflow-active-pri">{pri.label}</span>
                       </div>
                       <div className="sf-workflow-active-deliv">
-                        {open} open · {brandTasks.length} task{brandTasks.length === 1 ? '' : 's'}
+                        {brandTasks.length} deliverable{brandTasks.length === 1 ? '' : 's'} · {open} open
                       </div>
-                      {inReview > 0 && (
-                        <div className="sf-workflow-active-phase">
-                          <strong>{inReview}</strong> task{inReview === 1 ? '' : 's'} in review
-                        </div>
-                      )}
+                      <div className="sf-campaign-phase-bar" aria-hidden>
+                        {PHASE_ORDER.map((phaseId, idx) => (
+                          <span
+                            key={phaseId}
+                            className={`sf-campaign-phase-seg${idx <= dominantIdx ? ' is-on' : ''}`}
+                          />
+                        ))}
+                      </div>
+                      <div className="sf-workflow-active-phase">
+                        Current: <strong style={{ color: '#26de81' }}>{phaseLabel(currentPhase)}</strong>
+                      </div>
                       {people.length > 0 && (
                         <div className="sf-workflow-active-avatars">
                           {people.slice(0, 4).map((u: any) => (
@@ -382,7 +424,7 @@ export default function DevBoardClient({ session }: { session: SessionUser }) {
                     </button>
                     {canEdit && (
                       <div className="sf-workflow-active-actions">
-                        <Link href={`/brands?brand=${brand.id}&tab=team`} className="sf-btn sf-btn-ghost" onClick={() => setDetailOpen(false)}>Assign</Link>
+                        <Link href={`/brands?brand=${brand.id}&tab=team`} className="sf-btn sf-btn-ghost" onClick={() => setDetailOpen(false)}>Update Stage</Link>
                         <button type="button" className="sf-btn sf-btn-ghost" onClick={() => { setActionError(''); setFlagNote(''); setFlagBrandId(String(brand.id)) }}>Flag Issue</button>
                       </div>
                     )}

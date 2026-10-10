@@ -7,7 +7,7 @@ import { Icon } from '@/components/app/Icons'
 import { PageHeader, PageShell, Section } from '@/components/app/Section'
 import { StatusBadge, statusTint } from '@/components/app/StatusBadge'
 import { todayIST } from '@/lib/clock'
-import { TASK_STATUSES, allowedTaskStatuses, canManageTasks, canManualStatusChange, canSetTaskPrice, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
+import { TASK_STATUSES, allowedTaskStatuses, canManageTasks, canManualStatusChange, canSetTaskPrice, isClockedInToday, isPersonalDeskTask, isTaskAssignee, sameUserId } from '@/lib/tasks'
 import { ATTENDANCE_CHANGED } from '@/lib/attendance'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { TaskThreadBox } from '@/components/app/TaskThreadBox'
@@ -260,8 +260,19 @@ export default function TasksClient({ session }: { session: SessionUser }) {
 
   const isRecurringTask = (t: any) => Boolean(t?.recurring_config?.enabled)
 
+  const deskTasks = useMemo(() => {
+    // Team desk: only tasks assigned to the logged-in member (backend also enforces this).
+    if (session.role === 'team') {
+      return tasks.filter((t) => isTaskAssignee(t, session.id))
+    }
+    if (session.role === 'manager') {
+      return tasks.filter((t) => isPersonalDeskTask(t, session.id, session.role))
+    }
+    return tasks
+  }, [tasks, session.id, session.role])
+
   const filtered = useMemo(() => {
-    const rows = tasks.filter(t =>
+    const rows = deskTasks.filter(t =>
       (filterStatus==='All'||t.status===filterStatus) &&
       (filterBrand==='All'||t.brand_id===filterBrand)
     )
@@ -283,7 +294,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
       return sortDir === 'asc' ? cmp : -cmp
     })
     return rows
-  }, [tasks, filterStatus, filterBrand, sortBy, sortDir])
+  }, [deskTasks, filterStatus, filterBrand, sortBy, sortDir])
 
   const recurringFiltered = useMemo(() => filtered.filter(isRecurringTask), [filtered])
   const regularFiltered = useMemo(() => filtered.filter((t) => !isRecurringTask(t)), [filtered])
@@ -605,6 +616,14 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
   const [requiresReview, setRequiresReview] = useState(task?.requires_review ?? true)
   const [recurring, setRecurring] = useState(Boolean(task?.recurring_config?.enabled))
   const [recurFreq, setRecurFreq] = useState(task?.recurring_config?.frequency || 'monthly')
+  const [driveUrl, setDriveUrl] = useState(() => {
+    const first = (task?.external_links || []).find((l: any) => l?.url)
+    return first?.url || ''
+  })
+  const [driveLabel, setDriveLabel] = useState(() => {
+    const first = (task?.external_links || []).find((l: any) => l?.url)
+    return first?.label || 'Google Drive'
+  })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
@@ -694,11 +713,17 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
           due_date: st.due_date || null,
         }))
     const effectiveMode = forceProjectMode || needsBrandName ? 'project' : 'standard'
+    const links = [...(isEdit ? (task?.external_links || []) : [])]
+      .filter((l: any) => l?.url && String(l.url).trim() !== String(driveUrl || '').trim())
+    if (driveUrl.trim()) {
+      links.unshift({ label: (driveLabel || 'Google Drive').trim() || 'Google Drive', url: driveUrl.trim() })
+    }
     const body: any = {
       title, description:desc, brand_id:resolvedBrandId, assigned_to:assignedTo,
       type, task_mode:effectiveMode, priority, status, due_date:dueDate,
       requires_review:requiresReview, is_billable:isBillable,
       recurring_config: recurring ? { enabled:true, frequency:recurFreq, next_due:dueDate } : null,
+      external_links: links,
     }
     if (isEdit) {
       body.sub_tasks = cleanedSubTasks
@@ -868,6 +893,23 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
             <div className="sf-task-form-field">
               <label>Due Date *</label>
               <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} style={sInp} />
+            </div>
+
+            <div className="sf-task-form-field">
+              <label>Google Drive link</label>
+              <input
+                value={driveLabel}
+                onChange={e => setDriveLabel(e.target.value)}
+                placeholder="Label (e.g. Review folder)"
+                style={{ ...sInp, marginBottom: 8 }}
+              />
+              <input
+                value={driveUrl}
+                onChange={e => setDriveUrl(e.target.value)}
+                placeholder="https://drive.google.com/…"
+                style={sInp}
+              />
+              <div className="sf-task-form-hint">Optional — shown on Brand → Tasks and the task Files & links tab.</div>
             </div>
 
             <div className="sf-task-form-options">

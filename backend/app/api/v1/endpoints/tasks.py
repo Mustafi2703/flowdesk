@@ -258,9 +258,19 @@ def _can_view_db(db: Session, task: Task, user: Profile) -> bool:
 def list_tasks(
     brand_id: uuid.UUID | None = Query(default=None),
     status_filter: str | None = Query(default=None, alias="status"),
+    scope: str | None = Query(
+        default=None,
+        description="assigned = only my tasks; brand = brand-allocated can see brand mates' tasks",
+    ),
     db: Session = Depends(get_db),
     user: Profile = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
+    """List tasks.
+
+    Team desk (`/tasks`, no brand_id): only tasks assigned to the logged-in member.
+    Brand page (`brand_id` set): brand-allocated members can see all tasks on that brand
+    (UI may still filter to "mine" by default).
+    """
     stmt = select(Task).order_by(Task.created_at.desc())
     if brand_id:
         stmt = stmt.where(Task.brand_id == brand_id)
@@ -268,15 +278,23 @@ def list_tasks(
         stmt = stmt.where(Task.status == status_filter)
     tasks = db.scalars(stmt).all()
     brands = _brand_map(db, [task.brand_id for task in tasks if task.brand_id])
-    visible = [
-        task
-        for task in tasks
-        if _can_view(task, user, brands.get(task.brand_id) if task.brand_id else None)
-    ]
+    role = Role(user.role)
+    want_assigned_only = (
+        role in {Role.TEAM, Role.DEVELOPER}
+        and not brand_id
+        and (scope or "assigned") != "brand"
+    )
+    visible: list[Task] = []
+    for task in tasks:
+        brand = brands.get(task.brand_id) if task.brand_id else None
+        if not _can_view(task, user, brand):
+            continue
+        if want_assigned_only and not _is_assignee(task, user):
+            continue
+        visible.append(task)
     creator_ids = [task.created_by for task in visible if task.created_by]
     assigner_ids = [task.assigned_by for task in visible if task.assigned_by]
     people = _people_map(db, creator_ids, assigner_ids)
-    role = Role(user.role)
     return [_serialize(task, brands, role=role, creators=people, assigners=people) for task in visible]
 
 

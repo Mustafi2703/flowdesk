@@ -2325,9 +2325,25 @@ html[data-theme='morning'] body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  height: calc(100dvh - 156px);
-  min-height: 480px;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: calc(100dvh - 168px);
+  max-height: calc(100dvh - 168px);
   overflow: hidden;
+}
+.sf-page-canvas-fill .sf-brand-inline {
+  height: auto;
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.sf-page-canvas-fill {
+  min-height: 0;
+  overflow: hidden;
+}
+.sf-brand-inline > .sf-brand-page {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .sf-brand-inline-find {
   display: flex;
@@ -2557,7 +2573,89 @@ html[data-theme='morning'] body {
   overflow-x: hidden;
   padding: 20px;
   min-height: 0;
+  max-height: none;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.sf-brand-task-scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.sf-brand-task-drive {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.sf-brand-task-drive-link {
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--sf-accent);
+  text-decoration: none;
+}
+.sf-brand-task-drive-link:hover {
+  text-decoration: underline;
+}
+.sf-team-capacity {
+  margin: 18px 0 8px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  background: var(--sf-surface);
+}
+.sf-team-capacity-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.sf-team-capacity-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sf-team-capacity-empty {
+  color: var(--sf-muted);
+  font-size: 13px;
+  padding: 8px 0;
+}
+.sf-team-capacity-card {
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.sf-team-capacity-label {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.sf-workflow-active-lead {
+  margin: -4px 0 12px;
+  color: var(--sf-muted);
+  font-size: 13px;
+}
+.sf-campaign-phase-bar {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  margin: 10px 0 8px;
+}
+.sf-campaign-phase-seg {
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sf-muted) 28%, var(--sf-surface-2));
+}
+.sf-campaign-phase-seg.is-on {
+  background: #26de81;
 }
 
 .sf-brand-page-toolbar {

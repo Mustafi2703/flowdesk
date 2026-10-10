@@ -1,6 +1,6 @@
 // @ts-nocheck
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { SessionUser, STATUS_BG, STATUS_TEXT } from '@/types'
 import { EmptyState, Icon } from '@/components/app/Icons'
@@ -416,6 +416,8 @@ export default function BrandsClient({ session }: { session: SessionUser }) {
 
 function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers, canAssignTeam, tab, onTabChange, onBack, onRefresh, onBrandUpdated, onDelete, attendance, identityEditNonce = 0 }: any) {
   const router = useRouter()
+  const pageRef = useRef<HTMLDivElement | null>(null)
+  const tabsRef = useRef<HTMLDivElement | null>(null)
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [createAsProject, setCreateAsProject] = useState(false)
   const [managerIds, setManagerIds] = useState<string[]>(() => (brand.assigned_managers || []).map(String))
@@ -699,7 +701,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
   }
 
   return (
-    <div className="sf-brand-page" style={{ '--brand-accent': brandAccent(brand.priority) } as React.CSSProperties}>
+    <div ref={pageRef} className="sf-brand-page" style={{ '--brand-accent': brandAccent(brand.priority) } as React.CSSProperties}>
       <div className="sf-brand-page-header">
         <div className="sf-brand-page-header-top">
           {onBack && (
@@ -748,7 +750,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
 
       </div>
 
-      <div className="sf-brand-page-tabs" role="tablist">
+      <div ref={tabsRef} className="sf-brand-page-tabs" role="tablist">
         {brandTabs.map((t) => (
           <button
             key={t.id}
@@ -756,7 +758,14 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
             role="tab"
             aria-selected={tab === t.id}
             className={`sf-brand-page-tab${tab === t.id ? ' is-active' : ''}`}
-            onClick={() => onTabChange(t.id)}
+            onClick={() => {
+              onTabChange(t.id)
+              const page = pageRef.current
+              const tabs = tabsRef.current
+              if (page && tabs && page.scrollTop < tabs.offsetTop) {
+                page.scrollTo({ top: tabs.offsetTop, behavior: 'smooth' })
+              }
+            }}
           >
             {t.label}
           </button>

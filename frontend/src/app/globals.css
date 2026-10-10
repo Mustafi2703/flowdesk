@@ -2381,7 +2381,11 @@ html[data-theme='morning'] body {
   border-radius: var(--sf-radius);
   background: var(--sf-surface);
   box-shadow: none;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
   color: var(--sf-text);
 }
 
@@ -2476,7 +2480,7 @@ html[data-theme='morning'] body {
 }
 
 .sf-brand-page-stat {
-  padding: 12px 10px;
+  padding: 8px 10px;
   border-radius: var(--sf-radius-sm);
   border: 1px solid var(--sf-border);
   background: var(--sf-surface-2);
@@ -2486,7 +2490,7 @@ html[data-theme='morning'] body {
 .sf-brand-page-stat-val {
   display: block;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 800;
   line-height: 1.1;
 }
@@ -2584,6 +2588,9 @@ html[data-theme='morning'] body {
   flex-shrink: 0;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 
 .sf-brand-page-tab {
@@ -2613,15 +2620,12 @@ html[data-theme='morning'] body {
   font-weight: 700;
 }
 
+/* Body grows with content; the whole .sf-brand-page scrolls so the header can scroll away. */
 .sf-brand-page-body {
-  flex: 1 1 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  flex: 1 0 auto;
+  overflow: visible;
   padding: 16px 18px 24px;
-  min-height: min(420px, 52vh);
-  max-height: none;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
+  min-height: calc(100% - 48px);
 }
 .sf-brand-page-body .sf-brand-empty {
   min-height: min(42vh, 420px);

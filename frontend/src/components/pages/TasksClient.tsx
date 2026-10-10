@@ -7,7 +7,8 @@ import { Icon } from '@/components/app/Icons'
 import { PageHeader, PageShell, Section } from '@/components/app/Section'
 import { StatusBadge, statusTint } from '@/components/app/StatusBadge'
 import { todayIST } from '@/lib/clock'
-import { TASK_STATUSES, allowedTaskStatuses, canManageTasks, canManualStatusChange, canSetTaskPrice, isClockedInToday, isPersonalDeskTask, isTaskAssignee, sameUserId } from '@/lib/tasks'
+import { TASK_STATUSES, allowedTaskStatuses, canManageTasks, canManualStatusChange, canSetTaskPrice, isClockedInToday, isTaskAssignee, sameUserId } from '@/lib/tasks'
+import { departmentColor } from '@/lib/departmentColors'
 import { ATTENDANCE_CHANGED } from '@/lib/attendance'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { TaskThreadBox } from '@/components/app/TaskThreadBox'
@@ -166,13 +167,40 @@ export default function TasksClient({ session }: { session: SessionUser }) {
     return allowedTaskStatuses(task, session.role)
   }
 
-  function assigneeInitials(task: any) {
-    const ids = task.assigned_to || []
-    return ids.slice(0, 3).map((id: string) => {
-      const u = users.find((x) => sameUserId(x.id, id))
-      const name = u?.name || '?'
-      return name.split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase()
-    })
+  function assigneePeople(task: any) {
+    return (task.assigned_to || [])
+      .map((id: string) => users.find((x) => sameUserId(x.id, id)))
+      .filter(Boolean)
+  }
+
+  function personInitials(u: any) {
+    const name = u?.name || '?'
+    return name.split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase()
+  }
+
+  function AssigneeChips({ task, max = 4 }: { task: any; max?: number }) {
+    const people = assigneePeople(task)
+    if (people.length === 0) {
+      return <span className="sf-task-assignee-empty">Unassigned</span>
+    }
+    const shown = people.slice(0, max)
+    const extra = people.length - shown.length
+    return (
+      <div className="sf-task-assignee-chips" title={people.map((u: any) => `${u.name}${u.department ? ` · ${u.department}` : ''}`).join(', ')}>
+        {shown.map((u: any) => (
+          <span
+            key={u.id}
+            className="sf-task-assignee-chip"
+            style={{ background: departmentColor(u.department || task.type) }}
+            title={`${u.name}${u.department ? ` · ${u.department}` : task.type ? ` · ${task.type}` : ''}`}
+          >
+            <span className="sf-task-assignee-av">{personInitials(u)}</span>
+            <span className="sf-task-assignee-name">{u.name?.split(' ')[0]}</span>
+          </span>
+        ))}
+        {extra > 0 && <span className="sf-task-assignee-more">+{extra}</span>}
+      </div>
+    )
   }
 
   function dueChip(task: any) {
@@ -261,12 +289,12 @@ export default function TasksClient({ session }: { session: SessionUser }) {
   const isRecurringTask = (t: any) => Boolean(t?.recurring_config?.enabled)
 
   const deskTasks = useMemo(() => {
-    // Team desk: only tasks assigned to the logged-in member (backend also enforces this).
-    if (session.role === 'team') {
+    // Role-based desk:
+    // - team: only tasks assigned to them (backend enforces too)
+    // - owner/manager: full agency list so they can manage
+    // - hr/accountant: full list (read/manage per existing canEdit rules)
+    if (session.role === 'team' || session.role === 'developer') {
       return tasks.filter((t) => isTaskAssignee(t, session.id))
-    }
-    if (session.role === 'manager') {
-      return tasks.filter((t) => isPersonalDeskTask(t, session.id, session.role))
     }
     return tasks
   }, [tasks, session.id, session.role])
@@ -308,10 +336,6 @@ export default function TasksClient({ session }: { session: SessionUser }) {
     const dl = task.due_date ? Math.ceil((new Date(task.due_date).getTime()-Date.now())/86400000) : null
     const late = dl !== null && dl < 0 && task.status !== 'Completed'
     const recurring = isRecurringTask(task)
-    const assigneeLabel = (task.assigned_to || [])
-      .map((id: string) => users.find((u: any) => sameUserId(u.id, id))?.name)
-      .filter(Boolean)
-      .join(', ') || '—'
     return (
       <tr key={task.id} className={recurring ? 'sf-task-row--recur' : undefined}>
         <td
@@ -336,8 +360,8 @@ export default function TasksClient({ session }: { session: SessionUser }) {
         <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default' }}>
           <BrandBadge brand={task.brand} />
         </td>
-        <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default', color: 'var(--sf-text-secondary)', fontSize: 12, maxWidth: 160 }}>
-          {assigneeLabel}
+        <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default', maxWidth: 220 }}>
+          <AssigneeChips task={task} />
         </td>
         <td onClick={() => openTask(task)} style={{ cursor: canEdit ? 'pointer' : 'default', color: 'var(--sf-muted)', fontSize: 12 }}>
           {task.assigned_by?.name || '—'}
@@ -415,8 +439,12 @@ export default function TasksClient({ session }: { session: SessionUser }) {
       <div className="sf-tasks-top">
         <div className="sf-tasks-top-row">
           <PageHeader
-            title={session.role === 'team' ? 'My Tasks' : 'Tasks'}
-            subtitle={`${filtered.length} items`}
+            title={session.role === 'team' || session.role === 'developer' ? 'My Tasks' : 'Tasks'}
+            subtitle={
+              session.role === 'team' || session.role === 'developer'
+                ? `${filtered.length} assigned to you`
+                : `${filtered.length} items · full agency list`
+            }
           />
           {canCreate && (
             <button onClick={() => setShowCreate(true)} className="sf-btn sf-btn-primary">New task</button>
@@ -424,7 +452,12 @@ export default function TasksClient({ session }: { session: SessionUser }) {
         </div>
         {view !== 'kanban' && canEdit && (
           <p className="sf-tasks-hint">
-            Owners and managers can edit tasks and set prices. Assigned members upload files to send review tasks forward — status moves automatically.
+            Owners and managers see every task and can manage them. Team only sees assigned work. Assignee chips use department colours.
+          </p>
+        )}
+        {view !== 'kanban' && (session.role === 'team' || session.role === 'developer') && (
+          <p className="sf-tasks-hint">
+            Showing only tasks assigned to you. On a Brand page you still get full client context; Brand → Tasks stays assignee-only.
           </p>
         )}
         {!clockedIn && (
@@ -539,7 +572,7 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                 >
                 {colTasks.map(task => {
                   const due = dueChip(task)
-                  const initials = assigneeInitials(task)
+                  const people = assigneePeople(task).slice(0, 3)
                   const recurring = isRecurringTask(task)
                   return (
                   <div key={task.id} className={`sf-trello-card${due?.late ? ' is-late' : ''}${recurring ? ' sf-trello-card--recur' : ''}`}>
@@ -558,8 +591,15 @@ export default function TasksClient({ session }: { session: SessionUser }) {
                     </div>
                     <div className="sf-trello-card-foot">
                       <div className="sf-trello-avatars">
-                        {initials.map((ini: string, i: number) => (
-                          <span key={i} className="sf-trello-avatar" title="Assignee">{ini}</span>
+                        {people.map((u: any) => (
+                          <span
+                            key={u.id}
+                            className="sf-trello-avatar"
+                            style={{ background: departmentColor(u.department || task.type) }}
+                            title={`${u.name}${u.department ? ` · ${u.department}` : task.type ? ` · ${task.type}` : ''}`}
+                          >
+                            {personInitials(u)}
+                          </span>
                         ))}
                       </div>
                       <div className="sf-trello-card-actions">

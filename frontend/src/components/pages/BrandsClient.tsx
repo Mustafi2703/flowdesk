@@ -443,9 +443,10 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
     client_type: brand.client_type || 'Retainer',
   })
   const [savingIdentity, setSavingIdentity] = useState(false)
+  const [taskScope, setTaskScope] = useState<'mine' | 'all'>('mine')
   const today = todayIST()
   const clockedIn = isClockedInToday(attendance || [], session.id, today)
-  const isTeamRole = session.role === 'team'
+  const isTeamRole = session.role === 'team' || session.role === 'developer'
   const canSetPrice = canSetTaskPrice(session.role)
   const canSeeBilling = ['owner', 'manager', 'accountant'].includes(session.role)
   const statusSelectStyle = { padding: '4px 8px', background: 'var(--sf-surface-2)', border: '1px solid var(--sf-border)', borderRadius: 6, color: 'var(--sf-text)', fontSize: 11, fontFamily: 'inherit' }
@@ -606,8 +607,9 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
     )
   }
 
-  // Team: only tasks assigned to them. Owner/manager see the full brand task list.
-  const scopedTasks = isTeamRole
+  // Team defaults to own tasks; can switch to all brand members' tasks.
+  // Owner/manager always see the full brand task list.
+  const scopedTasks = isTeamRole && taskScope === 'mine'
     ? tasks.filter((t: any) => isTaskAssignee(t, session.id))
     : tasks
   const projects = scopedTasks.filter((t: any) => t.task_mode === 'project')
@@ -669,11 +671,31 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
     )
   }
 
-  function assigneeLabel(task: any) {
-    const names = (task.assigned_to || [])
-      .map((id: string) => users.find((u: any) => sameId(u.id, id))?.name)
+  function AssigneeDeptChips({ task }: { task: any }) {
+    const people = (task.assigned_to || [])
+      .map((id: string) => users.find((u: any) => sameId(u.id, id)))
       .filter(Boolean)
-    return names.length ? names.join(', ') : 'Unassigned'
+    if (people.length === 0) {
+      return <span className="sf-task-assignee-empty">Unassigned</span>
+    }
+    return (
+      <div className="sf-task-assignee-chips">
+        {people.slice(0, 4).map((u: any) => {
+          const ini = String(u.name || '?').split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase()
+          return (
+            <span
+              key={u.id}
+              className="sf-task-assignee-chip"
+              style={{ background: departmentColor(u.department || task.type) }}
+              title={`${u.name}${u.department ? ` · ${u.department}` : task.type ? ` · ${task.type}` : ''}`}
+            >
+              <span className="sf-task-assignee-av">{ini}</span>
+              <span className="sf-task-assignee-name">{u.name?.split(' ')[0]}</span>
+            </span>
+          )
+        })}
+      </div>
+    )
   }
 
   return (
@@ -940,11 +962,33 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
       {tab === 'tasks' && (
         <div>
           {isTeamRole && (
-            <p className="sf-brand-task-scope-note">Showing only tasks assigned to you on this brand.</p>
+            <div className="sf-brand-task-scope" role="tablist" aria-label="Task visibility">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={taskScope === 'mine'}
+                className={`sf-workflow-stage-pill${taskScope === 'mine' ? ' is-active' : ''}`}
+                onClick={() => setTaskScope('mine')}
+              >
+                My tasks
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={taskScope === 'all'}
+                className={`sf-workflow-stage-pill${taskScope === 'all' ? ' is-active' : ''}`}
+                onClick={() => setTaskScope('all')}
+              >
+                All member tasks
+              </button>
+              <span className="sf-brand-task-scope-note" style={{ margin: 0, alignSelf: 'center' }}>
+                {taskScope === 'mine' ? 'Only work assigned to you.' : 'All tasks on this brand (department colours on assignees).'}
+              </span>
+            </div>
           )}
           {standardTasks.length === 0 && (
             <div className="sf-brand-empty">
-              {isTeamRole
+              {isTeamRole && taskScope === 'mine'
                 ? `No tasks assigned to you on ${brand.name}.`
                 : `No standard tasks for ${brand.name}.`}
               {canEdit && <div style={{ marginTop: 12 }}><button type="button" onClick={openCreateTask} className="sf-btn sf-btn-primary">Add task</button></div>}
@@ -957,7 +1001,8 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
               <div key={t.id} className="sf-brand-task-row" style={{ cursor: 'default' }}>
                 <div style={{ flex: 1 }} onClick={() => router.push(`/tasks/${t.id}`)} role="button" tabIndex={0}>
                   <div className="sf-brand-task-row-title">{t.title}</div>
-                  <div className="sf-brand-task-row-meta">{t.type} · {assigneeLabel(t)} · Due {t.due_date || '—'}</div>
+                  <div className="sf-brand-task-row-meta">{t.type} · Due {t.due_date || '—'}</div>
+                  <div style={{ marginTop: 6 }}><AssigneeDeptChips task={t} /></div>
                   {driveLinks.length > 0 && (
                     <div className="sf-brand-task-drive">
                       {driveLinks.map((l: any, i: number) => (

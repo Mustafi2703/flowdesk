@@ -7,7 +7,7 @@ import { PageShell } from '@/components/app/Section'
 import { EmptyState } from '@/components/app/Icons'
 import { clockOutWithConfirm, todayIST } from '@/lib/clock'
 import { notifyAttendanceChanged } from '@/lib/attendance'
-import { isPersonalDeskTask, isTaskAssignee } from '@/lib/tasks'
+import { isTaskAssignee } from '@/lib/tasks'
 import { BrandBadge } from '@/components/app/BrandBadge'
 import { StatusBadge } from '@/components/app/StatusBadge'
 
@@ -46,7 +46,8 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
   const isOwner = session.role === 'owner'
   const isManager = session.role === 'manager'
   const isAdmin = isOwner || isManager
-  const personalOnly = !isOwner
+  // Team desk = assignee-only. Owner/manager see the full agency task list.
+  const personalOnly = session.role === 'team' || session.role === 'developer'
 
   useEffect(() => {
     const t = setInterval(() => setNowTick(Date.now()), 60000)
@@ -150,7 +151,10 @@ export default function OverviewClient({ session }: { session: SessionUser }) {
 
   const scopeTasks = useMemo(() => {
     if (!personalOnly) return tasks
-    return tasks.filter((t) => isPersonalDeskTask(t, session.id, session.role))
+    if (session.role === 'team' || session.role === 'developer') {
+      return tasks.filter((t) => isTaskAssignee(t, session.id))
+    }
+    return tasks
   }, [tasks, personalOnly, session.id, session.role])
 
   const openTasks = useMemo(() => {

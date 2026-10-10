@@ -862,40 +862,39 @@ export default function TeamClient({ session }: { session: SessionUser }) {
           </section>
 
           <Section title="Team directory" subtitle={`${filteredTeam.length} shown · scrollable list · search & filter · edit in place`} style={{ marginTop: 16 }} flush>
-            <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--sf-border)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', background: 'var(--sf-surface-2)' }}>
+            <div className="sf-team-dir-filters">
               <input
                 value={memberQuery}
                 onChange={(e) => setMemberQuery(e.target.value)}
                 placeholder="Search name, email, role, designation…"
-                className="sf-input"
-                style={{ flex: '1 1 220px', minWidth: 180, maxWidth: 360 }}
+                className="sf-input sf-team-dir-search"
               />
-              <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="sf-input" style={{ width: 'auto', minWidth: 130 }}>
+              <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="sf-input">
                 <option value="all">All roles</option>
                 {SYSTEM_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>)}
               </select>
-              <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} className="sf-input" style={{ width: 'auto', minWidth: 140 }}>
+              <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} className="sf-input">
                 <option value="all">All departments</option>
                 {deptOptions.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="sf-input" style={{ width: 'auto', minWidth: 120 }}>
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="sf-input">
                 <option value="active">Active</option>
                 <option value="online">Online now</option>
                 <option value="inactive">Inactive</option>
                 <option value="all">All statuses</option>
               </select>
-              <select value={capacityFilter} onChange={(e) => setCapacityFilter(e.target.value as any)} className="sf-input" style={{ width: 'auto', minWidth: 140 }}>
+              <select value={capacityFilter} onChange={(e) => setCapacityFilter(e.target.value as any)} className="sf-input">
                 <option value="all">All capacity</option>
                 <option value="Fully Loaded">Fully Loaded</option>
                 <option value="Moderate">Moderate</option>
                 <option value="Available">Available</option>
               </select>
             </div>
-            <div style={{ maxHeight: 'min(62vh, 720px)', overflowY: 'auto', overflowX: 'auto' }}>
+            <div className="sf-team-dir-scroll">
               {filteredTeam.length === 0 ? (
                 <div style={{ padding: 28, textAlign: 'center', color: 'var(--sf-muted)', fontSize: 13 }}>No members match these filters.</div>
               ) : (
-                <div style={{ minWidth: 720 }}>
+                <div className="sf-team-dir-list">
                 {filteredTeam.map((u: any) => {
                   const l = load(u.id)
                   const perf = memberPerf(u.id)
@@ -907,17 +906,7 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                   return (
                     <div
                       key={u.id}
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'minmax(200px, 1.4fr) minmax(120px, 0.8fr) minmax(140px, 1fr) auto',
-                        gap: 12,
-                        alignItems: 'center',
-                        padding: '12px 16px',
-                        borderBottom: '1px solid var(--sf-border)',
-                        background: viewingUser?.id === u.id ? 'var(--sf-accent-soft)' : 'transparent',
-                        opacity: u.is_active ? 1 : 0.65,
-                        cursor: 'pointer',
-                      }}
+                      className={`sf-team-dir-row${viewingUser?.id === u.id ? ' is-active' : ''}${u.is_active ? '' : ' is-inactive'}`}
                       onClick={() => setViewingUser(u)}
                     >
                       <div style={{ display: 'flex', gap: 12, alignItems: 'center', minWidth: 0 }}>
@@ -945,15 +934,15 @@ export default function TeamClient({ session }: { session: SessionUser }) {
                           <div style={{ color: 'var(--sf-muted-2)', fontSize: 10, marginTop: 4 }}>→ {mgrLabels.join(', ')}</div>
                         )}
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6 }}>
+                      <div className="sf-team-dir-metrics">
                         {[['Alloc', perf.allocated], ['Done', perf.completed], ['Late', perf.delayed], ['On-time', `${perf.onTimePct}%`]].map(([lbl, v]) => (
-                          <div key={String(lbl)} style={{ background: 'var(--sf-surface-2)', borderRadius: 8, padding: '6px 4px', textAlign: 'center' }}>
-                            <div style={{ color: 'var(--sf-text)', fontWeight: 700, fontSize: 12 }}>{v}</div>
-                            <div style={{ color: 'var(--sf-muted)', fontSize: 9 }}>{lbl}</div>
+                          <div key={String(lbl)} className="sf-team-dir-metric">
+                            <div className="sf-team-dir-metric-val">{v}</div>
+                            <div className="sf-team-dir-metric-lbl">{lbl}</div>
                           </div>
                         ))}
                       </div>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
+                      <div className="sf-team-dir-actions" onClick={e => e.stopPropagation()}>
                         {canEditUser(u) && <button type="button" onClick={() => startEditUser(u)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 10px' }}>Edit</button>}
                         {canResetUser(u) && <button type="button" onClick={() => resetPassword(u.id, u.name)} className="sf-btn sf-btn-primary" style={{ fontSize: 11, padding: '6px 10px' }}>Reset</button>}
                         {role === 'owner' && u.id !== session.id && u.is_active && <button type="button" onClick={() => deactivateUser(u.id, u.name)} className="sf-btn sf-btn-ghost" style={{ fontSize: 11, padding: '6px 10px', color: 'var(--sf-danger)' }}>Off</button>}

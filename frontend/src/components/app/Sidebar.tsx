@@ -44,9 +44,11 @@ export default function Sidebar({
 
   useEffect(() => {
     if (!ready) return
-    document.documentElement.style.setProperty('--sf-sidebar-w', collapsed ? '76px' : '260px')
-    document.documentElement.dataset.sidebarCollapsed = collapsed ? 'true' : 'false'
-  }, [collapsed, ready])
+    // On mobile the drawer owns width; keep CSS var at 0 so main content is full-bleed.
+    const narrow = typeof window !== 'undefined' && window.matchMedia('(max-width: 960px)').matches
+    document.documentElement.style.setProperty('--sf-sidebar-w', narrow ? '0px' : collapsed ? '76px' : '260px')
+    document.documentElement.dataset.sidebarCollapsed = !narrow && collapsed ? 'true' : 'false'
+  }, [collapsed, ready, mobileOpen])
 
   function toggleCollapsed() {
     setCollapsed((c) => {
@@ -105,7 +107,12 @@ export default function Sidebar({
   return (
     <aside
       className={`sf-sidebar${collapsed ? ' sf-sidebar--collapsed' : ''}${ready ? ' sf-sidebar--ready' : ''}${mobileOpen ? ' sf-sidebar--mobile-open' : ''}`}
-      style={{ width: sidebarWidth, minWidth: sidebarWidth, maxWidth: sidebarWidth }}
+      style={
+        // Mobile drawer width is controlled in CSS (!important); avoid inline fighting it.
+        mobileOpen
+          ? undefined
+          : { width: sidebarWidth, minWidth: sidebarWidth, maxWidth: sidebarWidth }
+      }
       aria-label="Main navigation"
       aria-expanded={!collapsed}
     >

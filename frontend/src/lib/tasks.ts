@@ -41,6 +41,16 @@ export function canManageTasks(role: string) {
   return ['owner', 'manager'].includes(role)
 }
 
+/** Status for badges/lists — approved reviews always read as Completed. */
+export function effectiveTaskStatus(task: any): string {
+  const status = task?.status || 'Not Started'
+  if (status === 'Completed') return 'Completed'
+  const rs = String(task?.review_status || 'none').toLowerCase()
+  if (rs === 'approved') return 'Completed'
+  if (rs === 'rejected' && status === 'Under Review') return 'Revision Needed'
+  return status
+}
+
 export function canSetTaskPrice(role: string) {
   return ['owner', 'accountant'].includes(role)
 }
@@ -86,7 +96,7 @@ export function canManualStatusChange(task: any, role: string, userId?: string):
 /** Short guidance for review-gated tasks — status moves via upload + manager review. */
 export function taskStatusFlowHint(task: any, role: string): string {
   if (!task?.requires_review) return ''
-  const current = task?.status || 'Not Started'
+  const current = effectiveTaskStatus(task)
   if (canManageTasks(role)) {
     if (current === 'Under Review') return 'Approve or reject this delivery. Reject sends the task back for revisions.'
     if (current === 'Revision Needed') return 'Waiting on assignee to upload a revised file — upload auto-sends it back to review.'

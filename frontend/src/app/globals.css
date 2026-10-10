@@ -269,6 +269,12 @@ html[data-theme='morning'] body {
   margin-top: 4px;
   line-height: 1.4;
 }
+.sf-task-form-drive {
+  padding: 12px 14px;
+  border: 1px dashed color-mix(in srgb, var(--sf-accent) 35%, var(--sf-border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--sf-accent) 6%, var(--sf-surface));
+}
 .sf-task-form-options {
   display: flex;
   flex-direction: column;
@@ -2321,7 +2327,7 @@ html[data-theme='morning'] body {
   }
 }
 
-/* Brand detail page (opened client) — fill the main pane */
+/* Brand detail page (opened client) — scroll inside tab body, not clipped by main */
 .sf-brand-inline {
   display: flex;
   flex-direction: column;
@@ -2329,26 +2335,27 @@ html[data-theme='morning'] body {
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
-  height: calc(100dvh - 132px);
-  max-height: calc(100dvh - 132px);
   overflow: hidden;
 }
 .sf-page-fill .sf-page-toolbar {
+  flex-shrink: 0;
   margin-bottom: 0.35rem;
   padding-bottom: 0.4rem;
 }
 .sf-page-canvas-fill .sf-brand-inline {
-  height: auto;
-  max-height: none;
   flex: 1 1 auto;
   min-height: 0;
+  max-height: 100%;
   width: 100%;
+  overflow: hidden;
 }
 .sf-page-canvas-fill {
   min-height: 0;
   overflow: hidden;
   width: 100%;
   max-width: none;
+  display: flex;
+  flex-direction: column;
 }
 .sf-brand-inline > .sf-brand-page {
   flex: 1 1 auto;
@@ -2364,8 +2371,10 @@ html[data-theme='morning'] body {
 .sf-brand-page {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
+  height: 100%;
+  max-height: 100%;
   width: 100%;
   border: 1px solid var(--sf-border);
   border-top: 3px solid var(--sf-accent);
@@ -2377,7 +2386,7 @@ html[data-theme='morning'] body {
 }
 
 .sf-brand-page-header {
-  padding: 28px 32px 0;
+  padding: 18px 22px 0;
   background: var(--sf-surface);
   border-bottom: 1px solid var(--sf-border);
   flex-shrink: 0;
@@ -2385,10 +2394,10 @@ html[data-theme='morning'] body {
 
 .sf-brand-page-header-top {
   display: flex;
-  gap: 24px;
+  gap: 16px;
   align-items: center;
   flex-wrap: wrap;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .sf-brand-page-logo {
@@ -2406,12 +2415,12 @@ html[data-theme='morning'] body {
 }
 
 .sf-brand-page-name {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: clamp(1.75rem, 2.4vw, 2.35rem);
+  font-size: clamp(1.35rem, 2vw, 1.75rem);
   font-weight: 800;
   color: var(--sf-text);
-  line-height: 1.12;
+  line-height: 1.15;
   overflow-wrap: anywhere;
 }
 
@@ -2461,13 +2470,13 @@ html[data-theme='morning'] body {
 
 .sf-brand-page-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(96px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
+  grid-template-columns: repeat(4, minmax(72px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
 }
 
 .sf-brand-page-stat {
-  padding: 16px 16px;
+  padding: 12px 10px;
   border-radius: var(--sf-radius-sm);
   border: 1px solid var(--sf-border);
   background: var(--sf-surface-2);
@@ -2565,17 +2574,22 @@ html[data-theme='morning'] body {
 
 .sf-brand-page-tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 0 16px;
+  flex-wrap: nowrap;
+  gap: 0;
+  padding: 0 8px;
   border-bottom: 1px solid var(--sf-border);
   background: var(--sf-surface);
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: hidden;
   flex-shrink: 0;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 .sf-brand-page-tab {
-  padding: 12px 16px;
+  padding: 10px 12px;
+  flex: 0 0 auto;
+  white-space: nowrap;
   border: none;
   border-bottom: 2px solid transparent;
   background: transparent;
@@ -2600,11 +2614,11 @@ html[data-theme='morning'] body {
 }
 
 .sf-brand-page-body {
-  flex: 1;
+  flex: 1 1 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 28px 32px 36px;
-  min-height: 0;
+  padding: 16px 18px 24px;
+  min-height: min(420px, 52vh);
   max-height: none;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
@@ -8974,17 +8988,26 @@ html[data-theme='morning'] .sf-sidebar .sf-sidebar-collapse-btn {
   font-family: inherit;
 }
 .sf-campaign-scroll {
-  max-height: min(68vh, 760px);
-  overflow-y: auto;
   border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
   background: var(--sf-surface);
   padding: 12px;
-  -webkit-overflow-scrolling: touch;
+  overflow: visible;
 }
 .sf-campaign-scroll-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+}
+@media (max-width: 1024px) {
+  .sf-campaign-scroll-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .sf-campaign-scroll-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .sf-workflow-active-phase {
   font-size: 11px;
@@ -9418,10 +9441,7 @@ html[data-theme='morning'] .sf-sidebar .sf-sidebar-collapse-btn {
     max-width: none;
   }
   .sf-campaign-scroll {
-    max-height: none;
-  }
-  .sf-campaign-scroll-grid {
-    grid-template-columns: 1fr;
+    padding: 10px;
   }
   .sf-brand-page-tabs {
     flex-wrap: nowrap;
@@ -9504,9 +9524,7 @@ html[data-theme='morning'] .sf-sidebar .sf-sidebar-collapse-btn {
     max-height: none;
   }
   .sf-brand-inline {
-    height: auto;
-    max-height: none;
-    min-height: calc(100dvh - 9.5rem);
+    min-height: 0;
   }
   .sf-brand-create-overlay {
     padding: 0;

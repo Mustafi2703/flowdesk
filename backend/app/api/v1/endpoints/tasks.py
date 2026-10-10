@@ -93,6 +93,13 @@ def _serialize(
     assigner = None
     if assigner_id:
         assigner = (assigners or {}).get(assigner_id) or (creators or {}).get(assigner_id)
+    review_status = getattr(task, "review_status", None) or "none"
+    status = task.status
+    # Keep API/UI aligned when review decision and status column drift (legacy rows).
+    if review_status == "approved" and status != "Completed":
+        status = "Completed"
+    elif review_status == "rejected" and status == "Under Review":
+        status = "Revision Needed"
     payload: dict[str, Any] = {
         "id": str(task.id),
         "title": task.title,
@@ -115,7 +122,7 @@ def _serialize(
         "type": task.type,
         "task_mode": task.task_mode,
         "priority": task.priority,
-        "status": task.status,
+        "status": status,
         "start_date": task.start_date.isoformat() if task.start_date else None,
         "due_date": task.due_date.isoformat() if task.due_date else None,
         "requires_review": task.requires_review,
@@ -128,7 +135,7 @@ def _serialize(
         "timeline": task.timeline or [],
         "recurring_config": task.recurring_config,
         "external_links": getattr(task, "external_links", None) or [],
-        "review_status": getattr(task, "review_status", None) or "none",
+        "review_status": review_status,
         "review_version": getattr(task, "review_version", None) or "1",
         "review_history": getattr(task, "review_history", None) or [],
         "updates_closed": bool(getattr(task, "updates_closed", False)),

@@ -18,6 +18,14 @@ import { BrandBadge } from '@/components/app/BrandBadge'
 const STATUSES = TASK_STATUSES
 const PRIORITIES = ['Critical','High','Medium','Low']
 const TYPES = ['Design','Content','Development','Strategy','Operations','Other']
+
+function normalizeExternalUrl(raw: string) {
+  const t = raw.trim()
+  if (!t) return ''
+  if (/^https?:\/\//i.test(t)) return t
+  return `https://${t}`
+}
+
 const BOARD_COLUMNS: { status: TaskStatus; label: string }[] = [
   { status: 'Not Started', label: 'To Do' },
   { status: 'In Progress', label: 'Doing' },
@@ -755,8 +763,9 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
     const effectiveMode = forceProjectMode || needsBrandName ? 'project' : 'standard'
     const links = [...(isEdit ? (task?.external_links || []) : [])]
       .filter((l: any) => l?.url && String(l.url).trim() !== String(driveUrl || '').trim())
-    if (driveUrl.trim()) {
-      links.unshift({ label: (driveLabel || 'Google Drive').trim() || 'Google Drive', url: driveUrl.trim() })
+    const normalizedDrive = normalizeExternalUrl(driveUrl)
+    if (normalizedDrive) {
+      links.unshift({ label: (driveLabel || 'Google Drive').trim() || 'Google Drive', url: normalizedDrive })
     }
     const body: any = {
       title, description:desc, brand_id:resolvedBrandId, assigned_to:assignedTo,
@@ -873,6 +882,23 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
               />
             </div>
 
+            <div className="sf-task-form-field sf-task-form-drive">
+              <label>Google Drive link</label>
+              <input
+                value={driveLabel}
+                onChange={e => setDriveLabel(e.target.value)}
+                placeholder="Label (e.g. Review folder)"
+                style={{ ...sInp, marginBottom: 8 }}
+              />
+              <input
+                value={driveUrl}
+                onChange={e => setDriveUrl(e.target.value)}
+                placeholder="https://drive.google.com/…"
+                style={sInp}
+              />
+              <div className="sf-task-form-hint">Optional — paste a shared Drive folder or file link. Saved on create and shown under Brand → Tasks.</div>
+            </div>
+
             {isEdit && task?.id && (
               <div className="sf-task-form-field">
                 <FileAttachmentsPanel entityType="task" entityId={task.id} title="Task files & review uploads" />
@@ -933,23 +959,6 @@ export function TaskFormModal({ session, brands, users, task, onClose, onSaved, 
             <div className="sf-task-form-field">
               <label>Due Date *</label>
               <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} style={sInp} />
-            </div>
-
-            <div className="sf-task-form-field">
-              <label>Google Drive link</label>
-              <input
-                value={driveLabel}
-                onChange={e => setDriveLabel(e.target.value)}
-                placeholder="Label (e.g. Review folder)"
-                style={{ ...sInp, marginBottom: 8 }}
-              />
-              <input
-                value={driveUrl}
-                onChange={e => setDriveUrl(e.target.value)}
-                placeholder="https://drive.google.com/…"
-                style={sInp}
-              />
-              <div className="sf-task-form-hint">Optional — shown on Brand → Tasks and the task Files & links tab.</div>
             </div>
 
             <div className="sf-task-form-options">

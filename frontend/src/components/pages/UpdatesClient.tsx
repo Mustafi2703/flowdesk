@@ -8,7 +8,7 @@ import { PageHeader, PageShell } from '@/components/app/Section'
 import { StatusBadge, statusTint } from '@/components/app/StatusBadge'
 import { Modal } from '@/components/app/Modal'
 import { todayIST } from '@/lib/clock'
-import { allowedTaskStatuses, canManualStatusChange, isClockedInToday, isTaskAssignee, sameUserId, taskStatusFlowHint } from '@/lib/tasks'
+import { allowedTaskStatuses, canManualStatusChange, effectiveTaskStatus, isClockedInToday, isTaskAssignee, sameUserId, taskStatusFlowHint } from '@/lib/tasks'
 import { FileAttachmentsPanel } from '@/components/app/FileAttachmentsPanel'
 import { TaskWorkflowBanner } from '@/components/app/TaskWorkflowBanner'
 import { ATTENDANCE_CHANGED } from '@/lib/attendance'
@@ -66,7 +66,13 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
   const today = todayIST()
   const clockedIn = isClockedInToday(attendance, session.id, today)
 
-  async function loadFeed() {
+  function mergeTaskRow(list: any[], row: Record<string, unknown>) {
+    const id = String(row.id || '')
+    if (!id) return list
+    return list.map((t) => (String(t.id) === id ? { ...t, ...row } : t))
+  }
+
+  async function loadFeed(taskOverride?: Record<string, unknown> | null) {
     const [u, t, peeps, att] = await Promise.all([
       fetch('/api/updates').then((r) => r.json()),
       fetch('/api/tasks').then((r) => r.json()),
@@ -74,7 +80,11 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
       fetch('/api/attendance').then((r) => r.json()).catch(() => []),
     ])
     setUpdates(Array.isArray(u) ? u : [])
-    setTasks(Array.isArray(t) ? t : [])
+    let taskList = Array.isArray(t) ? t : []
+    if (taskOverride?.id) {
+      taskList = mergeTaskRow(taskList, taskOverride)
+    }
+    setTasks(taskList)
     setUsers(Array.isArray(peeps) ? peeps : [])
     setAttendance(Array.isArray(att) ? att : [])
     setLoading(false)
@@ -219,19 +229,14 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     // Apply returned status immediately so the badge flips off "Under Review".
     const tid = selectedTaskId
     const nextStatus = decision === 'approved' ? 'Completed' : 'Revision Needed'
-    setTasks((prev) =>
-      prev.map((t) =>
-        String(t.id) === String(tid)
-          ? {
-              ...t,
-              ...data,
-              status: data.status || nextStatus,
-              review_status: data.review_status || decision,
-              updates_closed: decision === 'approved' ? true : Boolean(data.updates_closed ?? t.updates_closed),
-            }
-          : t
-      )
-    )
+    const patched = {
+      ...data,
+      id: data.id || tid,
+      status: data.status || nextStatus,
+      review_status: data.review_status || decision,
+      updates_closed: decision === 'approved' ? true : Boolean(data.updates_closed),
+    }
+    setTasks((prev) => mergeTaskRow(prev, patched))
     if (decision === 'approved') {
       setChannelFilter('closed')
       setNotice('Approved — task marked Completed.')
@@ -239,7 +244,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
       setNotice('Sent back for revisions.')
     }
     setReviewNotes('')
-    await loadFeed()
+    await loadFeed(patched)
     if (tid) await loadThread(tid, true)
   }
 
@@ -251,9 +256,9 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
     }
     let list = tasks
     if (channelFilter === 'active') {
-      list = list.filter((t) => !t.updates_closed && t.status !== 'Completed')
+      list = list.filter((t) => !t.updates_closed && effectiveTaskStatus(t) !== 'Completed')
     } else if (channelFilter === 'closed') {
-      list = list.filter((t) => t.updates_closed || t.status === 'Completed')
+      list = list.filter((t) => t.updates_closed || effectiveTaskStatus(t) === 'Completed')
     }
     const rows = list.map((t) => {
       const last = byTask.get(t.id)
@@ -288,7 +293,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
       const brand = row.task.brand?.name || 'No brand'
       const cur = map.get(brand) || { total: 0, active: 0 }
       cur.total += 1
-      const closed = row.task.updates_closed || row.task.status === 'Completed'
+      const closed = row.task.updates_closed || effectiveTaskStatus(row.task) === 'Completed'
       if (!closed) cur.active += 1
       map.set(brand, cur)
     }
@@ -312,7 +317,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
         groups.push(current)
       }
       current.items.push(row)
-      const closed = row.task.updates_closed || row.task.status === 'Completed'
+      const closed = row.task.updates_closed || effectiveTaskStatus(row.task) === 'Completed'
       if (!closed) current.activeCount += 1
     }
     return groups
@@ -464,7 +469,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                         <span className="sf-upd-channel-meta">
                           {!closed && <span className="sf-upd-channel-live">Active</span>}
                           {closed && <span className="sf-upd-channel-archived">Closed</span>}
-                          <StatusBadge status={task.status} />
+                          <StatusBadge status={effectiveTaskStatus(task)} />
                           {msgCount > 0 && <span className="sf-upd-channel-msgs">{msgCount}</span>}
                         </span>
                         <span className="sf-upd-channel-preview">
@@ -504,7 +509,7 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                       </p>
                     </div>
                     <div className="sf-upd-head-tools">
-                      <StatusBadge status={selectedTask.status} />
+                      <StatusBadge status={effectiveTaskStatus(selectedTask)} />
                       <Link href={`/tasks/${selectedTask.id}`} className="sf-btn sf-btn-ghost">Open task</Link>
                       <button type="button" className="sf-btn sf-btn-ghost" onClick={() => setShowTools((v) => !v)}>
                         {showTools ? 'Hide tools' : 'Task tools'}
@@ -525,13 +530,13 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
 
                   {showTools && selectedTask && (
                     <div className="sf-upd-tools">
-                      {selectedTask.requires_review && selectedTask.status !== 'Completed' && (
+                      {selectedTask.requires_review && effectiveTaskStatus(selectedTask) !== 'Completed' && (
                         <TaskWorkflowBanner task={selectedTask} role={session.role} compact />
                       )}
                       <div className="sf-upd-tool-row">
                         {showStatusSelect ? (
                           <select
-                            value={selectedTask.status}
+                            value={effectiveTaskStatus(selectedTask)}
                             onChange={(e) => updateStatus(e.target.value)}
                             className="sf-input"
                             style={statusTint(selectedTask.status)}
@@ -558,23 +563,19 @@ export default function UpdatesClient({ session }: { session: SessionUser }) {
                         />
                       )}
 
-                      {isMgmt && selectedTask.requires_review && selectedTask.status === 'Under Review' && (
+                      {isMgmt && selectedTask.requires_review && effectiveTaskStatus(selectedTask) === 'Under Review' && (
                         <div className="sf-upd-tool-block">
                           <div className="sf-upd-label">Review · v{selectedTask.review_version || '1'} · {selectedTask.review_status && selectedTask.review_status !== 'none' ? selectedTask.review_status : 'pending'}</div>
-                          {clockedIn ? (
-                            <div className="sf-upd-tool-row">
-                              <input
-                                value={reviewNotes}
-                                onChange={(e) => setReviewNotes(e.target.value)}
-                                placeholder="Comment (required to reject)"
-                                className="sf-input"
-                              />
-                              <button type="button" className="sf-btn sf-btn-primary" onClick={() => decideReview('approved')}>Approve</button>
-                              <button type="button" className="sf-btn sf-btn-ghost" style={{ color: 'var(--sf-danger)' }} onClick={() => decideReview('rejected')}>Reject</button>
-                            </div>
-                          ) : (
-                            <div className="sf-upd-hint">Clock in to approve or reject.</div>
-                          )}
+                          <div className="sf-upd-tool-row">
+                            <input
+                              value={reviewNotes}
+                              onChange={(e) => setReviewNotes(e.target.value)}
+                              placeholder="Comment (required to reject)"
+                              className="sf-input"
+                            />
+                            <button type="button" className="sf-btn sf-btn-primary" onClick={() => decideReview('approved')}>Approve</button>
+                            <button type="button" className="sf-btn sf-btn-ghost" style={{ color: 'var(--sf-danger)' }} onClick={() => decideReview('rejected')}>Reject</button>
+                          </div>
                         </div>
                       )}
                     </div>

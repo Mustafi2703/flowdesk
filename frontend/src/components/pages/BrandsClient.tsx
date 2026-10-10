@@ -708,7 +708,7 @@ function BrandDetail({ brand, tasks, users, session, canEdit, canAssignManagers,
             </button>
           )}
           <div className="sf-brand-page-logo">
-            <BrandLogoMark brand={brand} size={148} />
+            <BrandLogoMark brand={brand} size={96} />
           </div>
           <div className="sf-brand-page-intro">
             <h1 className="sf-brand-page-name">{brand.name}</h1>
